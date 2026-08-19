@@ -4,7 +4,7 @@ import { useKeyboardInset } from "../lib/keyboard";
 import { api, rupees, type ReportItem } from "../lib/api";
 import PlaceInput from "../sections/PlaceInput";
 import { DateField, TimeField, Select } from "../components/Picker";
-import { setUserToken } from "../lib/account";
+import { setUserToken, useMe } from "../lib/account";
 import VastuForm, { type VastuValue } from "../components/VastuForm";
 
 const STAGES = [
@@ -85,6 +85,29 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
   // what we show, and the order endpoint re-checks it before charging anything.
   // The pay button lives in a fixed bar, which iOS puts behind the keyboard.
   const keyboard = useKeyboardInset();
+
+  /**
+   * Name and number only, if we already know them.
+   *
+   * Deliberately not the birth details, even though the profile carries them.
+   * A date and time silently filled in is a date and time nobody checks, and
+   * this is the one form where a wrong value produces a wrong book — clause 3
+   * of the Terms puts that on the buyer, which is only fair if they typed it.
+   * Contact details are different: getting those wrong costs a delivery, and
+   * the buyer sees them on screen anyway.
+   */
+  const { data: me } = useMe();
+  const prefilled = useRef(false);
+  useEffect(() => {
+    if (prefilled.current || !me?.user) return;
+    prefilled.current = true;
+    setF((prev) => ({
+      ...prev,
+      name: prev.name || me.user.name || "",
+      buyer_phone: prev.buyer_phone || me.user.phone || "",
+      buyer_email: prev.buyer_email || me.user.email || ""
+    }));
+  }, [me]);
 
   const [coupon, setCoupon] = useState("");
   const [applied, setApplied] = useState<{ code: string; discount_paise: number; final_paise: number } | null>(null);
@@ -232,25 +255,34 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
   );
 
   return (
-    <div className="shell py-10 sm:py-14 max-w-3xl pb-32 sm:pb-14">
+    <div className="shell py-5 sm:py-14 max-w-3xl pb-32 sm:pb-14">
       <button onClick={onBack} className="text-[13.5px] text-faint hover:text-fg">← Back</button>
 
-      <div className="mt-6 flex items-baseline justify-between gap-4 flex-wrap">
+      {/* The price is pinned to the bottom bar two inches below, and the report
+          name is what the reader just tapped. Repeating both at the top of a
+          390px screen pushed the first field under the fold. */}
+      <div className="mt-4 sm:mt-6 flex items-baseline justify-between gap-4 flex-wrap">
         <h1 className="display text-[24px] sm:text-[40px]">
           {isProperty ? "About your home" : "Your birth details"}
         </h1>
-        <div className="text-right">
+        <div className="hidden sm:block text-right">
           <div className="text-[13px] text-faint">{item?.name_en}</div>
           <div className="display text-[21px]">{item ? rupees(item.price_paise) : ""}</div>
         </div>
       </div>
-      <p className="lede mt-3">
+      <p className="hidden sm:block lede mt-3">
         {isProperty
           ? "The facing matters more than anything else here — it decides what belongs in every other corner. Stand inside your main door looking out; that is the direction the home faces."
           : "Birth time matters more than anything else here — it fixes the ascendant and every house cusp. Use a birth certificate if you have one."}
       </p>
+      {/* One line on a phone: the single thing that changes the answer. */}
+      <p className="sm:hidden text-[13px] text-muted mt-2 leading-snug">
+        {isProperty
+          ? "The facing decides everything else — stand inside your main door looking out."
+          : "Birth time matters most: it fixes the ascendant and every house."}
+      </p>
 
-      <div ref={formRef} className="mt-10 space-y-10">
+      <div ref={formRef} className="mt-6 sm:mt-10 space-y-8 sm:space-y-10">
         <Block n="01" title={isProperty ? "The home being read" : "Who the reading is for"}>
         <Field id="field-name" label={isProperty ? "Name to print on the report" : "Full name"}
                error={errors.name}>

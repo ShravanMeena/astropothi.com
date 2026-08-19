@@ -1,4 +1,5 @@
 import { SUPPORT, waLink, mailLink, prettyPhone } from "../lib/support";
+import Logo from "../components/Logo";
 export default function Footer({ onAstrologers, onGo }: {
   onAstrologers: () => void; onGo: (path: string) => void;
 }) {
@@ -7,7 +8,7 @@ export default function Footer({ onAstrologers, onGo }: {
       <div className="flex flex-col sm:flex-row gap-8 sm:items-end justify-between">
         <div>
           <div className="flex items-baseline gap-2">
-            <span className="display text-[20px]">Pothi</span>
+            <Logo size={20} />
             <span className="deva text-[13px] text-brass">पोथी</span>
           </div>
           <p className="text-[13.5px] text-muted mt-2 max-w-md leading-relaxed">

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import ThemeToggle from "../components/ThemeToggle";
 import type { Theme } from "../lib/theme";
+import Logo from "../components/Logo";
 
 export default function Nav({ onBuy, onAstrologers, onGo, signedIn, onSignIn, onProfile, theme, setTheme }: {
   onBuy: () => void; onAstrologers: () => void; onGo: (path: string) => void;
@@ -17,8 +18,8 @@ export default function Nav({ onBuy, onAstrologers, onGo, signedIn, onSignIn, on
     <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-xl border-b border-line">
       <div className="shell h-16 flex items-center justify-between gap-4">
         <button onClick={() => onGo("/")} className="flex items-baseline gap-2 shrink-0">
-          <span className="display text-[21px]">Pothi</span>
-          <span className="deva text-[13px] text-brass hidden sm:inline">पोथी</span>
+          <Logo size={20} />
+          <span className="deva text-[13px] text-brass hidden lg:inline">पोथी</span>
         </button>
 
         <nav className="hidden md:flex items-center gap-8 text-[14.5px] text-muted">

@@ -1,38 +1,69 @@
 import { useRef, useState } from "react";
-import ReportCover from "../components/ReportCover";
 import { rupees, type ReportItem } from "../lib/api";
 
 /**
- * The mobile hero's shelf: real covers, swiped sideways.
+ * The mobile hero's shelf: a designed banner per report, swiped sideways.
  *
- * The desktop hero is a book that opens as you scroll — 220vh of sticky track.
- * On a phone that ate the whole screen and pushed the buttons under the fold,
- * so the first thing a visitor saw was an animation with nothing to press. This
- * replaces it below `sm`: one screen of copy, then the range itself, swipeable.
+ * The first version put the rendered cover in a card, which made nine cards
+ * that were nine photographs of the same object — the covers differ by a
+ * colourway and a title, and at 74px wide that difference is invisible. A
+ * banner has to sell one reading in one glance, so each is built rather than
+ * photographed: its own colour, its own Devanagari word set large as the
+ * graphic, the question the report answers, and the price on a button that
+ * says what happens next.
  *
- * Every banner is the report's own rendered cover, not artwork — the same image
- * the buyer gets. Snap points make it feel like a shelf rather than a
- * free-scrolling strip, and the edge padding lets the next card peek so the
- * gesture is discoverable without a hint.
+ * Fixed height on purpose. Cards that size themselves to their copy make a
+ * ragged shelf, and the eye reads the ragged edge before it reads any of the
+ * words.
  */
 
-const HOOK: Record<string, string> = {
-  kundli:     "Every house, every planet, dashas with dates",
-  dosh:       "Fourteen doshas tested — and what is cancelled",
-  love:       "How you love, and whether it lasts",
-  health:     "Your constitution, and what to look after",
-  horoscope:  "This month against your own chart",
-  laalkitab:  "A different tradition, and its own remedies",
-  varshaphal: "The year ahead, month by month",
-  vastu:      "Your home, direction by direction",
-  career:     "What your chart says about work"
+type Banner = {
+  deva: string; question: string; sub: string;
+  /** Two stops and an ink, per report. Kept as raw values rather than theme
+   *  tokens: these are the product's own colours and must not flip with the
+   *  light/dark switch, the way a printed cover does not. */
+  from: string; to: string; ink: string;
 };
 
-const DEVA: Record<string, string> = {
-  kundli: "कुंडली", dosh: "दोष", love: "विवाह", health: "आरोग्य",
-  horoscope: "राशिफल", laalkitab: "लाल किताब", varshaphal: "वर्षफल",
-  vastu: "वास्तु", career: "कर्म"
+const B: Record<string, Banner> = {
+  kundli:     { deva: "कुंडली",      question: "Your whole chart, read properly",
+                sub: "64 chapters · every house, every planet, every dasha",
+                from: "#3B2A0E", to: "#171008", ink: "#E9C877" },
+  dosh:       { deva: "दोष",         question: "Is something actually blocked?",
+                sub: "14 doshas tested — what forms, what is cancelled",
+                from: "#3A1712", to: "#170B09", ink: "#F0A98C" },
+  love:       { deva: "विवाह",       question: "Will this one last?",
+                sub: "How you love, where the friction is, and the timing",
+                from: "#3A1526", to: "#170A11", ink: "#F2A6C6" },
+  health:     { deva: "आरोग्य",      question: "What your body asks of you",
+                sub: "Constitution, the 6th house, and what to look after",
+                from: "#0E3327", to: "#081712", ink: "#8FE0BC" },
+  horoscope:  { deva: "राशिफल",      question: "This month, against your chart",
+                sub: "Not a sun-sign column — your transits, with dates",
+                from: "#141F3E", to: "#0A0E1B", ink: "#A8BEF5" },
+  laalkitab:  { deva: "लाल किताब",   question: "The remedies nobody else gives",
+                sub: "A different tradition, with its own practical upaay",
+                from: "#3D1414", to: "#180909", ink: "#F0A0A0" },
+  varshaphal: { deva: "वर्षफल",      question: "What this year holds",
+                sub: "Your solar return, Muntha, and month-by-month themes",
+                from: "#33290E", to: "#161207", ink: "#EBD08A" },
+  vastu:      { deva: "वास्तु",      question: "Why the house feels wrong",
+                sub: "Nine directions checked — with remedies, no demolition",
+                from: "#123028", to: "#081512", ink: "#9BDCC4" },
+  career:     { deva: "कर्म",        question: "Job, or your own thing?",
+                sub: "The 10th house, the Dashamsha, and when work turns",
+                from: "#1D2733", to: "#0B0F14", ink: "#AFC6DC" }
 };
+
+/** The chart diamond, flat, as the banner's own graphic. */
+const Diamond = ({ ink }: { ink: string }) => (
+  <svg viewBox="0 0 120 120" className="absolute -right-6 -bottom-7 w-[132px] h-[132px]"
+       fill="none" aria-hidden style={{ color: ink, opacity: .17 }}>
+    <rect x="6" y="6" width="108" height="108" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M60 6 114 60 60 114 6 60Z" stroke="currentColor" strokeWidth="1.4" />
+    <path d="M6 6 60 60 6 114M114 6 60 60l54 54" stroke="currentColor" strokeWidth="1.1" opacity=".7" />
+  </svg>
+);
 
 export default function ReportBanners({ items, onPick }: {
   items: ReportItem[]; onPick: (code: string) => void;
@@ -40,46 +71,73 @@ export default function ReportBanners({ items, onPick }: {
   const rail = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState(0);
 
-  // Which card is under the left edge, for the dots. Read from scroll position
-  // rather than IntersectionObserver: one number, no observer per card.
   const onScroll = () => {
     const el = rail.current;
     if (!el) return;
     const card = el.firstElementChild as HTMLElement | null;
     if (!card) return;
-    const step = card.offsetWidth + 12;
-    setAt(Math.round(el.scrollLeft / step));
+    setAt(Math.round(el.scrollLeft / (card.offsetWidth + 12)));
   };
 
   if (!items.length) return null;
 
   return (
-    <div className="mt-8">
+    <div className="mt-7">
       <div ref={rail} onScroll={onScroll}
            className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-smooth
-                      -mx-5 px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {items.map((r) => (
-          <button key={r.code} onClick={() => onPick(r.code)}
-            className="group snap-start shrink-0 w-[76vw] max-w-[300px] text-left
-                       card overflow-hidden active:scale-[.99] transition-transform">
-            <div className="flex gap-3.5 p-3.5">
-              <ReportCover code={r.code} className="w-[74px] shrink-0" />
-              <div className="min-w-0 flex-1 flex flex-col">
-                <span className="deva text-[12px] text-brass leading-none">{DEVA[r.code]}</span>
-                <h3 className="display text-[17px] leading-tight mt-1.5">{r.name_en}</h3>
-                <p className="text-[12.5px] text-muted leading-snug mt-1.5 line-clamp-2">
-                  {HOOK[r.code]}
+                      -mx-5 px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {items.map((r) => {
+          const b = B[r.code] ?? B.kundli;
+          return (
+            <button key={r.code} onClick={() => onPick(r.code)}
+              aria-label={`${r.name_en} — ${rupees(r.price_paise)}`}
+              className="group relative snap-start shrink-0 w-[78vw] max-w-[310px] h-[228px]
+                         rounded-2xl overflow-hidden text-left ring-1 ring-white/10
+                         active:scale-[.985] transition-transform"
+              style={{ background: `linear-gradient(152deg, ${b.from}, ${b.to})` }}>
+              <Diamond ink={b.ink} />
+
+              <div className="relative h-full p-4 flex flex-col">
+                <div className="flex items-start justify-between gap-3">
+                  <span className="deva text-[26px] leading-none font-semibold" style={{ color: b.ink }}>
+                    {b.deva}
+                  </span>
+                  <span className="text-[10px] uppercase tracking-[.16em] px-2 py-1 rounded-full
+                                   bg-white/10 text-white/70 whitespace-nowrap">
+                    {r.chapters} ch
+                  </span>
+                </div>
+
+                <h3 className="display text-[19px] leading-[1.18] text-white mt-3 pr-2">
+                  {b.question}
+                </h3>
+                <p className="text-[12px] leading-snug text-white/55 mt-1.5 pr-4 line-clamp-2">
+                  {b.sub}
                 </p>
-                {/* mt-auto pins the price to the bottom of the card whatever the
-                    hook wraps to, so a row of cards lines up. */}
-                <div className="mt-auto pt-2 flex items-baseline gap-2">
-                  <span className="display text-[16px] text-brass">{rupees(r.price_paise)}</span>
-                  <span className="text-[11.5px] text-faint">{r.chapters} chapters</span>
+
+                {/* mt-auto: the button sits on the bottom edge of every banner,
+                    so nine of them make one straight line across the shelf. */}
+                <div className="mt-auto flex items-center justify-between gap-3">
+                  <div>
+                    <div className="display text-[19px] leading-none" style={{ color: b.ink }}>
+                      {rupees(r.price_paise)}
+                    </div>
+                    <div className="text-[10.5px] text-white/40 mt-1">one-time</div>
+                  </div>
+                  <span className="inline-flex items-center gap-1.5 h-9 pl-4 pr-3.5 rounded-full
+                                   text-[13px] font-medium text-black"
+                        style={{ background: b.ink }}>
+                    Book now
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+                         strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                      <path d="M5 12h13M13 6l6 6-6 6" />
+                    </svg>
+                  </span>
                 </div>
               </div>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex items-center justify-center gap-1.5 mt-3">

@@ -8,6 +8,8 @@ import SampleModal from "../components/SampleModal";
 import { COVER_PALETTE } from "../components/ReportCover";
 import CountUp from "../components/CountUp";
 import { track } from "../lib/track";
+import WhyUs from "../sections/WhyUs";
+import SoftSignIn from "../components/SoftSignIn";
 
 type Detail = {
   code: string; name_en: string; chapters: number; price_paise: number; approx_pages: number;
@@ -79,6 +81,19 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
   const [sample, setSample] = useState(false);
 
   const heroRef = useRef<HTMLElement>(null);
+  // The sticky bar and the hero button are the same offer. Showing both at once
+  // is the page asking twice, and on a 390px screen the bar covers content
+  // while an identical button sits above it. So the bar appears only once the
+  // real one has scrolled away.
+  const ctaRef = useRef<HTMLDivElement>(null);
+  const [ctaSeen, setCtaSeen] = useState(true);
+  useEffect(() => {
+    const el = ctaRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setCtaSeen(e.isIntersecting), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [code, d]);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
   // The stack drifts up and the chart rotates as the hero leaves — slow enough
@@ -147,60 +162,50 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
               )}
               {err && <p className="mt-4 text-[14px] text-ember">{err}</p>}
 
-              <div className="mt-10 flex flex-wrap items-center gap-4">
-                <button className="btn-brass h-[52px] px-8 text-[16px]"
+              {/* Side by side, not stacked. Two full-width buttons in a column
+                  read as a list of steps — "generate, then read a sample" —
+                  when they are alternatives. Buy takes the wider share. */}
+              <div ref={ctaRef} className="mt-8 sm:mt-10 flex items-center gap-3">
+                <button className="btn-brass h-[52px] px-5 sm:px-8 text-[15px] sm:text-[16px] flex-[1.35] sm:flex-none"
                         onClick={() => onBuy(code, design, palette)}>
-                  Generate mine — {price}
+                  <span className="sm:hidden">Get it — {price}</span>
+                  <span className="hidden sm:inline">Generate mine — {price}</span>
                 </button>
                 {d?.sample && (
-                  <button className="btn-line h-[52px]"
+                  <button className="btn-line h-[52px] px-4 sm:px-7 text-[15px] flex-1 sm:flex-none"
                           onClick={() => { track("sample_opened", { code }); setSample(true); }}>
-                    Read a sample
+                    Sample
                   </button>
                 )}
               </div>
-              <p className="mt-4 text-[13px] text-faint">
-                Delivered as a PDF in under a minute · No account needed
+              <p className="mt-3.5 text-[12.5px] sm:text-[13px] text-faint">
+                PDF in under a minute · No account needed
               </p>
 
-              {/* Two things a buyer weighs at exactly this moment: what if the
-                  report is worthless to me, and what if I do not understand it.
-                  Both are answered here rather than three screens later. */}
-              <div className="mt-6 flex items-start gap-3 max-w-prose2">
-                <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
-                     strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
-                     className="text-brass shrink-0 mt-0.5" aria-hidden>
-                  <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.3 9.3 0 0 1-3.3-.6L3 21l1.8-5a8.2 8.2 0 0 1-.8-3.5 8.4 8.4 0 0 1 8.5-8.4 8.4 8.4 0 0 1 8.5 8.4Z" />
-                </svg>
-                <p className="text-[13.5px] leading-relaxed text-muted">
-                  <span className="text-fg font-medium">You can ask your report anything.</span>{" "}
-                  Once it is ready, ask it in your own words — “what does this say about
-                  my marriage?”, “which period is difficult?”, “explain chapter 7” — and it
-                  answers from your chapters, in English or Hindi.
-                </p>
-              </div>
-
-              <div className="mt-6 inline-flex items-start gap-3 rounded-xl border border-brass/35
-                              bg-brassSoft/25 dark:bg-brass/10 px-4 py-3 max-w-prose2">
-                <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
-                     strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
-                     className="text-brass shrink-0 mt-px" aria-hidden>
+              {/* Short. The long version lives on the refunds page, and a
+                  paragraph of reassurance at the top of a sales page reads as
+                  protesting too much. */}
+              <div className="mt-5 inline-flex items-center gap-2.5 rounded-full border border-brass/35
+                              bg-brassSoft/25 dark:bg-brass/10 pl-3 pr-4 py-2">
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+                     strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+                     className="text-brass shrink-0" aria-hidden>
                   <path d="M12 3l7.5 3v5.2c0 4.4-3 8.3-7.5 9.6-4.5-1.3-7.5-5.2-7.5-9.6V6z" />
                   <path d="m9 12 2.2 2.2L15.5 10" />
                 </svg>
-                <p className="text-[13.5px] leading-relaxed text-fg">
-                  <strong>100% refund, no questions asked.</strong>{" "}
-                  <span className="text-muted">
-                    Not satisfied with your report? Message us and we return the full amount. You
-                    do not have to explain why, and you keep the file.
-                  </span>
+                <p className="text-[13px] leading-tight text-fg">
+                  <strong>100% refund</strong>
+                  <span className="text-muted">, no questions asked</span>
                 </p>
               </div>
             </div>
 
-            {/* The artefact, at a size you can actually judge — and turnable,
-                because a book that only sits there is a photograph. */}
-            <motion.div style={{ y: stackY }} className="relative mx-auto w-full max-w-[380px]">
+            {/* Desktop only. On a phone this sat directly under the refund
+                line, pushing everything that sells the report below a
+                full-height picture of a book the reader has not bought yet —
+                and the sample is one tap away from the button above it. */}
+            <motion.div style={{ y: stackY }}
+                        className="hidden lg:block relative mx-auto w-full max-w-[380px]">
               <PageTurner shots={shots} single maxW={380} showChrome={false} />
               <p className="mt-6 text-center caps text-faint">
                 Tap the page to turn · {designs.find((x) => x.id === design)?.name.en ?? ""} edition
@@ -250,6 +255,41 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
           </div>
         </section>
       )}
+
+      {/* Moved out of the hero deliberately. At the top it competed with the
+          price and the refund for the same glance; here it lands after the
+          reader has seen what is actually in the book, which is the moment
+          "what if I do not understand it" occurs to them. */}
+      <section className="shell py-11 sm:py-20">
+        <div className="card p-5 sm:p-8 flex gap-4 sm:gap-6 items-start max-w-3xl mx-auto">
+          <span className="shrink-0 h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-brassSoft/50 dark:bg-brass/15
+                           text-brass grid place-items-center">
+            <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor"
+                 strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.3 9.3 0 0 1-3.3-.6L3 21l1.8-5a8.2 8.2 0 0 1-.8-3.5 8.4 8.4 0 0 1 8.5-8.4 8.4 8.4 0 0 1 8.5 8.4Z" />
+            </svg>
+          </span>
+          <div className="min-w-0">
+            <h2 className="display text-[19px] sm:text-[24px] leading-snug">
+              Ask your report anything
+            </h2>
+            <p className="text-[13.5px] sm:text-[15px] text-muted mt-2 leading-relaxed">
+              A {d?.chapters ?? ""}-chapter book is a lot to hold in your head. Once it is
+              ready, ask it in your own words and it answers from your own chapters — in
+              English or Hindi, as often as you like, at no extra cost.
+            </p>
+            <div className="mt-3.5 flex flex-wrap gap-1.5">
+              {["What does this say about my marriage?", "Which period is difficult?",
+                "Explain chapter 7 simply"].map((q) => (
+                <span key={q} className="rounded-full border border-line bg-sunken
+                                         px-3 py-1.5 text-[11.5px] text-muted">{q}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <WhyUs />
 
       <Engine />
 
@@ -355,14 +395,20 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
         </div>
       </section>
 
+      {/* Thirty seconds on one report is interest; the ask is reasonable by
+          then and an interruption before it. */}
+      <SoftSignIn context={`report/${code}`} />
+
       <SampleModal open={sample} onClose={() => setSample(false)} shots={shots}
                    title={d?.name_en ?? ""} pdfUrl={d?.sample?.pdf} />
 
       {/* Mobile: the price and the button follow the reader down the page. This
           is the page paid traffic lands on; it must never be more than a thumb
           away from buying. */}
-      <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-line
-                      bg-surface/95 backdrop-blur-xl"
+      <div className={`sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-line
+                       bg-surface/95 backdrop-blur-xl transition-transform duration-200
+                       ${ctaSeen ? "translate-y-full" : "translate-y-0"}`}
+           aria-hidden={ctaSeen}
            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="shell py-3 flex items-center gap-4">
           <div className="shrink-0">

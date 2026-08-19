@@ -51,6 +51,30 @@ export function noAuth() {
     return ok(res, { token: signUserToken(user), user: U.publicUser(user) });
   }));
 
+  /**
+   * Sign in with a name and a number, no OTP.
+   *
+   * Exactly the trade the checkout already makes (see config.autoLoginOnOrder):
+   * typing a number signs you in, and does NOT prove you own it — so the user
+   * is left unverified, and every place that matters reads verified_at rather
+   * than the token. Nothing is charged from here and no birth data is taken;
+   * the value is that a report bought later lands on an account instead of
+   * being lost.
+   *
+   * Gated on the same config flag, so turning auto-login off turns this off too
+   * rather than leaving a second door open.
+   */
+  r.post("/soft-signin", h(async (req, res) => {
+    if (!config.autoLoginOnOrder) return fail(res, "Not available", 404);
+    const phone = U.cleanPhone(req.body.phone);
+    const name = String(req.body.name || "").trim().slice(0, 120);
+    if (phone.length !== 10) return fail(res, "A 10-digit mobile number is required");
+    if (!name) return fail(res, "A name is required");
+
+    const user = await U.upsertByPhone(phone, { name });
+    return ok(res, { token: signUserToken(user), user: U.publicUser(user) });
+  }));
+
   return r;
 }
 

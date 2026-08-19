@@ -17,15 +17,22 @@ type Shot = { page: number; url: string };
  * Zoom: a toggle rather than pinch, because pinch inside a scroll-locked
  * overlay fights the browser and loses on iOS. At 2× the page pans by drag.
  */
+type Mode = "book" | "pdf";
+
 export default function BookReader({ open, onClose, shots, title, subtitle, pdfUrl }: {
   open: boolean; onClose: () => void; shots: Shot[];
   title: string; subtitle?: string; pdfUrl?: string | null;
 }) {
   const [zoom, setZoom] = useState(false);
+  // Two ways to read the same file. The book is ours and is nicer; the PDF is
+  // the one people already know, scrolls continuously, and is the only way to
+  // search or select text. Neither is a fallback for the other.
+  const [mode, setMode] = useState<Mode>("book");
 
   useEffect(() => {
     if (!open) return;
     setZoom(false);
+    setMode("book");
     const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", esc);
     const prev = document.body.style.overflow;
@@ -52,6 +59,19 @@ export default function BookReader({ open, onClose, shots, title, subtitle, pdfU
               <p className="text-[14px] sm:text-[15px] text-white/90 truncate">{title}</p>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              {pdfUrl && (
+                <div className="flex rounded-full bg-white/10 p-0.5 mr-1">
+                  {(["book", "pdf"] as Mode[]).map((m) => (
+                    <button key={m} onClick={() => { setMode(m); setZoom(false); }}
+                      aria-pressed={mode === m}
+                      className={`h-8 px-3 rounded-full text-[12px] font-medium transition
+                                  ${mode === m ? "bg-brass text-surface" : "text-white/70 hover:text-white"}`}>
+                      {m === "book" ? "Book" : "PDF"}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {mode === "book" && (
               <button onClick={() => setZoom((z) => !z)}
                       aria-label={zoom ? "Fit the page to the screen" : "Zoom in"}
                       aria-pressed={zoom}
@@ -63,6 +83,7 @@ export default function BookReader({ open, onClose, shots, title, subtitle, pdfU
                   <path d="M11 8v6M8 11h6" opacity={zoom ? 0 : 1} /><path d="M8 11h6" opacity={zoom ? 1 : 0} />
                 </svg>
               </button>
+              )}
               {pdfUrl && (
                 <a href={pdfUrl} download aria-label="Download the PDF"
                    className="hidden sm:inline-flex btn-line btn-sm border-white/25 text-white/80
@@ -74,7 +95,20 @@ export default function BookReader({ open, onClose, shots, title, subtitle, pdfU
             </div>
           </header>
 
-          {/* overflow-auto so a zoomed page can be panned by dragging it */}
+          {mode === "pdf" && pdfUrl ? (
+            // The browser's own viewer: continuous scroll, text selection,
+            // search, and the print button people expect.
+            <object data={pdfUrl} type="application/pdf" className="flex-1 w-full bg-white/5"
+                    aria-label={`${title} as a PDF`}>
+              <div className="h-full grid place-items-center p-8 text-center">
+                <p className="text-[14px] text-white/70">
+                  This browser will not display a PDF inline.{" "}
+                  <a href={pdfUrl} download className="text-brass underline">Download it instead</a>.
+                </p>
+              </div>
+            </object>
+          ) : (
+          /* overflow-auto so a zoomed page can be panned by dragging it */
           <div className={`relative flex-1 ${zoom ? "overflow-auto" : "overflow-hidden"}
                            px-3 sm:px-8 py-4 sm:py-8 flex items-start sm:items-center justify-center`}>
             <div className="w-full origin-top transition-transform duration-200"
@@ -84,8 +118,9 @@ export default function BookReader({ open, onClose, shots, title, subtitle, pdfU
                           showChrome={!zoom} caption={subtitle} />
             </div>
           </div>
+          )}
 
-          {!zoom && (
+          {mode === "book" && !zoom && (
             <p className="relative z-10 shrink-0 pb-3 text-center text-[11.5px] text-white/35"
                style={{ paddingBottom: "calc(env(safe-area-inset-bottom) + 0.75rem)" }}>
               Swipe, or tap either side of the page
