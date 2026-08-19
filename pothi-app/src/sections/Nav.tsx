@@ -1,3 +1,4 @@
+import { useState } from "react";
 import ThemeToggle from "../components/ThemeToggle";
 import type { Theme } from "../lib/theme";
 
@@ -8,6 +9,7 @@ export default function Nav({ onBuy, onAstrologers, onGo, signedIn, onSignIn, on
 }) {
   // Reports and Questions are their own pages now, so they must navigate rather
   // than jump to an anchor that only exists on the home page.
+  const [menu, setMenu] = useState(false);
   const link = (path: string, label: string) => (
     <button onClick={() => onGo(path)} className="hover:text-fg transition">{label}</button>
   );
@@ -25,9 +27,12 @@ export default function Nav({ onBuy, onAstrologers, onGo, signedIn, onSignIn, on
           {link("/faq", "Questions")}
         </nav>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          {/* On a phone the header had a three-way theme switch, an account
+              circle and a CTA fighting for 390px. The theme switch is a setting,
+              not a top-level action — it moves to the menu below. */}
+          <div className="hidden sm:block"><ThemeToggle theme={theme} setTheme={setTheme} /></div>
           {/* Deliberately quiet. Astrologers arrive through our team, not this link. */}
-          <ThemeToggle theme={theme} setTheme={setTheme} />
           <button onClick={onAstrologers}
                   className="hidden md:inline text-[13.5px] text-faint hover:text-fg transition">
             For astrologers
@@ -46,12 +51,47 @@ export default function Nav({ onBuy, onAstrologers, onGo, signedIn, onSignIn, on
               Sign in
             </button>
           )}
+          {/* The menu carries everything that does not fit: the nav links, the
+              theme switch, sign in. Nothing is unreachable on a phone. */}
+          <button onClick={() => setMenu((m) => !m)} aria-label="Menu" aria-expanded={menu}
+                  className="md:hidden h-9 w-9 rounded-full border border-line text-muted
+                             grid place-items-center hover:border-brass hover:text-brass transition">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+                 strokeWidth="1.9" strokeLinecap="round">
+              {menu ? <path d="M6 6l12 12M18 6L6 18" />
+                    : <><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></>}
+            </svg>
+          </button>
           <button className="btn-dark btn-sm" onClick={onBuy}>
             <span className="hidden xs:inline">Get your report</span>
             <span className="xs:hidden">Get report</span>
           </button>
         </div>
       </div>
+
+      {menu && (
+        <div className="md:hidden border-t border-line bg-surface">
+          <div className="shell py-3 flex flex-col">
+            {[["/reports", "Reports"], ["/#how", "How it works"], ["/faq", "Questions"]].map(([to, label]) => (
+              <button key={to} onClick={() => { setMenu(false); onGo(to); }}
+                      className="py-3 text-left text-[15px] text-fg border-b border-line">
+                {label}
+              </button>
+            ))}
+            {!signedIn && (
+              <button onClick={() => { setMenu(false); onSignIn(); }}
+                      className="py-3 text-left text-[15px] text-fg border-b border-line">
+                Sign in
+              </button>
+            )}
+            <button onClick={() => { setMenu(false); onAstrologers(); }}
+                    className="py-3 text-left text-[15px] text-muted">
+              For astrologers
+            </button>
+            <div className="pt-3 pb-1"><ThemeToggle theme={theme} setTheme={setTheme} /></div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

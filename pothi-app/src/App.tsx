@@ -11,6 +11,10 @@ import Engine from "./sections/Engine";
 import ReportPage from "./pages/ReportPage";
 import ReportsPage from "./pages/ReportsPage";
 import FaqPage from "./pages/FaqPage";
+import TermsPage from "./pages/legal/TermsPage";
+import PrivacyPage from "./pages/legal/PrivacyPage";
+import RefundsPage from "./pages/legal/RefundsPage";
+import ContactPage from "./pages/legal/ContactPage";
 import BuyPage from "./pages/BuyPage";
 import OrderPage from "./pages/OrderPage";
 import Dashboard from "./dashboard/Dashboard";
@@ -19,6 +23,8 @@ import SignIn from "./components/SignIn";
 import ProfilePage from "./pages/ProfilePage";
 import { useSignedIn } from "./lib/account";
 import { useTheme } from "./lib/theme";
+import Support from "./components/Support";
+import { startTracking, pageView, track } from "./lib/track";
 
 export default function App() {
   const { route, go } = useRoute();
@@ -31,6 +37,28 @@ export default function App() {
   const signedIn = useSignedIn();
   // Design chosen on the report page is carried into checkout.
   const [pick, setPick] = useState({ design: "heritage", palette: "gold" });
+
+  // Behaviour tracking starts before anything else so the very first page view
+  // of a session is recorded, including for a visitor who bounces in 3 seconds.
+  useEffect(() => { startTracking(); }, []);
+
+  // Every route change is a page view. Recorded here rather than in each page
+  // so a new screen cannot be added and quietly go unmeasured.
+  useEffect(() => {
+    const fresh = pageView({
+      route: route.name,
+      ...("code" in route ? { code: route.code } : {}),
+      ...("page" in route ? { page: route.page } : {}),
+      ...("id" in route ? { order_id: route.id } : {})
+    });
+    // Fired from the arrival, not the click, so an ad landing straight on
+    // /report/kundli counts the same as a click from the grid. Gated on `fresh`
+    // so React's development double-invoke does not double-count.
+    if (!fresh) return;
+    if (route.name === "report")  track("report_viewed", { code: route.code });
+    if (route.name === "buy")     track("checkout_started", { code: route.code });
+    if (route.name === "order")   track("payment_returned", { order_id: route.id });
+  }, [route]);
 
   useEffect(() => {
     api.get("/noauth-api/v1/shop/catalogue")
@@ -57,14 +85,14 @@ export default function App() {
   if (route.name === "dashboard") return <Dashboard onExit={() => go("/")} />;
 
   const openReport = (code: string) => go(`/report/${code}`);
-  const openBuy = (code: string) => go(`/buy/${code}`);
+  const openBuy = (code: string) => { track("buy_clicked", { code, from: route.name }); go(`/buy/${code}`); };
   // The guide belongs where someone is still choosing, not mid-checkout.
   const guideWelcome = route.name === "home" || route.name === "reports" || route.name === "faq";
 
   return (
     <>
       <Nav onBuy={() => go("/reports")} onAstrologers={() => go("/astrologers")} onGo={nav}
-           signedIn={signedIn} onSignIn={() => setSignIn(true)} onProfile={() => go("/profile")}
+           signedIn={signedIn} onSignIn={() => { track("signin_opened", { from: route.name }); setSignIn(true); }} onProfile={() => go("/profile")}
            theme={theme} setTheme={setTheme} />
       <main>
         {route.name === "home" && (
@@ -86,7 +114,7 @@ export default function App() {
                 </p>
                 <div className="mt-9 flex flex-wrap justify-center gap-3">
                   <button className="btn-brass h-[52px] px-8 text-[16px]" onClick={() => go("/reports")}>
-                    Browse the seven reports
+                    Browse all {items.length} reports
                   </button>
                   <button className="btn-line h-[52px]" onClick={() => go("/faq")}>Read the questions</button>
                 </div>
@@ -103,10 +131,20 @@ export default function App() {
           <FaqPage onBuy={() => go("/reports")} onAskGuide={() => setGuide(true)} />
         )}
 
+        {route.name === "legal" && (
+          route.page === "terms"   ? <TermsPage onGo={nav} />
+          : route.page === "privacy" ? <PrivacyPage onGo={nav} />
+          : route.page === "refunds" ? <RefundsPage onGo={nav} />
+          :                            <ContactPage onGo={nav} />
+        )}
+
         {route.name === "report" && (
           <ReportPage code={route.code} designs={designs} palettes={palettes}
             onHome={() => go("/reports")}
-            onBuy={(code, design, palette) => { setPick({ design, palette }); go(`/buy/${code}`); }} />
+            onBuy={(code, design, palette) => {
+              track("buy_clicked", { code, design, palette, from: "report" });
+              setPick({ design, palette }); go(`/buy/${code}`);
+            }} />
         )}
 
         {route.name === "buy" && (
@@ -124,10 +162,17 @@ export default function App() {
           <ProfilePage onOpenOrder={(pid) => go(`/order/${pid}`)} onHome={() => go("/")}
                        onSignIn={() => setSignIn(true)} />
         )}
+        {/* Reachable from wherever someone gets stuck, not only from a
+            "Contact" link nobody clicks. */}
+        {/* Order and profile place it themselves, with the order number in the
+            message — a second copy here would be the same panel twice. */}
+        {route.name !== "order" && route.name !== "profile" && route.name !== "legal" && (
+          <div className="shell pb-16"><Support where={route.name} /></div>
+        )}
       </main>
       <Footer onAstrologers={() => go("/astrologers")} onGo={nav} />
 
-      <GuideButton onClick={() => setGuide(true)} hidden={!guideWelcome || guide} />
+      <GuideButton onClick={() => { track("guide_opened", { from: route.name }); setGuide(true); }} hidden={!guideWelcome || guide} />
       <Guide items={items} open={guide} onClose={() => setGuide(false)}
              onReport={openReport} onBuy={openBuy} />
       <SignIn open={signIn} onClose={() => setSignIn(false)} onDone={() => go("/profile")} />

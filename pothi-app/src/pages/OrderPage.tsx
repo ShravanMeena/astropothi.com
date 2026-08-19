@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { api, rupees, type OrderStatus } from "../lib/api";
+import Support from "../components/Support";
+import { track } from "../lib/track";
 import PageTurner from "../components/PageTurner";
 import ChartMark from "../components/ChartMark";
+import AskReport from "../components/AskReport";
 
 type Shot = { page: number; url: string };
 
@@ -57,6 +60,16 @@ export default function OrderPage({ id, onHome, onProfile }: {
     }, 2500);
     return () => clearInterval(t);
   }, [id, o?.status]);
+
+  // The last step of the funnel. Fired from here rather than from the server
+  // because the fact worth counting is that the BUYER saw their report was
+  // ready — a report generated into a tab nobody has open is not a conversion.
+  const [announced, setAnnounced] = useState(false);
+  useEffect(() => {
+    if (o?.status !== "ready" || announced) return;
+    setAnnounced(true);
+    track("order_ready", { order_id: id, code: o.report_type });
+  }, [o?.status, announced, id]);
 
   // The pages are rasterised on the server the first time anyone asks, which
   // takes a few seconds on a long book — so fetch them alongside the order
@@ -119,11 +132,13 @@ export default function OrderPage({ id, onHome, onProfile }: {
             {st === "ready" ? (
               <>
                 <button className="btn-brass h-[52px] px-8 text-[16px]"
-                        disabled={!canRead} onClick={() => setReading(true)}>
+                        disabled={!canRead}
+                        onClick={() => { track("reader_opened", { order_id: id }); setReading(true); }}>
                   {pages === null ? "Preparing the pages…" : canRead ? "Read it here" : "Reading unavailable"}
                 </button>
                 <a className={`btn-line h-[52px] ${o?.pdf_url ? "" : "pointer-events-none opacity-40"}`}
-                   href={o?.pdf_url || "#"} download>
+                   href={o?.pdf_url || "#"} download
+                   onClick={() => track("report_downloaded", { order_id: id })}>
                   Download PDF
                 </a>
               </>
@@ -154,8 +169,15 @@ export default function OrderPage({ id, onHome, onProfile }: {
         </section>
       )}
 
+      {/* Somewhere to put a question, for a reader who is stuck on page 40. */}
+      {st === "ready" && (
+        <section id="ask" className="shell py-14 sm:py-20 max-w-3xl scroll-mt-20">
+          <AskReport publicId={id} language={o?.language} />
+        </section>
+      )}
+
       {o && (
-        <section className="shell py-14 sm:py-20 max-w-3xl">
+        <section className="shell pb-14 sm:pb-20 max-w-3xl">
           <div className="card p-6 sm:p-8 grid sm:grid-cols-2 gap-y-5 gap-x-10 text-[14.5px]">
             {[["Order", o.public_id], ["Invoice", o.invoice_no || "—"],
               ["Report", o.report_name_en ?? o.report_type], ["Design", `${o.design} · ${o.palette}`],
@@ -165,10 +187,34 @@ export default function OrderPage({ id, onHome, onProfile }: {
               </div>
             ))}
           </div>
+          {/* The order number is already in the WhatsApp message, so a buyer
+              with a problem does not have to find and retype it. */}
+          <Support className="mt-8" orderId={o.public_id}
+                   reportName={o.report_name_en ?? o.report_type} where="order" />
+
           <div className="text-center mt-10">
             <button className="btn-line" onClick={onHome}>Browse other reports</button>
           </div>
         </section>
+      )}
+      {/* Reachable from anywhere on the page, including halfway down the book. */}
+      {st === "ready" && (
+        <button onClick={() => {
+                  document.getElementById("ask")?.scrollIntoView({ behavior: "smooth", block: "center" });
+                  setTimeout(() => document.querySelector<HTMLInputElement>(
+                    'input[aria-label="Ask your report"]')?.focus(), 600);
+                }}
+                aria-label="Ask your report"
+                className="fixed z-40 bottom-5 right-5 h-14 pl-5 pr-6 rounded-full bg-brass text-surface
+                           shadow-lift ring-1 ring-black/10 flex items-center gap-3
+                           transition-transform hover:scale-[1.03] active:scale-[.98]"
+                style={{ marginBottom: "env(safe-area-inset-bottom)" }}>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+               strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.3 9.3 0 0 1-3.3-.6L3 21l1.8-5a8.2 8.2 0 0 1-.8-3.5 8.4 8.4 0 0 1 8.5-8.4 8.4 8.4 0 0 1 8.5 8.4Z" />
+          </svg>
+          <span className="text-[15px] font-medium whitespace-nowrap">Ask your report</span>
+        </button>
       )}
     </>
   );

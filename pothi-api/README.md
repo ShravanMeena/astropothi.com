@@ -40,6 +40,8 @@ npm test                  # everything below, in order
 | `test:payments` | payment links + webhook: forged signatures, duplicate delivery, unknown ids, redirect verification |
 | `test:whatsapp` | delivery rules. Runs with the auth key blanked — **a unit suite must never send a real message** |
 | `test:admin` | staff auth is unreachable with a buyer or pandit token |
+| `test:pricing` | price overrides reach the shop; coupons cannot be forged, reused past their limit, or spent by an abandoned cart |
+| `test:events` | behavioural ingest, the `sendBeacon` text/plain path, identify backfill, and the funnel |
 | `audit:reports` | Kundali + Dosh prose cross-checked against the chart, **English and Hindi** |
 | `audit:astro` | 480 chart invariants across 8 charts |
 | `audit:text` · `audit:data` | depth, duplicate sentences, how much of a report is static |
@@ -53,6 +55,7 @@ node scripts/verify_all.js          # 7 types × 3 designs × 7 palettes × en/h
 node scripts/emit_webhook.js <plink_id>     # a correctly-signed payment_link.paid, for local settling
 npm run whatsapp:test-send 9660801827       # ONE real WhatsApp. Costs money.
 node scripts/ensure_admin.js                # seed a staff account
+node scripts/dedupe_constraints.js         # drop the UNIQUE constraints sync({alter}) duplicated
 ```
 
 ## Layout

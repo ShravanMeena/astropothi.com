@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { adminApi, rupees, num, pct, ms, when } from "../api";
+import { adminApi, rupees, num, ms, when } from "../api";
 import type { Overview as OverviewData, Window } from "../types";
-import { Panel, Stat, StatRow, TableWrap, Th, Td, Tr, Loading, ErrorNote, Note, DayChart, FunnelBar, Segmented, Chip } from "../ui";
+import {
+  Panel, TableWrap, PinnedHead, Th, Td, Tr, Loading, ErrorNote, Segmented,
+  DayChart, Spark, Metric, Mini, Ring, BarRow, Tile, Chip
+} from "../ui";
 
 const WINDOWS: { value: Window; label: string }[] = [
   { value: "today", label: "Today" }, { value: "7d", label: "7 days" },
@@ -26,153 +29,129 @@ export default function Overview({ window: w, setWindow }: { window: Window; set
 
   const { funnel, revenue, by_type, by_day, reports, audience } = data;
   const c = revenue.consumer, p = revenue.pandit;
+  const topType = Math.max(1, ...by_type.map((t) => t.gross_paise));
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Segmented value={w} onChange={setWindow} options={WINDOWS} />
-        <span className="text-[11px] text-faint">
-          as of {when(data.generated_at)} IST
-        </span>
+        <span className="text-[11px] text-faint">{when(data.generated_at)} IST</span>
       </div>
 
-      {/* ── Money ────────────────────────────────────────────────────────────
-          Two panels, never one. The platform has two products sold to two
-          audiences; a single "revenue" figure across both would be the sum of
-          a book and a wholesale credit pack, which is not a quantity. */}
+      {/* Two products, two audiences, two cards. Never one total — the tooltip
+          carries the reason so the card can just show the money. */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Consumers" sub="One person buying one report at retail.">
-          <StatRow cols={3}>
-            <Stat label="Gross" value={rupees(c.gross_paise)} tone="brass"
-                  sub={`${num(c.orders)} paid order${c.orders === 1 ? "" : "s"} · incl. GST`} />
-            <Stat label="GST (18%)" value={rupees(c.gst_paise)} sub="already inside gross" />
-            <Stat label="Net" value={rupees(c.net_paise)} sub="gross − GST — what we keep" />
-          </StatRow>
-          <div className="grid grid-cols-2 divide-x divide-line border-t border-line">
-            <Stat label="Average order" value={rupees(c.aov_paise)} />
-            <Stat label="Refunded" value={rupees(c.refunded_paise)}
-                  tone={c.refunded_paise ? "ember" : "plain"}
-                  sub={c.refunded_orders ? `${num(c.refunded_orders)} order(s) · net of refunds ${rupees(c.net_of_refunds_paise)}` : "none"} />
+        <section className="card relative overflow-hidden lamp">
+          <div className="relative z-10 p-5">
+            <Metric foil value={rupees(c.gross_paise)} label="Consumers · gross"
+                    hint="Retail sales to buyers. Kept separate from astrologer revenue — they are different products bought by different people, so one combined total would answer no question." />
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              <Mini label="Net" value={rupees(c.net_paise)} />
+              <Mini label="GST 18%" value={rupees(c.gst_paise)} />
+              <Mini label="Avg order" value={rupees(c.aov_paise)} />
+            </div>
           </div>
-        </Panel>
+          <div className="px-px">
+            <Spark values={by_day.map((d) => d.consumer_gross_paise)} />
+          </div>
+          <div className="relative z-10 flex items-center justify-between px-5 py-2.5 border-t border-line text-[11.5px]">
+            <span className="text-muted">{num(c.orders)} paid orders</span>
+            {c.refunded_paise > 0
+              ? <span className="text-ember">{rupees(c.refunded_paise)} refunded</span>
+              : <span className="text-faint">no refunds</span>}
+          </div>
+        </section>
 
-        <Panel title="Astrologers" sub="Credit packs bought wholesale by pandits.">
-          <StatRow cols={3}>
-            <Stat label="Gross" value={rupees(p.gross_paise)} tone="brass"
-                  sub={`${num(p.purchases)} purchase${p.purchases === 1 ? "" : "s"} · incl. GST`} />
-            <Stat label="GST (18%)" value={rupees(p.gst_paise)} sub="already inside gross" />
-            <Stat label="Net" value={rupees(p.net_paise)} sub="gross − GST" />
-          </StatRow>
-          <div className="grid grid-cols-2 divide-x divide-line border-t border-line">
-            <Stat label="Average pack" value={rupees(p.aov_paise)} />
-            <Stat label="Credits sold" value={num(p.credits_sold)} sub="capacity, not revenue" />
+        <section className="card relative overflow-hidden">
+          <div className="relative z-10 p-5">
+            <Metric value={rupees(p.gross_paise)} label="Astrologers · gross"
+                    hint="Credit packs bought wholesale by pandits. What a pandit charges HIS clients is a third number again — an estimate from prices he sets himself, and not Pothi's money." />
+            <div className="mt-5 grid grid-cols-3 gap-3">
+              <Mini label="Net" value={rupees(p.net_paise)} />
+              <Mini label="GST 18%" value={rupees(p.gst_paise)} />
+              <Mini label="Avg pack" value={rupees(p.aov_paise)} />
+            </div>
           </div>
-        </Panel>
+          <div className="px-px">
+            <Spark values={by_day.map((d) => d.pandit_gross_paise)} tone="muted" />
+          </div>
+          <div className="relative z-10 flex items-center justify-between px-5 py-2.5 border-t border-line text-[11.5px]">
+            <span className="text-muted">{num(p.purchases)} purchases</span>
+            <span className="text-faint">{num(p.credits_sold)} credits</span>
+          </div>
+        </section>
       </div>
 
-      <Note>
-        These two lines are never added together, here or anywhere else in this panel.
-        They are different products bought by different people, and one combined figure would
-        answer no question anybody has. Note also that the pandit console's “estimated earnings”
-        is a third number again — that is what a pandit charges <em>his</em> clients, it is an
-        estimate from prices he set himself, and none of it is Pothi's money.
-      </Note>
-
-      {/* ── Funnel ─────────────────────────────────────────────────────────── */}
-      <Panel title="Where orders go"
-             sub={`${num(funnel.orders_created)} created · ${num(funnel.orders_paid)} paid · ${pct(funnel.conversion_pct)} conversion`}>
-        <FunnelBar total={funnel.orders_created} segments={[
-          { label: "Delivered", count: funnel.by_status.ready?.count || 0, tone: "brass" },
-          { label: "Paid, generating", count: (funnel.by_status.paid?.count || 0) + (funnel.by_status.generating?.count || 0), tone: "brass" },
-          { label: "Paid, failed to generate", count: funnel.failed, tone: "ember" },
-          { label: "Refunded", count: funnel.by_status.refunded?.count || 0, tone: "ember" },
-          { label: "Never paid", count: funnel.abandoned, tone: "muted" }
-        ]} />
-        <div className="grid grid-cols-1 sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-line border-t border-line">
-          <Stat label="Abandoned at checkout" value={num(funnel.abandoned)}
-                sub={`${rupees(funnel.abandoned_paise)} of links issued and never paid`} />
-          <Stat label="Paid but undelivered" value={num(funnel.failed)}
-                tone={funnel.failed ? "ember" : "plain"}
-                sub={`${rupees(funnel.failed_paise)} taken, no book sent — retry these first`} />
+      {/* The funnel, as a shape. Two numbers matter: what never paid, and what
+          paid and never arrived. */}
+      <Panel>
+        <div className="grid gap-5 lg:grid-cols-[auto_1fr] items-center p-5">
+          <Ring pct={funnel.conversion_pct} label="Created → paid"
+                sub={`${num(funnel.orders_paid)} of ${num(funnel.orders_created)} orders`} />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <Tile label="Delivered" value={num(funnel.by_status.ready?.count || 0)} tone="brass" />
+            <Tile label="In flight"
+                  value={num((funnel.by_status.paid?.count || 0) + (funnel.by_status.generating?.count || 0))} />
+            <Tile label="Never paid" value={num(funnel.abandoned)}
+                  hint={`${rupees(funnel.abandoned_paise)} of payment links issued and never paid.`} />
+            <Tile label="Paid, undelivered" value={num(funnel.failed)}
+                  tone={funnel.failed ? "ember" : "plain"}
+                  hint={`${rupees(funnel.failed_paise)} taken for reports that failed to render. Counted in gross above, because the payment cleared — retry these first.`} />
+          </div>
         </div>
-        <Note>
-          “Paid but undelivered” is money we hold for a report that failed to render. It <em>is</em>
-          counted in consumer gross above, because the payment cleared — leaving it out would hide
-          the most expensive rows in the table from the person who has to fix them.
-        </Note>
       </Panel>
 
-      {/* ── Chart ──────────────────────────────────────────────────────────── */}
-      <Panel title="Revenue by day" sub="IST days. Empty days are drawn as zero, not skipped.">
+      <Panel title="Revenue by day" sub="IST days">
         <DayChart rows={by_day} />
       </Panel>
 
-      {/* ── By type ────────────────────────────────────────────────────────── */}
-      <Panel title="Consumer revenue by report">
-        <TableWrap>
-          <thead><tr>
-            <Th>Report</Th><Th align="right">List price</Th><Th align="right">Paid orders</Th>
-            <Th align="right">Gross</Th><Th align="right">Net</Th><Th align="right">Share</Th>
-          </tr></thead>
-          <tbody>
-            {by_type.map((t) => (
-              <Tr key={t.report_type}>
-                <Td>
-                  <div className="font-medium">{t.name_en}</div>
-                  <div className="text-[11px] text-faint deva">{t.name_hi}</div>
-                </Td>
-                <Td align="right" dim>{rupees(t.list_price_paise)}</Td>
-                <Td align="right">{num(t.orders)}</Td>
-                <Td align="right" className="font-medium">{rupees(t.gross_paise)}</Td>
-                <Td align="right" dim>{rupees(t.net_paise)}</Td>
-                <Td align="right" dim>
-                  {c.gross_paise ? `${((t.gross_paise / c.gross_paise) * 100).toFixed(0)}%` : "—"}
-                </Td>
-              </Tr>
-            ))}
-          </tbody>
-        </TableWrap>
-      </Panel>
-
-      {/* ── Health & audience ──────────────────────────────────────────────── */}
+      {/* Was a six-column table. Now it is a ranked bar chart, which is the only
+          question anyone asked of it: what sells. */}
       <div className="grid gap-4 lg:grid-cols-2">
-        <Panel title="Generation" sub="Reports rendered in this window.">
-          <StatRow cols={3}>
-            <Stat label="Rendered" value={num(reports.total)}
-                  sub={reports.by_source.map((s) => `${s.count} ${s.source}`).join(" · ")} />
-            <Stat label="Failed" value={num(reports.failed)} tone={reports.failed ? "ember" : "plain"} />
-            <Stat label="Typical time" value={ms(reports.avg_ms)} sub={`slowest ${ms(reports.max_ms)}`} />
-          </StatRow>
+        <Panel title="What sells" sub="Consumer gross by report">
+          <div className="py-1">
+            {by_type.map((t) => (
+              <BarRow key={t.report_type} label={t.name_en} value={t.gross_paise} max={topType}
+                      right={rupees(t.gross_paise)}
+                      sub={t.orders ? `${t.orders}×` : "—"} tone={t.gross_paise ? "brass" : "muted"} />
+            ))}
+          </div>
         </Panel>
 
-        <Panel title="Audience" sub="Totals are all-time — only “new” follows the window above.">
-          <StatRow cols={4}>
-            <Stat label="Buyers" value={num(audience.users.total)}
-                  sub={`${num(audience.users.verified)} OTP-verified · ${num(audience.users.joined_in_window)} new`} />
-            <Stat label="Suspended" value={num(audience.users.suspended)}
-                  tone={audience.users.suspended ? "ember" : "plain"} sub="buyer accounts, right now" />
-            <Stat label="Astrologers" value={num(audience.pandits.total)}
-                  sub={`${num(audience.pandits.seated)} seated · ${num(audience.pandits.joined_in_window)} new`} />
-            <Stat label="Staff" value={num(audience.pandits.admins)} sub="accounts with admin" />
-          </StatRow>
-          {audience.users.verified < audience.users.total && (
-            <Note>
-              {num(audience.users.total - audience.users.verified)} buyer account(s) have never entered an OTP.
-              That is checkout auto-login working as configured (<code>AUTO_LOGIN_ON_ORDER</code>), not a fault —
-              but it does mean those accounts have not proved they own their number.
-            </Note>
-          )}
-        </Panel>
-      </div>
-
-      <div className="flex flex-wrap gap-2 pb-2">
-        {Object.entries(funnel.by_status).map(([s, v]) => (
-          <span key={s} className="inline-flex items-center gap-2 rounded-lg border border-line bg-raised px-2.5 py-1.5">
-            <Chip tone={s}>{s}</Chip>
-            <span className="text-[12px] tabular-nums text-fg font-medium">{num(v.count)}</span>
-            <span className="text-[11px] tabular-nums text-faint">{rupees(v.gross_paise)}</span>
-          </span>
-        ))}
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <Tile label="Rendered" value={num(reports.total)} />
+            <Tile label="Failed" value={num(reports.failed)} tone={reports.failed ? "ember" : "plain"} />
+            <Tile label="Typical" value={ms(reports.avg_ms)}
+                  hint={`Averaged over successful renders only. Slowest in this window: ${ms(reports.max_ms)}.`} />
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Tile label="Buyers" value={num(audience.users.total)}
+                  hint={`All-time total. ${num(audience.users.joined_in_window)} joined in this window; ${num(audience.users.verified)} have ever entered an OTP.`} />
+            <Tile label="Astrologers" value={num(audience.pandits.total)}
+                  hint={`${num(audience.pandits.seated)} hold a pilot seat.`} />
+            <Tile label="Suspended"
+                  value={num(audience.users.suspended + audience.pandits.suspended)}
+                  tone={audience.users.suspended + audience.pandits.suspended ? "ember" : "plain"}
+                  hint="Accounts suspended right now, across buyers and astrologers. Not affected by the window." />
+          </div>
+          <Panel title="Order states">
+            <TableWrap>
+              <PinnedHead><tr>
+                <Th>State</Th><Th align="right">Orders</Th><Th align="right">Value</Th>
+              </tr></PinnedHead>
+              <tbody>
+                {Object.entries(funnel.by_status).map(([s, v]) => (
+                  <Tr key={s}>
+                    <Td><Chip tone={s}>{s}</Chip></Td>
+                    <Td align="right">{num(v.count)}</Td>
+                    <Td align="right" dim={!v.gross_paise}>{rupees(v.gross_paise)}</Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </TableWrap>
+          </Panel>
+        </div>
       </div>
     </div>
   );

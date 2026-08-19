@@ -160,10 +160,26 @@ customers** — people who never signed up with us. That is a real obligation, n
 
 ## 5. Pre-launch legal checklist
 
-- [ ] Entity, PAN, GSTIN, current account, LUT (if any export)
+- [ ] Entity, PAN, GSTIN, current account, LUT (if any export). **Operating entity is
+      DreamyHook Digital Media**, Plot 25B, Industrial Area Sector 32, Gurugram, Haryana 122001
+      — taken from the parent's own published policies so the two can never contradict each
+      other. Note the name carries no Pvt Ltd / LLP suffix, so confirm whether it is
+      incorporated before it goes on an invoice
 - [ ] CA sign-off on GST-on-advance treatment and the invoice-at-pack-sale approach
 - [ ] Razorpay approval **in writing** for the astrology/SaaS MCC
-- [ ] Website pages live: T&C, Privacy, Refund/Cancellation, Pricing, Contact, **Grievance Officer**
+- [x] Website pages live: **T&C** (`/terms`), **Privacy** (`/privacy`), **Refund/Cancellation**
+      (`/refunds`), **Contact** (`/contact`), Pricing (on every report page and `/reports`).
+      Linked from the footer of every page. Source: `pothi-app/src/pages/legal/`
+- [ ] **Name a grievance officer.** The page exists and states the 48h/30d service levels, but
+      rule 4(5) wants a *named* person and neither we nor the parent publish one. Until it is
+      set in `pothi-app/src/lib/legal.ts`, `npm run legal:check` warns and
+      `npm run legal:check -- --strict` fails. The `predeploy` script runs the strict form, so
+      an incomplete page cannot reach production. There is a matching notice on the page itself,
+      but it is **development-only** — a buyer must never read a policy that admits it is
+      unfinished
+- [ ] **Publish the GSTIN, or stop saying "includes GST".** Checkout, the invoice and the
+      policies all state prices are GST-inclusive, and `orders.gst_paise` records the component.
+      The parent does not publish a GSTIN. One of the two has to change
 - [ ] Non-removable PDF disclaimer block, en + hi, designed per theme
 - [ ] **DMR Act content lint in CI**, with the Health report corpus rewritten and re-reviewed
 - [ ] Maharashtra & Karnataka anti-superstition schedules checked (blocks Trimbakeshwar phase 1)

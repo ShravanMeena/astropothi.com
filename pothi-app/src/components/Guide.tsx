@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { rupees, type ReportItem } from "../lib/api";
+import { track } from "../lib/track";
 
 /**
  * The guide: a few questions, then one recommendation.
@@ -23,6 +24,7 @@ const TREE: Node[] = [
       { label: "Marriage and relationships", sub: "Timing, compatibility, what the 7th house says", next: "love-why" },
       { label: "Something feels blocked",    sub: "Repeated setbacks, delays, a run of bad luck",   next: "block-why" },
       { label: "Health and energy",          sub: "Constitution and what your chart asks you to watch", next: "pick-health" },
+      { label: "It started when we moved",   sub: "The house itself — direction, layout, what sits where", next: "pick-vastu" },
       { label: "I want the whole picture",   sub: "Every house, every planet, top to bottom",       next: "pick-kundli" }
     ]
   },
@@ -49,6 +51,7 @@ const TREE: Node[] = [
   { kind: "pick", id: "pick-love",       code: "love",       why: "It goes straight at the 7th house, Venus and the navamsa — the placements that decide marriage." },
   { kind: "pick", id: "pick-dosh",       code: "dosh",       why: "It tests fourteen doshas against classical rules and checks the cancellations most readings ignore." },
   { kind: "pick", id: "pick-health",     code: "health",     why: "It reads the lagna, the 6th house and your prakriti — the constitution behind how you feel." },
+  { kind: "pick", id: "pick-vastu",      code: "vastu",      why: "It reads the building rather than the birth chart — which direction each room sits in, and where that departs from the mandala." },
   { kind: "pick", id: "pick-varshaphal", code: "varshaphal", why: "It casts the annual chart for your solar return and walks the year month by month." }
 ];
 
@@ -77,6 +80,7 @@ export default function Guide({ items, open, onClose, onReport, onBuy }: {
   }, [open, onClose]);
 
   const answer = (label: string, next: string) => {
+    track("guide_answered", { choice: label, next });
     setLog((l) => [...l, { who: "you", text: label }]);
     setId(next);
   };
@@ -143,10 +147,12 @@ export default function Guide({ items, open, onClose, onReport, onBuy }: {
                   </p>
                 )}
                 <div className="grid gap-2 mt-5">
-                  <button className="btn-brass w-full" onClick={() => { onBuy(node.code); onClose(); }}>
+                  <button className="btn-brass w-full"
+                          onClick={() => { track("guide_recommended", { code: node.code, action: "buy" }); onBuy(node.code); onClose(); }}>
                     Fill in my birth details
                   </button>
-                  <button className="btn-line w-full" onClick={() => { onReport(node.code); onClose(); }}>
+                  <button className="btn-line w-full"
+                          onClick={() => { track("guide_recommended", { code: node.code, action: "read" }); onReport(node.code); onClose(); }}>
                     See what's inside first
                   </button>
                   <button className="btn-quiet w-full" onClick={restart}>Ask me again</button>

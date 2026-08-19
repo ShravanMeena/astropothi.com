@@ -340,3 +340,139 @@ export const SubHead = ({ children, right }: { children: ReactNode; right?: Reac
     {right}
   </div>
 );
+
+// ── Visual primitives ────────────────────────────────────────────────────────
+// The first version of this panel explained itself in prose: every figure came
+// with a paragraph. It read like documentation. These earn the same points with
+// shape and colour instead, and the prose survives only as a tooltip.
+
+/** A caveat that stays out of the way until you ask for it. */
+export function Hint({ children }: { children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex align-middle">
+      <button onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}
+              onClick={() => setOpen((v) => !v)} aria-label="Why"
+              className="w-4 h-4 rounded-full border border-line text-faint hover:text-brass hover:border-brass
+                         text-[9px] font-bold grid place-items-center transition shrink-0">?</button>
+      {open && (
+        <span className="absolute left-1/2 -translate-x-1/2 bottom-full mb-2 z-40 w-[260px]
+                         rounded-lg border border-line bg-raised shadow-lift px-3 py-2
+                         text-[11.5px] leading-relaxed text-muted font-normal normal-case tracking-normal text-left">
+          {children}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** Sparkline. No axes, no labels — it exists to show shape, not to be read. */
+export function Spark({ values, height = 34, tone = "brass" }: {
+  values: number[]; height?: number; tone?: "brass" | "muted";
+}) {
+  // Fewer than four active days is not a trend. Two spikes at the right-hand
+  // edge of thirty zeros reads as a rendering artefact, not a shape — better to
+  // show nothing until there is something to see.
+  if (values.filter((v) => v > 0).length < 4) return null;
+  const max = Math.max(1, ...values);
+  const x = (i: number) => (i / (values.length - 1)) * 100;
+  const y = (v: number) => 100 - (v / max) * 92 - 4;
+  const line = values.map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const id = `sp${tone}${values.length}`;
+  const stroke = tone === "brass" ? "rgb(var(--brass))" : "rgb(var(--fg) / .4)";
+  return (
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ height }} className="w-full block" aria-hidden>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={stroke} stopOpacity=".26" />
+          <stop offset="100%" stopColor={stroke} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={`0,100 ${line} 100,100`} fill={`url(#${id})`} />
+      <polyline points={line} fill="none" stroke={stroke} strokeWidth="1.6"
+                vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+/** The headline figure on a card. Gold leaf, because it is the point of the card. */
+export function Metric({ value, label, hint, foil }: {
+  value: ReactNode; label: ReactNode; hint?: ReactNode; foil?: boolean;
+}) {
+  return (
+    <div>
+      <div className="caps text-faint flex items-center gap-1.5">{label}{hint && <Hint>{hint}</Hint>}</div>
+      <div className={`mt-2 font-serif tracking-tightest tabular-nums leading-none
+                       text-[34px] sm:text-[40px] ${foil ? "foil" : "text-fg"}`}>{value}</div>
+    </div>
+  );
+}
+
+/** Small supporting figure. Three of these sit under one Metric. */
+export const Mini = ({ label, value, tone = "plain" }: {
+  label: string; value: ReactNode; tone?: "plain" | "ember" | "brass";
+}) => (
+  <div className="min-w-0">
+    <div className="text-[10px] uppercase tracking-[.14em] text-faint truncate">{label}</div>
+    <div className={`mt-1 text-[15px] font-medium tabular-nums truncate
+                     ${tone === "ember" ? "text-ember" : tone === "brass" ? "text-brass" : "text-fg"}`}>{value}</div>
+  </div>
+);
+
+/** Conversion, as a shape you can read at a glance rather than a percentage. */
+export function Ring({ pct: value, label, sub }: { pct: number | null; label: string; sub?: string }) {
+  const v = Math.max(0, Math.min(100, value ?? 0));
+  const r = 34, c = 2 * Math.PI * r;
+  return (
+    <div className="flex items-center gap-4">
+      <div className="relative shrink-0">
+        <svg width="84" height="84" viewBox="0 0 84 84" aria-hidden>
+          <circle cx="42" cy="42" r={r} fill="none" stroke="rgb(var(--fg) / .1)" strokeWidth="7" />
+          <circle cx="42" cy="42" r={r} fill="none" stroke="rgb(var(--brass))" strokeWidth="7"
+                  strokeLinecap="round" strokeDasharray={`${(v / 100) * c} ${c}`}
+                  transform="rotate(-90 42 42)" />
+        </svg>
+        <span className="absolute inset-0 grid place-items-center font-serif text-[19px] tabular-nums text-fg">
+          {value === null ? "—" : `${Math.round(v)}%`}
+        </span>
+      </div>
+      <div className="min-w-0">
+        <div className="text-[13px] font-semibold text-fg">{label}</div>
+        {sub && <div className="mt-0.5 text-[11.5px] text-muted leading-snug">{sub}</div>}
+      </div>
+    </div>
+  );
+}
+
+/** Label · bar · value. Replaces a six-column table nobody scanned. */
+export function BarRow({ label, sub, value, max, right, tone = "brass" }: {
+  label: ReactNode; sub?: ReactNode; value: number; max: number; right: ReactNode; tone?: "brass" | "muted";
+}) {
+  const w = max > 0 ? Math.max(value > 0 ? 1.5 : 0, (value / max) * 100) : 0;
+  return (
+    <div className="px-4 sm:px-5 py-2.5 hover:bg-sunken/50 transition-colors">
+      <div className="flex items-baseline justify-between gap-4">
+        <span className="text-[13px] text-fg truncate">{label}</span>
+        <span className="text-[13px] font-medium tabular-nums text-fg shrink-0">{right}</span>
+      </div>
+      <div className="mt-1.5 flex items-center gap-3">
+        <div className="flex-1 h-1.5 rounded-full bg-sunken overflow-hidden">
+          <div className={`h-full rounded-full ${tone === "brass" ? "bg-brass" : "bg-fg/25"}`}
+               style={{ width: `${w}%` }} />
+        </div>
+        {sub && <span className="text-[11px] text-faint tabular-nums shrink-0 w-16 text-right">{sub}</span>}
+      </div>
+    </div>
+  );
+}
+
+/** A compact tile for the secondary numbers — six of these in one strip. */
+export const Tile = ({ label, value, tone = "plain", hint }: {
+  label: string; value: ReactNode; tone?: "plain" | "brass" | "ember"; hint?: ReactNode;
+}) => (
+  <div className="card px-4 py-3.5">
+    <div className="caps text-faint flex items-center gap-1.5">{label}{hint && <Hint>{hint}</Hint>}</div>
+    <div className={`mt-1.5 font-serif text-[24px] leading-none tabular-nums tracking-tightest
+                     ${tone === "brass" ? "text-brass" : tone === "ember" ? "text-ember" : "text-fg"}`}>{value}</div>
+  </div>
+);

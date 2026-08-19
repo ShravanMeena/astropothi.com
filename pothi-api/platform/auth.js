@@ -60,6 +60,27 @@ export async function authenticateUser(req, res, next) {
 }
 
 /**
+ * Who is calling, if anyone — never a rejection.
+ *
+ * For endpoints that work signed out but mean more signed in: the analytics
+ * ingest wants to stamp a user_id when it can, and must still accept the events
+ * of a visitor who has not typed a phone number yet. Any problem with the token
+ * is treated as "not signed in", because losing behavioural data to a 401 is a
+ * worse outcome than an occasional unattributed row.
+ */
+export function whoeverThisIs(req, _res, next) {
+  const raw = req.headers.authorization || "";
+  const token = raw.startsWith("Bearer ") ? raw.slice(7) : raw;
+  if (token) {
+    try {
+      const payload = jwt.verify(token, config.jwtSecret);
+      if (payload.kind === "user") req.userId = payload.id;
+    } catch { /* unsigned in, or a stale token — either way, carry on */ }
+  }
+  next();
+}
+
+/**
  * Staff tokens.
  *
  * A fourth `kind`, not a flag on the pandit token. That matters because the

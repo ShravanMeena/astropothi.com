@@ -21,7 +21,7 @@ for (const file of readdirSync(schemaDir).filter((f) => f.endsWith(".js")).sort(
 }
 
 // Associations, all in one place.
-const { Pandit, BrandingProfile, CreditLedger, CreditPurchase, Client, Report, PanditPrice, Order, User } = db;
+const { Pandit, BrandingProfile, CreditLedger, CreditPurchase, Client, Report, PanditPrice, Order, User, ChatMessage } = db;
 Pandit.hasOne(BrandingProfile,  { foreignKey: "pandit_id", as: "branding" });
 Pandit.hasMany(CreditLedger,    { foreignKey: "pandit_id" });
 Pandit.hasMany(CreditPurchase,  { foreignKey: "pandit_id" });
@@ -35,6 +35,8 @@ Client.belongsTo(Pandit,  { foreignKey: "pandit_id" });
 Client.hasMany(Report,    { foreignKey: "client_id" });
 User.hasMany(Order,       { foreignKey: "user_id" });
 Order.belongsTo(User,     { foreignKey: "user_id" });
+Order.hasMany(ChatMessage, { foreignKey: "order_id" });
+ChatMessage.belongsTo(Order, { foreignKey: "order_id" });
 Order.hasOne(Report,      { foreignKey: "order_id" });
 Report.belongsTo(Order,   { foreignKey: "order_id" });
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, rupees, num, when, ago } from "../api";
 import type { UserRow, UserDetail } from "../types";
-import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Search, Btn, Drawer, Facts, SubHead, Note } from "../ui";
+import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Search, Btn, Drawer, Facts, SubHead, Hint } from "../ui";
 
 export default function Users() {
   const [q, setQ] = useState("");
@@ -29,7 +29,7 @@ export default function Users() {
         {loading ? <Loading /> : !rows.length ? <Empty label="No accounts match." /> : (
           <TableWrap pin>
             <PinnedHead><tr>
-              <Th>Account</Th><Th>Verified</Th><Th align="right">Orders</Th>
+              <Th>Account</Th><Th>Verified <Hint>Has entered an OTP at least once. Accounts without it were created by checkout auto-login, which signs a buyer in on a typed mobile number alone — so the name on the order is claimed, not proven.</Hint></Th><Th align="right">Orders</Th>
               <Th align="right">Lifetime value</Th><Th align="right">Last seen</Th><Th>Status</Th>
             </tr></PinnedHead>
             <tbody>
@@ -52,11 +52,6 @@ export default function Users() {
             </tbody>
           </TableWrap>
         )}
-        <Note>
-          “Verified” means the account has entered an OTP at least once. Accounts without it were created by
-          checkout auto-login, which signs a buyer in on the strength of a typed mobile number alone — so the
-          name on the order is claimed, not proven.
-        </Note>
       </Panel>
 
       <UserDrawer id={open} onClose={() => setOpen(null)} onChanged={load} />
@@ -103,12 +98,6 @@ function UserDrawer({ id, onClose, onChanged }: { id: string | null; onClose: ()
               {d.status === "active" ? "Suspend account" : "Restore account"}
             </Btn>
           </div>
-          {d.status === "active" && (
-            <Note>
-              Suspending takes effect immediately — the buyer's existing token stops working on their very next
-              request, because the guard re-reads status rather than trusting the 30-day token.
-            </Note>
-          )}
 
           <div>
             <SubHead>Account</SubHead>
@@ -175,10 +164,6 @@ function UserDrawer({ id, onClose, onChanged }: { id: string | null; onClose: ()
           {!!d.unclaimed_orders.length && (
             <div>
               <SubHead>Orders on this number, not on this account</SubHead>
-              <Note>
-                Placed before the account existed and never adopted. Adoption happens on sign-in, so these
-                will attach the next time this number signs in — they are not lost, just not linked yet.
-              </Note>
               <ul className="mt-2 space-y-1 text-[12px] text-muted">
                 {d.unclaimed_orders.map((o) => (
                   <li key={o.public_id} className="font-mono">{o.public_id} · {o.status} · {rupees(o.amount_paise)}</li>

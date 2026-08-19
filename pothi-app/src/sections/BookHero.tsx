@@ -16,7 +16,7 @@ function Copy({ onOpen }: { onOpen: () => void }) {
     <>
       <div className="flex items-center gap-3">
         <span className="h-px w-8 bg-brass" />
-        <span className="caps text-brass">Vedic · computed, not copied</span>
+        <span className="caps text-brass">Vedic · computed, then explained</span>
       </div>
       <h1 className="mt-6">
         <span className="deva foil block text-[36px] sm:text-[48px] leading-[1.18] font-semibold">
@@ -32,7 +32,7 @@ function Copy({ onOpen }: { onOpen: () => void }) {
       </p>
       <div className="mt-9 flex flex-wrap gap-3">
         <button className="btn-brass h-[52px] px-8 text-[16px]" onClick={onOpen}>See what's inside</button>
-        <a href="#reports" className="btn-line h-[52px]">All seven reports</a>
+        <a href="#reports" className="btn-line h-[52px]">See every report</a>
       </div>
     </>
   );

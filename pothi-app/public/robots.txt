@@ -1,0 +1,3 @@
+# No SITE_ORIGIN was set at build time, so this build is not indexable.
+User-agent: *
+Disallow: /

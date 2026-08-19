@@ -26,6 +26,41 @@ export default {
   // require the OTP instead; `verified_at` on the user records which happened.
   autoLoginOnOrder: (process.env.AUTO_LOGIN_ON_ORDER ?? "true") !== "false",
 
+  // The report assistant. Whichever key is present decides the provider; with
+  // neither, the endpoint falls back to quoting the report's own chapters, so
+  // the feature degrades instead of disappearing.
+  ai: {
+    // Bedrock, matching devpunya-node-api-server: same region, same
+    // inference-profile ARNs, one AWS account for both products.
+    awsRegion: process.env.AWS_REGION || "ap-south-1",
+    awsAccessKeyId: process.env.AWS_ACCESS_KEY_ID || "",
+    awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || "",
+    bedrockModelId: process.env.BEDROCK_MODEL_ID || "",
+    bedrockFallbackModelId: process.env.BEDROCK_FALLBACK_MODEL_ID || "",
+
+    anthropicKey: process.env.ANTHROPIC_API_KEY || "",
+    openaiKey: process.env.OPENAI_API_KEY || "",
+    model: process.env.AI_MODEL || "claude-sonnet-4-5",
+    timeoutMs: int(process.env.AI_TIMEOUT_MS, 20000),
+    // A public endpoint keyed only by an order id, so the spend has to be
+    // bounded per order rather than per user.
+    maxQuestionsPerOrder: int(process.env.AI_MAX_QUESTIONS, 60),
+
+    // Expand thin chapters at generation time. Facts stay computed; only the
+    // explanation around them is written. Off leaves every report exactly as
+    // the templates produce it.
+    enrichReports: (process.env.AI_ENRICH_REPORTS ?? "true") !== "false",
+    // Expanding chapters is a bulk writing job, not a reasoning one. On Opus it
+    // took 58s — long enough that a buyer who has just paid is left staring at
+    // a spinner. Haiku does it in a fraction of that for a fraction of the cost.
+    // The assistant answers in a few sentences from text it is handed — a
+    // fast model does that as well as a slow one, and a buyer is waiting.
+    chatModelId: process.env.BEDROCK_CHAT_MODEL_ID
+      || "global.anthropic.claude-haiku-4-5-20251001-v1:0",
+    enrichModelId: process.env.BEDROCK_ENRICH_MODEL_ID
+      || "global.anthropic.claude-haiku-4-5-20251001-v1:0"
+  },
+
   // Where the buyer's browser lives. Razorpay redirects back here after a
   // payment link is paid, so it must be a real origin, not a guess.
   webOrigin: (process.env.WEB_ORIGIN || "http://localhost:5190").replace(/\/+$/, ""),
@@ -44,6 +79,11 @@ export default {
   },
 
   razorpay: {
+    // Stamped on every payment link so this site's income can be told apart
+    // from anything else sharing the Razorpay account. It goes into the
+    // reference id, the notes and the description — the three places the
+    // dashboard lets you search and export on.
+    source: process.env.RAZORPAY_SOURCE_TAG || "POTHI",
     key: process.env.RAZORPAY_ID,
     secret: process.env.RAZORPAY_SECRET,
     webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET

@@ -441,3 +441,162 @@ export function environment() {
     web_origin: config.webOrigin
   };
 }
+
+// ── pricing ─────────────────────────────────────────────────────────────────
+
+/** Every report with its tier price, its override, and what is actually charged. */
+export async function pricing() {
+  const { REPORT_TYPES, CONSUMER_PRICES, tierOf } = await import("../catalog/catalog.js");
+  const rows = await db.PriceOverride.findAll();
+  const byCode = Object.fromEntries(rows.map((r) => [r.report_type, r]));
+  return REPORT_TYPES.map((r) => {
+    const ov = byCode[r.code];
+    return {
+      code: r.code, name_en: r.name_en, chapters: r.chapters,
+      tier: tierOf(r.code),
+      tier_paise: CONSUMER_PRICES[r.code],
+      override_paise: ov?.price_paise ?? null,
+      price_paise: ov?.price_paise ?? CONSUMER_PRICES[r.code],
+      note: ov?.note ?? null, set_by: ov?.set_by ?? null, changed_at: ov?.updatedAt ?? null
+    };
+  });
+}
+
+export async function setPrice(code, paise, note, by) {
+  const { getReportType } = await import("../catalog/catalog.js");
+  if (!getReportType(code)) return { error: "Unknown report" };
+  const [row] = await db.PriceOverride.upsert(
+    { report_type: code, price_paise: paise, note: note || null, set_by: by || null },
+    { returning: true }
+  );
+  const { bustPriceCache } = await import("../catalog/pricing.service.js");
+  bustPriceCache();
+  return { code, price_paise: row?.price_paise ?? paise };
+}
+
+export async function clearPrice(code) {
+  await db.PriceOverride.destroy({ where: { report_type: code }, force: true });
+  const { bustPriceCache } = await import("../catalog/pricing.service.js");
+  bustPriceCache();
+  return { code, cleared: true };
+}
+
+// ── coupons ─────────────────────────────────────────────────────────────────
+
+export async function listCoupons() {
+  const rows = await db.Coupon.findAll({ order: [["id", "DESC"]] });
+  return rows.map((c) => ({
+    code: c.code, kind: c.kind, value: c.value,
+    max_discount_paise: c.max_discount_paise, min_amount_paise: c.min_amount_paise,
+    report_types: c.report_types, max_uses: c.max_uses, uses: c.uses,
+    starts_at: c.starts_at, expires_at: c.expires_at, active: c.active, note: c.note
+  }));
+}
+
+export async function upsertCoupon(b = {}) {
+  const code = String(b.code || "").trim().toUpperCase();
+  if (!/^[A-Z0-9_-]{3,32}$/.test(code)) return { error: "Code must be 3–32 letters, digits, - or _" };
+  if (!["percent", "flat"].includes(b.kind)) return { error: "kind must be percent or flat" };
+  const value = Math.round(Number(b.value));
+  if (!Number.isFinite(value) || value < 1) return { error: "value must be a positive number" };
+  if (b.kind === "percent" && value > 90) return { error: "A percent coupon is capped at 90%" };
+
+  await db.Coupon.upsert({
+    code, kind: b.kind, value,
+    max_discount_paise: b.max_discount_paise ?? null,
+    min_amount_paise: b.min_amount_paise ?? null,
+    report_types: Array.isArray(b.report_types) && b.report_types.length ? b.report_types : null,
+    max_uses: b.max_uses ?? null,
+    starts_at: b.starts_at ? new Date(b.starts_at) : null,
+    expires_at: b.expires_at ? new Date(b.expires_at) : null,
+    active: b.active !== false,
+    note: b.note || null
+  });
+  return { code };
+}
+
+export async function setCouponActive(code, active) {
+  await db.Coupon.update({ active }, { where: { code: String(code).toUpperCase() } });
+  return { code, active };
+}
+
+// ── behaviour ───────────────────────────────────────────────────────────────
+
+const since = (days) => new Date(Date.now() - (Number(days) || 30) * 864e5);
+
+export async function listEvents({ days = 7, name, limit = 200 } = {}) {
+  const where = { occurred_at: { [db.Sequelize.Op.gte]: since(days) } };
+  if (name) where.name = name;
+  const rows = await db.AppEvent.findAll({
+    where, order: [["occurred_at", "DESC"]], limit: Math.min(Number(limit) || 200, 1000)
+  });
+  return rows.map((r) => ({
+    at: r.occurred_at, name: r.name, category: r.category, path: r.path,
+    anonymous_id: r.anonymous_id, session_id: r.session_id,
+    user_id: r.user_id ? String(r.user_id) : null,
+    source: r.source, campaign: r.campaign, props: r.properties
+  }));
+}
+
+/**
+ * The funnel, counted in PEOPLE not events — one visitor refreshing a page
+ * twenty times is one visitor, and counting rows would say otherwise.
+ */
+export async function funnel({ days = 30 } = {}) {
+  // Only steps on the required path. Opening a sample is optional, and putting
+  // it in the funnel invents a "drop" of everyone who bought without one — a
+  // number that would send us optimising a step nobody has to take. It is
+  // reported per report in reportInterest() instead.
+  const STEPS = [
+    ["Visited",           ["page_view"]],
+    ["Viewed a report",   ["report_viewed"]],
+    ["Started checkout",  ["checkout_started"]],
+    ["Pressed pay",       ["pay_clicked"]],
+    ["Sent to Razorpay",  ["payment_redirected"]],
+    ["Report ready",      ["order_ready"]]
+  ];
+
+  // One query, not seven: the counts have to describe the same instant, and a
+  // loop of round trips can straddle an event landing mid-read.
+  const rows = await db.sequelize.query(
+    `SELECT name, COUNT(DISTINCT anonymous_id)::int AS people
+       FROM app_events
+      WHERE name IN (:names) AND occurred_at >= :since
+      GROUP BY name`,
+    {
+      replacements: { names: STEPS.flatMap(([, n]) => n), since: since(days) },
+      type: db.Sequelize.QueryTypes.SELECT
+    }
+  );
+  const byName = Object.fromEntries(rows.map((r) => [r.name, r.people]));
+
+  const out = STEPS.map(([step, names]) => ({
+    step, people: names.reduce((n, k) => n + (byName[k] || 0), 0)
+  }));
+  const first = out[0].people;
+  out.forEach((s, i) => {
+    s.of_first = first ? Math.round((s.people / first) * 100) : 0;
+    // Where they leave: the fall between this step and the one before it.
+    s.dropped = i ? Math.max(0, out[i - 1].people - s.people) : 0;
+  });
+  return out;
+}
+
+/** Which reports get looked at, and which of those turn into money. */
+export async function reportInterest({ days = 30 } = {}) {
+  return db.sequelize.query(
+    `SELECT properties->>'code' AS code,
+            COUNT(DISTINCT anonymous_id) FILTER (WHERE name = 'report_viewed')::int      AS viewed,
+            COUNT(DISTINCT anonymous_id) FILTER (WHERE name = 'sample_opened')::int      AS sampled,
+            COUNT(DISTINCT anonymous_id) FILTER (WHERE name = 'checkout_started')::int   AS started,
+            COUNT(DISTINCT anonymous_id) FILTER (WHERE name = 'pay_clicked')::int        AS paid_click
+       FROM app_events
+      WHERE occurred_at >= :since AND properties->>'code' IS NOT NULL
+      GROUP BY 1 ORDER BY viewed DESC NULLS LAST`,
+    { replacements: { since: since(days) }, type: db.Sequelize.QueryTypes.SELECT });
+}
+
+export async function journeyOf(anonymousId) {
+  const { journey } = await import("../events/events.service.js");
+  return journey(anonymousId);
+}

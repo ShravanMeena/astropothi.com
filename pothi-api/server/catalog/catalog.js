@@ -2,13 +2,16 @@
 
 // Credit weighting protects margin: a 64-chapter book must not cost the same as a 12-page one.
 export const REPORT_TYPES = [
-  { code: "kundli",     name_en: "Premium Kundali",       name_hi: "प्रीमियम कुंडली",      chapters: 64, credits: 5, engine: "kundli",     ready: true  },
+  { code: "kundli",     name_en: "Premium Personalised Kundali", name_hi: "प्रीमियम व्यक्तिगत कुंडली",      chapters: 64, credits: 5, engine: "kundli",     ready: true  },
   { code: "dosh",       name_en: "Kundali Dosh Report",   name_hi: "कुंडली दोष रिपोर्ट",   chapters: 28, credits: 2, engine: "dosh",       ready: true },
   { code: "love",       name_en: "Love & Marriage",       name_hi: "प्रेम कुंडली",         chapters: 24, credits: 2, engine: "love",       ready: true  },
   { code: "health",     name_en: "Health Report",         name_hi: "स्वास्थ्य कुंडली",     chapters: 26, credits: 2, engine: "health",     ready: true  },
   { code: "horoscope",  name_en: "Personalised Horoscope",name_hi: "व्यक्तिगत राशिफल",     chapters: 22, credits: 2, engine: "horoscope",  ready: true },
   { code: "laalkitab",  name_en: "Laal Kitaab Report",    name_hi: "लाल किताब रिपोर्ट",    chapters: 30, credits: 3, engine: "laalkitab",  ready: true },
-  { code: "varshaphal", name_en: "Varshaphal (Annual)",   name_hi: "वर्षफल रिपोर्ट",       chapters: 40, credits: 3, engine: "varshaphal", ready: true }
+  { code: "varshaphal", name_en: "Varshaphal (Annual)",   name_hi: "वर्षफल रिपोर्ट",       chapters: 40, credits: 3, engine: "varshaphal", ready: true },
+  // The only report whose subject is a building rather than a person — it asks
+  // for the facing and the room layout, not a birth time.
+  { code: "vastu",      name_en: "Vastu Wheel Report",    name_hi: "वास्तु चक्र रिपोर्ट",  chapters: 25, credits: 3, engine: "vastu",      ready: true, subject: "property" }
 ];
 
 // `ready: true` = renderer under review, see OPEN-ITEMS.md #1. Not sellable yet.
@@ -26,23 +29,51 @@ export const PACKS = [
 export const getPack = (code) => PACKS.find((p) => p.code === code) || null;
 
 // ── Consumer pricing ────────────────────────────────────────────────────────
-// GST-inclusive, anchored below every incumbent (Clickastro ₹1,416, AstroSage
-// ₹996–1,999, VedicRishi ₹550) while carrying three designs they do not have.
-// See docs/08-consumer.md.
-export const CONSUMER_PRICES = {
-  kundli:     69900,
-  laalkitab:  49900,
-  varshaphal: 49900,
-  dosh:       29900,
-  love:       29900,
-  health:     29900,
-  horoscope:  29900
+//
+// Priced by depth, in three tiers, rather than as eight numbers chosen one at a
+// time. The old set had drifted badly out of line: measured against the words a
+// buyer actually receives, Kundali cost ₹45 per thousand and Vastu ₹181 — a
+// four-fold spread across one shelf, with the biggest book the cheapest per
+// page. Tiers make that impossible to repeat: a report is placed in a band, and
+// the band carries the price.
+//
+// GST-inclusive. The flagship stays under every incumbent (Clickastro ₹1,416,
+// AstroSage ₹996–1,999, VedicRishi ₹550) while carrying three designs, eight
+// report types and an assistant none of them offer. See docs/04-pricing-gtm.md.
+export const PRICE_TIERS = {
+  // 60+ chapters, 80+ pages. The anchor, and deliberately the best value on the
+  // shelf — it is what the other seven are compared against.
+  flagship: 99900,
+  // A complete reading of a whole subject: ~30–40 chapters, ~40 pages.
+  full:     59900,
+  // One life area, read closely: ~20–26 chapters, ~15–26 pages.
+  focused:  39900
 };
+
+const TIER_OF = {
+  kundli:     "flagship",
+  dosh:       "full",
+  laalkitab:  "full",
+  varshaphal: "full",
+  love:       "focused",
+  health:     "focused",
+  horoscope:  "focused",
+  vastu:      "focused"
+};
+
+export const CONSUMER_PRICES = Object.fromEntries(
+  REPORT_TYPES.map((r) => [r.code, PRICE_TIERS[TIER_OF[r.code] || "focused"]])
+);
+
+export const tierOf = (code) => TIER_OF[code] || "focused";
 
 export const consumerCatalogue = () =>
   SELLABLE.map((r) => ({
     code: r.code, name_en: r.name_en, name_hi: r.name_hi,
-    chapters: r.chapters, price_paise: CONSUMER_PRICES[r.code] ?? 29900
+    chapters: r.chapters, price_paise: CONSUMER_PRICES[r.code] ?? 29900,
+    // "person" (birth details) or "property" (facing + room layout). The
+    // checkout form branches on this — a Vastu report has no birth moment.
+    subject: r.subject || "person"
   }));
 
 export const consumerPrice = (code) => CONSUMER_PRICES[code] ?? null;

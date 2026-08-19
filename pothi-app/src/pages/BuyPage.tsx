@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { track, flush, identify } from "../lib/track";
 import { api, rupees, type ReportItem } from "../lib/api";
 import PlaceInput from "../sections/PlaceInput";
 import { DateField, TimeField, Select } from "../components/Picker";
 import { setUserToken } from "../lib/account";
+import VastuForm, { type VastuValue } from "../components/VastuForm";
 
 const STAGES = [
   "Casting the chart from the ephemeris",
@@ -64,13 +66,46 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
 }) {
   const [f, setF] = useState({
     name: "", gender: "female", dob: "", tob: "", pob: "", place_id: "",
-    language: "en", buyer_phone: "", buyer_email: ""
+    language: "en", buyer_phone: "", buyer_email: "",
+    // Only used by property reports; the server ignores them otherwise.
+    facing: "", property_type: "home", rooms: {} as Record<string, string>
   });
+
+  // A Vastu report has no birth moment. It asks about a building instead, so the
+  // whole first block of this form changes rather than being hidden field by field.
+  const isProperty = item?.subject === "property";
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState(-1);
   const [err, setErr] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const formRef = useRef<HTMLDivElement>(null);
+
+  // Coupons. The server is the authority on what a code is worth — this is only
+  // what we show, and the order endpoint re-checks it before charging anything.
+  const [coupon, setCoupon] = useState("");
+  const [applied, setApplied] = useState<{ code: string; discount_paise: number; final_paise: number } | null>(null);
+  const [couponMsg, setCouponMsg] = useState("");
+  const [couponBusy, setCouponBusy] = useState(false);
+
+  const list = item?.price_paise ?? 0;
+  const payable = applied ? applied.final_paise : list;
+
+  const applyCoupon = async () => {
+    const code = coupon.trim().toUpperCase();
+    if (!code || !item) return;
+    setCouponBusy(true); setCouponMsg("");
+    try {
+      const r = await api.post("/noauth-api/v1/shop/coupon", { code, report_type: item.code });
+      setApplied({ code: r.code, discount_paise: r.discount_paise, final_paise: r.final_paise });
+      track("coupon_applied", { code: item.code, coupon: r.code, discount_paise: r.discount_paise });
+    } catch (e: any) {
+      // A bad code comes back as a 400 with the reason on it — that reason is
+      // written for the buyer ("this coupon has expired"), so show it as-is.
+      setApplied(null);
+      setCouponMsg(e.message || "Could not check that code.");
+      track("coupon_rejected", { code: item.code, coupon: code, reason: e.message });
+    } finally { setCouponBusy(false); }
+  };
 
   // An error clears the moment the field it belongs to is filled in — leaving it
   // shouting after the buyer has fixed it is its own kind of wrong.
@@ -87,12 +122,18 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
   /** What is missing, in the order it appears on the page. */
   const validate = (v: typeof f) => {
     const e: Record<string, string> = {};
-    if (!v.name.trim())          e.name = "Whose chart is this? Enter the full name.";
-    if (!v.dob)                  e.dob = "Choose the date of birth.";
-    if (!v.tob)                  e.tob = "Choose the time of birth — it fixes the ascendant.";
-    if (!v.place_id)             e.place_id = v.pob.trim()
-      ? "Pick the birth place from the list so we can resolve its coordinates."
-      : "Enter the birth place and pick it from the list.";
+    if (!v.name.trim())
+      e.name = isProperty ? "Whose home is this? Enter the name to print on it."
+                          : "Whose chart is this? Enter the full name.";
+    if (isProperty) {
+      if (!v.facing) e.facing = "Which way the main entrance faces — this is what the whole report is read from.";
+    } else {
+      if (!v.dob)      e.dob = "Choose the date of birth.";
+      if (!v.tob)      e.tob = "Choose the time of birth — it fixes the ascendant.";
+      if (!v.place_id) e.place_id = v.pob.trim()
+        ? "Pick the birth place from the list so we can resolve its coordinates."
+        : "Enter the birth place and pick it from the list.";
+    }
     if (v.buyer_phone.length !== 10) e.buyer_phone = "Enter a 10-digit mobile number.";
     if (v.buyer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.buyer_email))
       e.buyer_email = "That email address does not look right.";
@@ -113,6 +154,9 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
     // why is the reason people abandon this form.
     const bad = validate(f);
     if (Object.keys(bad).length) {
+      // Which field people fail on is the whole story of a form that loses
+      // buyers — recorded by name, never with what they typed in it.
+      track("checkout_field_error", { code: item.code, fields: Object.keys(bad) });
       setErrors(bad); setErr("");
       const first = Object.keys(bad)[0];
       const el = formRef.current?.querySelector<HTMLElement>(`#field-${first}`);
@@ -121,17 +165,32 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
       return;
     }
     setBusy(true); setErr(""); setStage(-1);
+    track("pay_clicked", { code: item.code, design, palette, amount_paise: payable, coupon: applied?.code });
     try {
       const o = await api.post("/noauth-api/v1/shop/order",
-        { ...f, buyer_name: f.name, report_type: item.code, design, palette });
+        { ...f, buyer_name: f.name, report_type: item.code, design, palette,
+          coupon: applied?.code || undefined });
 
       // The number they just gave us is the account, so the server signs them in
       // with the order. From here the report lands on their profile by itself.
-      if (o.token) setUserToken(o.token);
+      if (o.token) {
+        setUserToken(o.token);
+        // Recorded as its own event because identify() below backfills user_id
+        // onto every earlier row — after that the column can no longer say WHEN
+        // they stopped being anonymous. This event can.
+        track("signed_in", { via: "checkout", code: item.code });
+        identify();
+      }
 
       // Live payments: leave for Razorpay's hosted page. It redirects back to
       // /order/<public_id>, where the return is verified and the report waits.
-      if (o.pay_url) { window.location.href = o.pay_url; return; }
+      if (o.pay_url) {
+        // The last thing we can record before the browser leaves for Razorpay.
+        track("payment_redirected", { code: item.code, order_id: o.public_id, amount_paise: o.amount_paise });
+        flush();
+        window.location.href = o.pay_url;
+        return;
+      }
 
       // Payments not configured — the local path, clearly labelled as such.
       setStage(0);
@@ -173,40 +232,55 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
       <button onClick={onBack} className="text-[13.5px] text-faint hover:text-fg">← Back</button>
 
       <div className="mt-6 flex items-baseline justify-between gap-4 flex-wrap">
-        <h1 className="display text-[32px] sm:text-[40px]">Your birth details</h1>
+        <h1 className="display text-[32px] sm:text-[40px]">
+          {isProperty ? "About your home" : "Your birth details"}
+        </h1>
         <div className="text-right">
           <div className="text-[13px] text-faint">{item?.name_en}</div>
           <div className="display text-[26px]">{item ? rupees(item.price_paise) : ""}</div>
         </div>
       </div>
       <p className="lede mt-3">
-        Birth time matters more than anything else here — it fixes the ascendant and every
-        house cusp. Use a birth certificate if you have one.
+        {isProperty
+          ? "The facing matters more than anything else here — it decides what belongs in every other corner. Stand inside your main door looking out; that is the direction the home faces."
+          : "Birth time matters more than anything else here — it fixes the ascendant and every house cusp. Use a birth certificate if you have one."}
       </p>
 
       <div ref={formRef} className="mt-10 space-y-10">
-        <Block n="01" title="Who the reading is for">
-        <Field id="field-name" label="Full name" error={errors.name}>
+        <Block n="01" title={isProperty ? "The home being read" : "Who the reading is for"}>
+        <Field id="field-name" label={isProperty ? "Name to print on the report" : "Full name"}
+               error={errors.name}>
           <input className="field deva" value={f.name} onChange={set("name")} autoFocus
-                 aria-invalid={!!errors.name} placeholder="As you would like it printed" />
+                 aria-invalid={!!errors.name}
+                 placeholder={isProperty ? "The owner's name" : "As you would like it printed"} />
         </Field>
-        <div className="grid sm:grid-cols-2 gap-5">
-          <Field id="field-dob" label="Date of birth" error={errors.dob}>
-            <DateField value={f.dob} onChange={(v) => patch({ dob: v })} />
-          </Field>
-          <Field id="field-tob" label="Time of birth" error={errors.tob}>
-            <TimeField value={f.tob} onChange={(v) => patch({ tob: v })} />
-          </Field>
-        </div>
-        <Field id="field-place_id" label="Place of birth" error={errors.place_id}
-               hint="pick from the list">
-          <PlaceInput value={f.pob} placeId={f.place_id} onChange={(v) => patch(v)} />
-        </Field>
+
+        {isProperty ? (
+          <VastuForm
+            value={{ facing: f.facing, property_type: f.property_type, rooms: f.rooms } as VastuValue}
+            facingError={errors.facing}
+            onChange={(v) => patch(v as Partial<typeof f>)} />
+        ) : (
+          <>
+            <div className="grid sm:grid-cols-2 gap-5">
+              <Field id="field-dob" label="Date of birth" error={errors.dob}>
+                <DateField value={f.dob} onChange={(v) => patch({ dob: v })} />
+              </Field>
+              <Field id="field-tob" label="Time of birth" error={errors.tob}>
+                <TimeField value={f.tob} onChange={(v) => patch({ tob: v })} />
+              </Field>
+            </div>
+            <Field id="field-place_id" label="Place of birth" error={errors.place_id}
+                   hint="pick from the list">
+              <PlaceInput value={f.pob} placeId={f.place_id} onChange={(v) => patch(v)} />
+            </Field>
+          </>
+        )}
         </Block>
 
         <Block n="02" title="How you want it written">
         <div className="grid sm:grid-cols-2 gap-5">
-          <div><label className="label">Gender</label>
+          <div className={isProperty ? "hidden" : ""}><label className="label">Gender</label>
             <Select value={f.gender} ariaLabel="Gender"
                     onChange={(v) => patch({ gender: v })}
                     options={[{ value: "female", label: "Female" },
@@ -245,19 +319,50 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
         </Block>
       </div>
 
+      {/* A coupon box that is always visible sells the discount to people who
+          do not have one. Collapsed to a link until it is wanted. */}
+      <div className="mt-7 card-quiet p-5">
+        <div className="flex items-baseline justify-between gap-4">
+          <span className="text-[14px] text-muted">Total</span>
+          <span className="display text-[22px]">{item ? rupees(payable) : ""}</span>
+        </div>
+        {applied && (
+          <div className="flex items-baseline justify-between gap-4 mt-1.5 text-[13px]">
+            <span className="text-brass">{applied.code}</span>
+            <span className="text-brass tabular-nums">
+              − {rupees(applied.discount_paise)} <span className="text-faint line-through ml-1.5">{rupees(list)}</span>
+            </span>
+          </div>
+        )}
+        <div className="rule my-4" />
+        <div className="flex gap-2">
+          <input className="field flex-1 uppercase tracking-wide" placeholder="Coupon code"
+                 aria-label="Coupon code" value={coupon} maxLength={32}
+                 onChange={(e) => { setCoupon(e.target.value); setCouponMsg(""); }}
+                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCoupon(); } }} />
+          {applied
+            ? <button type="button" className="btn btn-sm btn-line"
+                      onClick={() => { setApplied(null); setCoupon(""); setCouponMsg(""); }}>Remove</button>
+            : <button type="button" className="btn btn-sm btn-line" disabled={couponBusy || !coupon.trim()}
+                      onClick={applyCoupon}>{couponBusy ? "…" : "Apply"}</button>}
+        </div>
+        {couponMsg && <p className="text-[12.5px] text-ember mt-2">{couponMsg}</p>}
+      </div>
+
       {err && <p className="mt-4 text-[14px] text-ember">{err}</p>}
 
       {/* Desktop: the button sits at the end of the form, where the eye lands. */}
       <div className="mt-8 hidden sm:flex flex-wrap items-center gap-4">
         <button className="btn-brass h-[52px] px-8 text-[16px]" disabled={busy} onClick={submit}>
-          Pay {item ? rupees(item.price_paise) : ""} securely
+          Pay {item ? rupees(payable) : ""} securely
         </button>
         <span className="text-[13px] text-faint">Secure payment on Razorpay · UPI, card or netbanking</span>
       </div>
 
       <p className="text-[12px] text-faint mt-6 max-w-prose2 leading-relaxed">
-        Price includes GST. Reports are generated on payment and are non-refundable once
-        delivered. Prepared for guidance; not a substitute for medical, legal or financial advice.
+        Price includes GST. Not satisfied with your report? We refund the full amount, no
+        questions asked. Prepared for guidance; not a substitute for medical, legal or financial
+        advice.
       </p>
 
       {/*
@@ -272,9 +377,13 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
         <div className="shell py-3 flex items-center gap-4">
           <div className="shrink-0">
             <div className="display text-[20px] leading-none">
-              {item ? rupees(item.price_paise) : ""}
+              {item ? rupees(payable) : ""}
             </div>
-            <div className="text-[11px] text-faint mt-1">incl. GST</div>
+            <div className="text-[11px] text-faint mt-1">
+              {applied
+                ? <span className="text-brass">{applied.code} applied</span>
+                : "incl. GST"}
+            </div>
           </div>
           <button className="btn-brass flex-1 h-[50px] text-[15.5px]" disabled={busy} onClick={submit}>
             {busy ? "…" : "Pay securely"}

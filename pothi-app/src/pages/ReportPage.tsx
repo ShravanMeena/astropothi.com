@@ -7,6 +7,7 @@ import Engine from "../sections/Engine";
 import SampleModal from "../components/SampleModal";
 import { COVER_PALETTE } from "../components/ReportCover";
 import CountUp from "../components/CountUp";
+import { track } from "../lib/track";
 
 type Detail = {
   code: string; name_en: string; chapters: number; price_paise: number; approx_pages: number;
@@ -22,6 +23,7 @@ const PITCH: Record<string, { deva: string; line: string; body: string }> = {
   health:     { deva: "आरोग्य", line: "Your constitution, read properly.", body: "Lagna and its lord, the 6th house, the Moon, your tatva and prakriti — and the areas of the body your chart asks you to look after." },
   horoscope:  { deva: "राशिफल", line: "This month against your own chart.", body: "Not a sun-sign column. Every transit placed against your natal houses, the dates that matter, and what each one touches." },
   laalkitab:  { deva: "लाल किताब", line: "The Laal Kitaab reading.", body: "A distinct tradition with its own logic and its own remedies — practical, inexpensive, and drawn from the placements that need help in your chart." },
+  vastu:      { deva: "वास्तु चक्र", line: "Your home, read direction by direction.", body: "Where the entrance, kitchen, bedroom, pooja space, toilets and water sit — each checked against the Vastu Purusha Mandala, with the dosh named, its weight given, and a remedy that needs no demolition." },
   varshaphal: { deva: "वर्षफल", line: "The year ahead.", body: "The annual chart cast for your solar return: Muntha, Panchavargeeya bala, the Mudda dasha and the themes month by month." }
 };
 
@@ -150,7 +152,8 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
                   Generate mine — {price}
                 </button>
                 {d?.sample && (
-                  <button className="btn-line h-[52px]" onClick={() => setSample(true)}>
+                  <button className="btn-line h-[52px]"
+                          onClick={() => { track("sample_opened", { code }); setSample(true); }}>
                     Read a sample
                   </button>
                 )}
@@ -158,6 +161,27 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
               <p className="mt-4 text-[13px] text-faint">
                 Delivered as a PDF in under a minute · No account needed
               </p>
+
+              {/* The guarantee sits with the buy button, not buried in a policy
+                  page. The whole objection to a ₹399 reading is "what if it is
+                  worthless to me" — answering it anywhere else is answering it
+                  too late. */}
+              <div className="mt-6 inline-flex items-start gap-3 rounded-xl border border-brass/35
+                              bg-brassSoft/25 dark:bg-brass/10 px-4 py-3 max-w-prose2">
+                <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+                     strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+                     className="text-brass shrink-0 mt-px" aria-hidden>
+                  <path d="M12 3l7.5 3v5.2c0 4.4-3 8.3-7.5 9.6-4.5-1.3-7.5-5.2-7.5-9.6V6z" />
+                  <path d="m9 12 2.2 2.2L15.5 10" />
+                </svg>
+                <p className="text-[13.5px] leading-relaxed text-fg">
+                  <strong>100% refund, no questions asked.</strong>{" "}
+                  <span className="text-muted">
+                    Not satisfied with your report? Message us and we return the full amount. You
+                    do not have to explain why, and you keep the file.
+                  </span>
+                </p>
+              </div>
             </div>
 
             {/* The artefact, at a size you can actually judge — and turnable,
@@ -304,11 +328,38 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
             </button>
           </div>
           <p className="mt-4 text-[13px] text-faint">Birth date, time and place is all we need.</p>
+          {/* Repeated at the bottom because this is where the reader who scrolled
+              the whole page decides, and they should not have to scroll back up
+              to be reminded there is nothing to lose. */}
+          <p className="mt-2 text-[13px] text-brass">
+            100% refund, no questions asked, if it is not worth it to you.
+          </p>
+          <div aria-hidden className="h-20 sm:hidden" />
         </div>
       </section>
 
       <SampleModal open={sample} onClose={() => setSample(false)} shots={shots}
                    title={d?.name_en ?? ""} pdfUrl={d?.sample?.pdf} />
+
+      {/* Mobile: the price and the button follow the reader down the page. This
+          is the page paid traffic lands on; it must never be more than a thumb
+          away from buying. */}
+      <div className="sm:hidden fixed inset-x-0 bottom-0 z-40 border-t border-line
+                      bg-surface/95 backdrop-blur-xl"
+           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="shell py-3 flex items-center gap-4">
+          <div className="shrink-0">
+            <div className="display text-[20px] leading-none">{price}</div>
+            <div className="text-[11px] text-faint mt-1">
+              {d ? `${d.chapters} chapters` : "\u00a0"}
+            </div>
+          </div>
+          <button className="btn-brass flex-1 h-[50px] text-[15.5px]"
+                  onClick={() => onBuy(code, design, palette)}>
+            Generate mine
+          </button>
+        </div>
+      </div>
     </>
   );
 }

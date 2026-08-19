@@ -94,7 +94,8 @@ is("signed webhook accepted", await hook("payment_link.paid", {
 }), 200);
 
 let s = null;
-for (let i = 0; i < 40 && (s = await status(order.public_id)).status !== "ready"; i++) await wait(500);
+// Sized for an enriched generation (~30s), not a template-only one (~3s).
+for (let i = 0; i < 160 && (s = await status(order.public_id)).status !== "ready"; i++) await wait(500);
 is("order is ready", s.status, "ready");
 is("report attached", Boolean(s.pdf_url), true);
 is("invoice issued", Boolean(s.invoice_no), true);

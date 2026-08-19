@@ -14,6 +14,8 @@ export const rupees = (paise: number) =>
 
 export type ReportItem = {
   code: string; name_en: string; name_hi: string; chapters: number; price_paise: number;
+  /** "person" wants birth details; "property" wants a facing and a room layout. */
+  subject?: "person" | "property";
 };
 export type Design = {
   id: string; name: { en: string; hi: string }; tagline: { en: string; hi: string };

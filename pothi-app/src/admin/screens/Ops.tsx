@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { adminApi, rupees, num, when } from "../api";
 import type { PaymentLink, Catalogue, Environment } from "../types";
-import { Panel, TableWrap, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Note, Stat, StatRow, Facts, SubHead } from "../ui";
+import { Panel, TableWrap, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Hint, Stat, StatRow, Facts } from "../ui";
 
 export default function Ops({ environment }: { environment: Environment | null }) {
   const [links, setLinks] = useState<PaymentLink[] | null>(null);
@@ -43,17 +43,19 @@ export default function Ops({ environment }: { environment: Environment | null }
             ]} />
           </div>
           {environment.otp_bypass_enabled && (
-            <Note>
-              <strong className="text-ember">OTP_BYPASS is set.</strong> Anyone who knows that code can sign in as
-              any phone number — including an admin's — and this panel is reachable from the ordinary astrologer
-              login. config.js forces the bypass to null when NODE_ENV=production, so this is a development-only
-              exposure, but it does mean this environment has no real access control.
-            </Note>
+            <div className="flex items-start gap-2.5 border-t border-ember/30 bg-ember/8 px-5 py-3">
+              <span className="mt-px text-ember text-[13px] leading-none">▲</span>
+              <p className="text-[12px] leading-relaxed text-ember">
+                <strong>OTP_BYPASS is set.</strong> One fixed code signs in as any phone, including staff — this
+                environment has no real access control. Forced to null when NODE_ENV=production.
+              </p>
+            </div>
           )}
         </Panel>
       )}
 
-      <Panel title="Payment links" sub={`${num(links?.length || 0)} most recent`}>
+      <Panel title="Payment links" sub={`${num(links?.length || 0)} most recent`}
+             right={<Hint>This schema has no webhook-delivery table, so failed deliveries cannot be listed. What is shown is the observable consequence: a link with no payment id. That is either a buyer who never paid or a webhook that never arrived, and these rows cannot tell the two apart — Razorpay's dashboard can.</Hint>}>
         {!links ? <Loading /> : !links.length ? <Empty label="No payment links issued." /> : (
           <>
             <StatRow cols={3}>
@@ -90,16 +92,11 @@ export default function Ops({ environment }: { environment: Environment | null }
             </div>
           </>
         )}
-        <Note>
-          This schema has no webhook-delivery table, so failed deliveries cannot be listed — there is no log to
-          read. What is shown instead is the observable consequence: a link with no payment id against it. That is
-          either a buyer who never paid or a webhook that never arrived, and these rows cannot tell the two apart.
-          Razorpay's own dashboard can.
-        </Note>
       </Panel>
 
       {cat && (
-        <Panel title="Catalogue" sub={cat.source}>
+        <Panel title="Catalogue" sub="Prices live in code — they change with a deploy, not from this screen."
+               right={<Hint>There is deliberately no price editor: a price typed into an admin form would diverge from the one the renderer and the invoice actually use. While the pilot runs, every report costs 1 credit regardless of type.</Hint>}>
           <TableWrap>
             <thead><tr>
               <Th>Report</Th><Th align="right">Chapters</Th><Th align="right">Consumer price</Th>
@@ -128,12 +125,6 @@ export default function Ops({ environment }: { environment: Environment | null }
               ))}
             </tbody>
           </TableWrap>
-          <Note>
-            Prices live in <code>server/catalog/catalog.js</code>, not in database rows — they change with a
-            deploy, not from this screen. There is deliberately no price editor here: a price typed into an admin
-            form would diverge from the one the renderer and the invoice use.
-            {cat.pilot.on && " While the pilot runs every report costs 1 credit regardless of type, which is why the credit column is struck through."}
-          </Note>
         </Panel>
       )}
 
@@ -156,15 +147,21 @@ export default function Ops({ environment }: { environment: Environment | null }
         </Panel>
       )}
 
-      <div>
-        <SubHead>Not built</SubHead>
-        <div className="card p-4 text-[12.5px] text-muted leading-relaxed space-y-1.5">
-          <p>· <strong className="text-fg">Webhook delivery log.</strong> No table exists to read; adding one means a schema change and a write in the webhook handler.</p>
-          <p>· <strong className="text-fg">Refunds.</strong> The <code>refunded</code> status is reported wherever it appears, but nothing here can issue one — that is a Razorpay action with money attached.</p>
-          <p>· <strong className="text-fg">Editing prices or catalogue.</strong> Those are code, by design.</p>
-          <p>· <strong className="text-fg">Granting or revoking staff.</strong> Only <code>scripts/ensure_admin.js</code> can do it, which is what makes this panel un-escalatable from the API.</p>
+      <Panel title="Not built" sub="Deliberate gaps, so nobody goes looking.">
+        <div className="grid sm:grid-cols-2 gap-px bg-line">
+          {[
+            ["Webhook delivery log", "No table exists to read."],
+            ["Refunds", "Reported where they appear; issuing one is a Razorpay action."],
+            ["Editing prices", "The catalogue is code, by design."],
+            ["Granting staff", "Only scripts/ensure_admin.js — that is what makes this un-escalatable."]
+          ].map(([t, d]) => (
+            <div key={t} className="bg-raised px-4 py-3">
+              <div className="text-[12.5px] font-medium text-fg">{t}</div>
+              <div className="mt-0.5 text-[11.5px] text-muted leading-snug">{d}</div>
+            </div>
+          ))}
         </div>
-      </div>
+      </Panel>
     </div>
   );
 }

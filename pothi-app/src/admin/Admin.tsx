@@ -9,14 +9,18 @@ import Users from "./screens/Users";
 import Reports from "./screens/Reports";
 import Pandits from "./screens/Pandits";
 import Ops from "./screens/Ops";
+import Behaviour from "./screens/Behaviour";
+import Pricing from "./screens/Pricing";
 
-type Tab = "overview" | "orders" | "users" | "reports" | "pandits" | "ops";
+type Tab = "overview" | "orders" | "users" | "reports" | "behaviour" | "pricing" | "pandits" | "ops";
 
 const TABS: { id: Tab; label: string; icon: ReactNode }[] = [
   { id: "overview", label: "Overview", icon: <path d="M3 13h6V3H3zM13 21h8V11h-8zM13 7h8V3h-8zM3 21h6v-4H3z" /> },
   { id: "orders",   label: "Orders",   icon: <path d="M3 7h18v13H3zM3 7l2-3h14l2 3M9 12h6" /> },
   { id: "users",    label: "Buyers",   icon: <path d="M4 20a8 8 0 0 1 16 0M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8" /> },
   { id: "reports",  label: "Reports",  icon: <path d="M5 3h11l4 4v14H5zM16 3v4h4M9 12h6M9 16h6" /> },
+  { id: "behaviour", label: "Behaviour", icon: <path d="M3 3v18h18M7 15l4-5 3 3 5-7" /> },
+  { id: "pricing",  label: "Pricing",  icon: <path d="M12 2v20M17 6.5c0-1.9-2.2-3-5-3s-5 1.1-5 3 2.2 2.8 5 3.3 5 1.4 5 3.4-2.2 3.3-5 3.3-5-1.4-5-3.3" /> },
   { id: "pandits",  label: "Astrologers", icon: <path d="M12 3l2.6 5.6 6.1.8-4.5 4.2 1.2 6.1L12 16.8 6.6 19.7l1.2-6.1L3.3 9.4l6.1-.8z" /> },
   { id: "ops",      label: "Operations", icon: <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.2a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-3-1.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.2-3l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 2.9-1.2V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 3 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0 1.2 2.9h.2a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" /> }
 ];
@@ -129,6 +133,8 @@ export default function Admin({ onSignOut }: { onSignOut: () => void }) {
             {tab === "orders"   && <Orders />}
             {tab === "users"    && <Users />}
             {tab === "reports"  && <Reports />}
+            {tab === "behaviour" && <Behaviour />}
+            {tab === "pricing"  && <Pricing />}
             {tab === "pandits"  && <Pandits />}
             {tab === "ops"      && <Ops environment={env} />}
           </>

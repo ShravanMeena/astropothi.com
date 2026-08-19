@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { api } from "../lib/api";
 import { setUserToken } from "../lib/account";
+import { track, identify } from "../lib/track";
 
 /**
  * Sign in with a mobile number. There is no sign-up: the number is the account,
@@ -27,6 +28,7 @@ export default function SignIn({ open, onClose, onDone, reason }: {
   const send = async () => {
     setBusy(true); setErr("");
     try {
+      track("signin_otp_sent", {});
       const r = await api.post("/noauth-api/v1/user/otp/send", { phone });
       setSent(true);
       if (r.dev_otp) setOtp(r.dev_otp);
@@ -38,6 +40,10 @@ export default function SignIn({ open, onClose, onDone, reason }: {
     try {
       const r = await api.post("/noauth-api/v1/user/otp/verify", { phone, otp });
       setUserToken(r.token);
+      // Everything this device did before anyone knew who they were now belongs
+      // to this account — that pre-login half is the interesting half.
+      track("signed_in", {});
+      identify();
       onDone?.();
       onClose();
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }

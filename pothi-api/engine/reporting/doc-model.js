@@ -50,6 +50,9 @@ function normalizeSection(raw, index) {
     bullets: [...arr(raw.bullets), ...arr(raw.highlights)],
     advisory: str(raw.advisory),
     placements: Array.isArray(raw.placements) ? raw.placements : [],
+    // The verdict as data, so the renderer can colour it instead of the reader
+    // having to parse severity out of grey type. Only the dosh mapper sets it.
+    status: raw.status && typeof raw.status === "object" ? raw.status : null,
     table: Array.isArray(raw.table) ? raw.table : null
   };
 }
@@ -78,6 +81,17 @@ function prettyDate(v, lang) {
   return months[idx] ? `${d} ${months[idx]} ${y}` : String(v);
 }
 
+const FACING = {
+  N:  { en: "North facing",      hi: "उत्तर मुखी" },   NE: { en: "North-East facing", hi: "ईशान मुखी" },
+  E:  { en: "East facing",       hi: "पूर्व मुखी" },   SE: { en: "South-East facing", hi: "आग्नेय मुखी" },
+  S:  { en: "South facing",      hi: "दक्षिण मुखी" },  SW: { en: "South-West facing", hi: "नैऋत्य मुखी" },
+  W:  { en: "West facing",       hi: "पश्चिम मुखी" },  NW: { en: "North-West facing", hi: "वायव्य मुखी" }
+};
+const PROPERTY_TYPE = {
+  home: { en: "independent house", hi: "स्वतंत्र भवन" }, flat: { en: "flat", hi: "फ्लैट" },
+  shop: { en: "shop or office",    hi: "दुकान या कार्यालय" }, plot: { en: "plot", hi: "भूखंड" }
+};
+
 export function buildDocModel({ result, reportType, titles, input, language }) {
   const k = result?.kundliData || {};
   const sections = extractSections(result).map(normalizeSection);
@@ -95,7 +109,10 @@ export function buildDocModel({ result, reportType, titles, input, language }) {
       dob_iso: str(input?.dob),
       tob: str(input?.tob),
       pob: str(input?.pob),
-      gender: str(input?.gender)
+      gender: str(input?.gender),
+      // Property reports carry these instead of a birth moment.
+      facingName: FACING[str(input?.facing).toUpperCase()]?.[lang] || "",
+      propertyType: PROPERTY_TYPE[str(input?.property_type)]?.[lang] || ""
     },
     // Shown on the cover and the details page. Absent for report types that
     // don't compute a chart (horoscope/varshaphal return kundliData: null).
@@ -111,6 +128,14 @@ export function buildDocModel({ result, reportType, titles, input, language }) {
       gana: k?.astroDetails?.gan || "",
       nadi: k?.astroDetails?.nadi || "",
       tithi: k?.panchang?.tithi || ""
+    },
+    // Numbers worth drawing rather than listing. Only whatever the chart
+    // actually produced — an empty array here means the page is not printed,
+    // never an empty axis.
+    graphs: {
+      bindus: Array.isArray(k?.ashtakavarga?.houses) ? k.ashtakavarga.houses : [],
+      dashaTimeline: Array.isArray(k?.dashas?.vimshottariTimeline) ? k.dashas.vimshottariTimeline : [],
+      currentDasha: str(k?.dashas?.currentMahaDasha)
     },
     planets: (Array.isArray(k?.planets) ? k.planets : []).map((p) => ({
       ...p, name: translatePlanet(p.name, lang), sign: translateSign(p.sign, lang)
@@ -133,11 +158,23 @@ export const L = {
         preparedBy:"Prepared by", planet:"Planet", sign:"Sign", house:"House",
         degree:"Degree", page:"Page", details:"Birth Details", chart:"Birth Chart",
         houses:"The Twelve Houses", lord:"Lord", occupants:"Occupants", empty:"—",
-        disclaimer:"This report is generated for guidance and reflection. It is not a substitute for professional medical, legal or financial advice." },
+        strengths:"Strength & Timing at a Glance", bindus:"Ashtakavarga — Bindus by House",
+        bindusNote:"Your chart carries {total} bindus across the twelve houses, an average of {avg}. Houses at or above the average are the ones the chart supports; the faded bars are the ones that need help.",
+        average:"average", dashaLine:"Vimshottari — The Whole Sequence", today:"today",
+        disclaimer:"This report is generated for guidance and reflection. It is not a substitute for professional medical, legal or financial advice.",
+        supportTitle:"Questions about this report?",
+        supportBody:"Write to us — a person reads every message. Ask about your chart, your reading, or your order.",
+        supportWhatsapp:"WhatsApp", supportEmail:"Email" },
   hi: { born:"जन्म", at:"समय", place:"स्थान", rashi:"चंद्र राशि", nakshatra:"नक्षत्र",
         lagna:"लग्न", contents:"विषय सूची", planetary:"ग्रह स्थिति",
         preparedBy:"प्रस्तुतकर्ता", planet:"ग्रह", sign:"राशि", house:"भाव",
         degree:"अंश", page:"पृष्ठ", details:"जन्म विवरण", chart:"जन्म कुंडली",
         houses:"द्वादश भाव", lord:"स्वामी", occupants:"स्थित ग्रह", empty:"—",
-        disclaimer:"यह रिपोर्ट मार्गदर्शन हेतु है। यह चिकित्सा, कानूनी या वित्तीय सलाह का विकल्प नहीं है।" }
+        strengths:"बल और काल — एक दृष्टि में", bindus:"अष्टकवर्ग — भावानुसार बिंदु",
+        bindusNote:"आपकी कुंडली में बारह भावों में कुल {total} बिंदु हैं, औसत {avg}। औसत या उससे ऊपर के भाव वे हैं जिन्हें कुंडली सहारा देती है; हल्के स्तंभ वे हैं जिन्हें सहायता चाहिए।",
+        average:"औसत", dashaLine:"विंशोत्तरी — सम्पूर्ण क्रम", today:"आज",
+        disclaimer:"यह रिपोर्ट मार्गदर्शन हेतु है। यह चिकित्सा, कानूनी या वित्तीय सलाह का विकल्प नहीं है।",
+        supportTitle:"रिपोर्ट के बारे में कोई प्रश्न है?",
+        supportBody:"हमें लिखिए — हर संदेश एक व्यक्ति पढ़ता है। कुंडली, रिपोर्ट या ऑर्डर से जुड़ा कोई भी प्रश्न पूछिए।",
+        supportWhatsapp:"व्हाट्सएप", supportEmail:"ईमेल" }
 };

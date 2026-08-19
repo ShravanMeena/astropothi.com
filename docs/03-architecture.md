@@ -141,7 +141,7 @@ cannot ship those.
 model** — so raw SQL must always add `AND "deletedAt" IS NULL`. A real bug shipped from
 exactly that: raw SQL counted soft-deleted rows while the ORM did not, and pilot seats leaked.
 
-Twelve tables, as built:
+Sixteen tables, as built:
 
 | Table | Key columns |
 |---|---|
@@ -157,11 +157,19 @@ Twelve tables, as built:
 | `reports` | `pandit_id, order_id, source` (`pandit\|consumer`), `client_id, report_type, design, palette, language, status, pdf_url, page_count, credits_charged, report_json, birth_meta, rashi, nakshatra, lagna, share_token, sale_price_paise, error, generated_ms` |
 | `orders` | **consumer purchases.** `public_id` unique, `report_type, design, palette, language, user_id, buyer_name, buyer_phone, buyer_email, state, birth JSONB, amount_paise, gst_paise, razorpay_order_id, razorpay_payment_id, razorpay_link_id, razorpay_link_url, status, report_id, invoice_no, whatsapp_sent_at, whatsapp_error, error` |
 | `pandit_prices` | `pandit_id, report_type, sale_price_paise` ← powers the earnings dashboard |
+| `price_overrides` | `report_type` unique, `price_paise, note, set_by` ← one row per deliberate exception to the code's tier price |
+| `coupons` | `code` unique, `kind` (`percent\|flat`), `value, max_discount_paise, min_amount_paise, report_types` JSONB, `max_uses, uses, starts_at, expires_at, active, note` |
+| `app_events` | **the only model with `paranoid: false`.** `name, category, anonymous_id, session_id, user_id, order_id, path, referrer, source, medium, campaign, properties` JSONB, `ua, ip, occurred_at` |
 
 > **Diverged from the plan:** `report_types` and `themes` are **code, not rows** — see
 > `server/catalog/catalog.js`. They change with a deploy, not at runtime, and a DB table
 > would only add a join and a way for the two to disagree. `report_jobs` was never built
 > because generation is synchronous (see below).
+
+**`app_events` is the exception to `paranoid: true`,** deliberately. Behavioural rows are
+appended and aggregated, never edited and never individually meaningful; a `deletedAt` on
+each one would add an index and a way for two counts to disagree, and buy nothing. Erasure
+under DPDP is a delete by `user_id`, not a soft-delete.
 
 **Revenue is two separate numbers.** The astrologer console shows "estimated earnings" =
 `pandit_prices × reports generated`. That is *the pandit's* revenue and an estimate. Pothi's
@@ -187,13 +195,18 @@ flag a pandit's token would satisfy a buyer route and read somebody else's order
 `catalog/{report-types,designs,palettes,packs}`, `location/{autocomplete,geocode}`,
 `pilot/status`, `webhook/razorpay`, and the storefront:
 `shop/catalogue`, `shop/report/:code`, `shop/thumb/:code`, `shop/order`,
-`shop/confirm-link`, `shop/confirm`, `shop/order/:publicId`, `shop/order/:publicId/pages`.
+`shop/confirm-link`, `shop/confirm`, `shop/order/:publicId`, `shop/order/:publicId/pages`,
+`shop/coupon`, and `events` (+ `events/identify`, which does require a buyer token).
 
 **pandit** — `me`, `branding` GET/PUT, `credits/{balance,ledger,packs,purchase,confirm}`,
 `reports` GET + `reports/generate`, `clients` GET/POST, `clients/birthdays`,
 `earnings/{summary,prices}`.
 
 **buyer** — `me` GET/PUT, `orders`.
+
+**staff** — the read-only panels, plus `pricing` GET / `pricing/:code` PUT+DELETE,
+`coupons` GET/POST + `coupons/:code/active`, and
+`events`, `events/funnel`, `events/by-report`, `events/journey/:anonymousId`.
 
 > Every namespace must also be listed in `pothi-app/vite.config.ts`. A missing proxy entry
 > returns `index.html` with a **200**, and the app breaks silently — this is exactly how the
@@ -259,3 +272,67 @@ build → S3+CloudFront (or Vercel — it's a static SPA, don't over-engineer).
 Observability from day one: Sentry both sides, structured request logs, and a
 **generation-success-rate** metric per report type × theme × language. A silently failing
 theme is a refund and a lost pandit.
+
+---
+
+## Behavioural events
+
+`app_events` answers one question the order table cannot: *what did somebody do before
+they bought, and where did the ones who didn't buy stop?*
+
+### Two ids, and why both
+
+| Id | Lives in | Means |
+|---|---|---|
+| `anonymous_id` | `localStorage`, forever | **a device.** Survives sign-out and every visit |
+| `session_id` | `sessionStorage` | **one visit.** A new tab is a new visit |
+
+`anonymous_id` is the load-bearing one. Ten minutes of browsing happen before anyone
+types a phone number, and that browsing is the interesting part. On sign-in the client
+calls `POST /noauth-api/v1/events/identify`, which stamps `user_id` onto **every earlier
+row** carrying that `anonymous_id` — the pre-login half of the journey stops being
+anonymous retroactively.
+
+> **Consequence worth knowing:** after `identify()` runs, `user_id` no longer tells you
+> *when* someone signed in — it is set on rows from before they did. The moment is
+> recorded as its own `signed_in` event, and the admin journey view marks that event, not
+> the column. Reading the column instead puts "signed in here" on step one.
+
+### The client
+
+`pothi-app/src/lib/track.ts`. Events are queued and flushed on a 4-second timer, at 25
+events, and on `visibilitychange`/`pagehide` via `sendBeacon`. Nothing in it throws into
+the UI: analytics that breaks a checkout is worse than no analytics.
+
+`sendBeacon` cannot set a `Content-Type`, so the unload batch arrives as `text/plain` —
+the route mounts `express.text({ type: "*/*" })` for exactly that. Without it every
+session silently loses its last batch, which is the batch that says where someone gave
+up.
+
+`sendBeacon` also cannot set an `Authorization` header, so unload rows land unattributed
+and are stitched by `anonymous_id` later.
+
+### The server
+
+`server/events/events.service.js` holds an `EVENTS` whitelist mapping name → category.
+An unknown name is **dropped, not rejected** — a stale cached bundle must not fail the
+whole batch and lose the good events beside it. `user_id` is taken from the token via
+`whoeverThisIs` (an optional auth that never 401s), never from the posted body.
+
+### Reading it back — Admin → Behaviour
+
+- **The funnel.** Distinct devices, not events: one person refreshing eleven times is one
+  interested person. One SQL query, not a loop, so every count describes the same instant.
+  Only steps on the *required* path are in it — opening a sample is optional, and
+  including it invents a "drop" of everyone who bought without one.
+- **Interest by report.** Viewed → sampled → started → pressed pay, per report. The gap
+  between viewed and paid is where the money is being left.
+- **A single device's journey**, in order, with the sign-in moment marked.
+
+### Adding an event
+
+1. Add the name to `EVENTS` in `server/events/events.service.js` with its category.
+2. Call `track("your_event", { … })` from the client.
+
+Anything not in the whitelist is silently discarded, so step 1 is not optional.
+`scripts/test_events.js` covers ingest, the beacon path, identify and the funnel.

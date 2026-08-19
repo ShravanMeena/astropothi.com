@@ -9,6 +9,7 @@ const BLURB: Record<string, string> = {
   health:     "Constitution, the 6th house, and the areas of the body your chart asks you to care for.",
   horoscope:  "This month against your own chart — transits, key dates, and the areas they touch.",
   laalkitab:  "The Laal Kitaab reading with its own distinctive remedies, drawn from your weakest placements.",
+  vastu:      "Nine directions, and what belongs in each. Every dosh named with the rule behind it, and remedies that need no demolition.",
   varshaphal: "The year ahead. Muntha, the annual chart, Mudda dasha and month-by-month themes."
 };
 
@@ -18,17 +19,21 @@ export default function Reports({ items, onPick, onAll, onAskGuide }: {
   const hero = items.find((i) => i.code === "kundli");
   // The home page shows the shape of the range; /reports shows all of it.
   const rest = items.filter((i) => i.code !== "kundli").slice(0, 3);
+  // Spelled from the catalogue, not typed into the heading — this said "Seven"
+  // for a while after the eighth report shipped.
+  const COUNT = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
+                 "Eight", "Nine", "Ten", "Eleven", "Twelve"];
+  const howMany = COUNT[items.length] || String(items.length);
 
   return (
     <section id="reports" className="shell py-20 sm:py-28">
       <Reveal>
         <p className="eyebrow">The reports</p>
         <h2 className="display text-[34px] sm:text-[44px] mt-3 max-w-prose2 leading-[1.08]">
-          Seven readings. One engine.
+          {howMany} readings. One engine.
         </h2>
         <p className="lede mt-4 max-w-prose2">
-          Each one is computed from the same chart, then written out in full — no summaries,
-          no filler.
+          Each one is computed, then written out in full — no summaries, no filler.
         </p>
       </Reveal>
 
@@ -66,14 +71,17 @@ export default function Reports({ items, onPick, onAll, onAskGuide }: {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
         {rest.map((r) => (
           <button key={r.code} onClick={() => onPick(r.code)}
-            className="group card p-5 sm:p-6 text-left flex gap-5 sm:block
+            className="group card p-5 sm:p-6 text-left flex gap-5 sm:flex-col sm:h-full
                        hover:shadow-lift hover:-translate-y-0.5 hover:border-faint transition-all">
             <ReportCover code={r.code} className="w-[104px] shrink-0 sm:w-[124px] sm:mb-5" />
-            <span className="block min-w-0 flex-1">
+            <span className="flex flex-col min-w-0 flex-1">
               <h3 className="display text-[19px] sm:text-[20px] leading-snug">{r.name_en}</h3>
+              {/* The blurb takes the slack, so three cards of unequal copy end
+                  with their price and link on the same line instead of leaving
+                  a hole in the middle of the shorter ones. */}
               <p className="text-[13.5px] sm:text-[14px] text-muted mt-1.5 leading-relaxed
-                            line-clamp-3 sm:line-clamp-none">{BLURB[r.code]}</p>
-              <span className="flex items-baseline gap-3 mt-3 sm:mt-5 sm:pt-4 sm:border-t sm:border-line">
+                            line-clamp-3 sm:line-clamp-none sm:flex-1">{BLURB[r.code]}</p>
+              <span className="flex items-baseline gap-3 mt-3 sm:mt-4 sm:pt-4 sm:border-t sm:border-line">
                 <span className="display text-[18px] sm:text-[20px]">{rupees(r.price_paise)}</span>
                 <span className="text-[12.5px] text-faint">{r.chapters} chapters</span>
               </span>
@@ -89,7 +97,7 @@ export default function Reports({ items, onPick, onAll, onAskGuide }: {
 
       <div className="mt-12 flex flex-wrap items-center gap-3">
         <button className="btn-line h-[50px]" onClick={onAll}>
-          All seven reports →
+          All {items.length} reports →
         </button>
         <button className="btn-quiet h-[50px]" onClick={onAskGuide}>
           Not sure which one?

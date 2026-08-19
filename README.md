@@ -10,9 +10,15 @@ One engine, two customers:
 - **Astrologers ("pandits")** buy credits at `/astrologers` and generate the same books
   carrying *their* name, photo, shop and phone. Recruited by the team, never by ads.
 
-Every report is **computed, not written**: positions come from an astronomical ephemeris
+Every **fact** in a report is computed: positions come from an astronomical ephemeris
 using the Lahiri (Chitrapaksha) ayanamsha, and the chapters are derived from the chart.
-No LLM is involved, so the same birth data always produces the same book.
+Nothing about a chart is ever guessed.
+
+The **explanation** around those facts is written by a model at generation time, for
+chapters the templates leave thin — and it is fact-checked before it is printed: an
+expansion naming a sign or a date its chapter never mentioned is discarded, not shown.
+Computed sentences are never rewritten, only added to. Set `AI_ENRICH_REPORTS=false`
+to ship the templates untouched.
 
 **This is a separate product from Devpunya.** Own server, own client, own DB, own Razorpay
 account, own domain. Devpunya's codebase was *reference and donor code only*.
@@ -64,6 +70,8 @@ what it takes to add or remove one.
 | `test:payments` | payment links + **webhook**: forged signatures, duplicates, unknown ids |
 | `test:whatsapp` | delivery rules, in forced dry-run — it can never send or spend |
 | `test:admin` | staff auth cannot be reached with a buyer or pandit token |
+| `test:pricing` | price overrides reach the shop; coupons cannot be forged, reused past their limit, or spent by an abandoned cart |
+| `test:events` | behavioural ingest, the `sendBeacon` text/plain path, identify backfill, and the funnel |
 | `audit:reports` | Kundali + Dosh prose cross-checked against the chart, in **both languages** |
 | `audit:astro` | 480 chart invariants across 8 charts |
 | `audit:text` / `audit:data` | depth, duplicate sentences, how much of a report is static |
@@ -87,6 +95,7 @@ you no longer print.
 | [docs/07-outreach.md](docs/07-outreach.md) | Reaching pandits legally |
 | [docs/08-consumer.md](docs/08-consumer.md) | Selling direct, without damaging the white-label side |
 | [docs/09-adding-a-report.md](docs/09-adding-a-report.md) | Where the reports come from; adding an eighth |
+| [docs/10-deploy.md](docs/10-deploy.md) | Deploying the API to GCP — the VM, the database, the order of operations |
 | [ADMIN-PANEL-PROMPT.md](ADMIN-PANEL-PROMPT.md) | Self-contained brief for building the admin panel |
 | [pothi-api/README.md](pothi-api/README.md) | API: run, scripts, current state |
 

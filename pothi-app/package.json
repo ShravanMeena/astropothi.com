@@ -8,7 +8,11 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "tsc --noEmit -p tsconfig.app.json",
+    "sitemap": "node scripts/build_sitemap.js",
+    "prebuild": "node scripts/build_sitemap.js && node scripts/legal_check.js",
+    "legal:check": "node scripts/legal_check.js",
+    "predeploy": "node scripts/build_sitemap.js --strict && node scripts/legal_check.js --strict"
   },
   "dependencies": {
     "framer-motion": "^13.1.0",

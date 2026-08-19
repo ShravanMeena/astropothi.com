@@ -7,7 +7,8 @@
 import { randomBytes } from "node:crypto";
 import db from "../../database/index.js";
 import config from "../../config.js";
-import { getReportType, consumerPrice } from "../catalog/catalog.js";
+import { getReportType } from "../catalog/catalog.js";
+import * as Pricing from "../catalog/pricing.service.js";
 import { getDesign } from "../../engine/reporting/designs/index.js";
 import { getPalette } from "../../engine/reporting/palettes/index.js";
 import { renderReport } from "../../engine/render.js";
@@ -34,7 +35,7 @@ function houseBranding() {
 export async function quote(reportType) {
   const type = getReportType(reportType);
   if (!type || !type.ready) throw Object.assign(new Error("UNKNOWN_REPORT"), { code: 400 });
-  const price = consumerPrice(type.code);
+  const price = await Pricing.priceOf(type.code);
   const base = Math.round(price / (1 + GST_RATE));
   return { code: type.code, chapters: type.chapters, price_paise: price,
            base_paise: base, gst_paise: price - base };
@@ -43,11 +44,22 @@ export async function quote(reportType) {
 /** Create the order and, if Razorpay is live, the hosted payment link for it. */
 export async function createOrder(input) {
   const q = await quote(input.report_type);
+  const type = getReportType(q.code);
+  const isProperty = type?.subject === "property";
 
   // Coordinates are resolved server-side — never trusted from the browser, and
-  // an unresolvable place must fail before we take money.
-  const hit = await Loc.geocode({ placeId: input.place_id, address: input.pob });
-  if (!hit) throw Object.assign(new Error("BAD_PLACE"), { code: 400 });
+  // an unresolvable place must fail before we take money. A Vastu report has no
+  // birth place to resolve, so it skips this entirely.
+  let hit = null;
+  if (!isProperty) {
+    hit = await Loc.geocode({ placeId: input.place_id, address: input.pob });
+    if (!hit) throw Object.assign(new Error("BAD_PLACE"), { code: 400 });
+  }
+
+  // One number, computed once. The payment link, the order row and the invoice
+  // all have to agree — quoting a discount and then charging the list price at
+  // Razorpay is the kind of bug a buyer reports as fraud.
+  const charged = input.final_paise ?? q.price_paise;
 
   const order = await db.Order.create({
     public_id: publicId(),
@@ -58,28 +70,48 @@ export async function createOrder(input) {
     user_id: input.user_id || null,
     buyer_name: input.buyer_name, buyer_phone: input.buyer_phone,
     buyer_email: input.buyer_email || null, state: input.state || null,
-    birth: {
+    birth: isProperty ? null : {
       name: input.name, dob: input.dob, tob: input.tob, pob: input.pob,
       lat: hit.lat, lon: hit.lon, tzone: hit.tzone,
       gender: ["male", "female", "other"].includes(input.gender) ? input.gender : "male"
     },
-    amount_paise: q.price_paise, gst_paise: q.gst_paise
+    property: isProperty ? {
+      name: input.name,
+      facing: input.facing,
+      property_type: input.property_type || "home",
+      city: input.pob || null,
+      rooms: input.rooms && typeof input.rooms === "object" ? input.rooms : {}
+    } : null,
+    list_paise: q.price_paise,
+    coupon_code: input.coupon || null,
+    discount_paise: input.discount_paise || 0,
+    amount_paise: charged,
+    gst_paise: charged - Math.round(charged / (1 + GST_RATE))
   });
 
   if (RZ.isLive()) {
     // A hosted link, not a checkout SDK: one URL we can also send over WhatsApp,
     // that survives the buyer moving to another device, and that keeps card
     // handling entirely on Razorpay's page.
-    const type = getReportType(q.code);
     const link = await RZ.createPaymentLink({
-      amountPaise: q.price_paise,
-      description: `${type?.name_en || q.code} — ${order.birth?.name || "your chart"}`,
+      amountPaise: charged,
+      description: `${type?.name_en || q.code} — ${order.birth?.name || order.property?.name || "your report"}`,
       name: input.buyer_name || input.name,
       phone: input.buyer_phone,
       email: input.buyer_email,
-      referenceId: order.public_id,
+      // Prefixed so the Razorpay dashboard can be filtered to this site alone:
+      // "POTHI-I9GPXV_X" is searchable, "I9GPXV_X" is not distinguishable from
+      // another product's receipt.
+      referenceId: `${config.razorpay.source}-${order.public_id}`,
       callbackUrl: `${config.webOrigin}/order/${order.public_id}`,
-      notes: { order: order.public_id, report: q.code }
+      notes: {
+        source: config.razorpay.source,
+        product: "report",
+        order: order.public_id,
+        report: q.code,
+        design: order.design,
+        language: order.language
+      }
     });
     await order.update({ razorpay_link_id: link.id, razorpay_link_url: link.short_url });
     return { order, pay_url: link.short_url, mock: false };
@@ -121,16 +153,28 @@ export async function settleAndGenerate({ razorpayOrderId, linkId, publicId: pid
     // table have a blank "ms" column and slow renders hide.
     const startedAt = Date.now();
     const { buffer, pages, model } = await renderReport({
-      reportType: order.report_type, input: order.birth,
+      reportType: order.report_type, input: order.property || order.birth,
       designId: order.design, paletteId: order.palette,
-      language: order.language, branding: houseBranding()
+      language: order.language, branding: houseBranding(),
+      reference: order.public_id
     });
 
     const report = await db.Report.create({
       order_id: order.id, source: "consumer",
       report_type: order.report_type, design: order.design, palette: order.palette,
       language: order.language, status: "ready", page_count: pages,
-      credits_charged: 0, birth_meta: order.birth,
+      credits_charged: 0, birth_meta: order.property || order.birth,
+      // The chapters, flattened to searchable text. Stored so a buyer can ask
+      // their own report a question later without us re-rendering an 88-page
+      // book to find the paragraph.
+      report_json: {
+        title: model.title,
+        sections: model.sections.map((sec) => ({
+          n: sec.n, id: sec.id, title: sec.title, subtitle: sec.subtitle || "",
+          text: [sec.summary, ...(sec.paras || []), ...(sec.bullets || []), sec.advisory]
+            .filter(Boolean).join(" ")
+        }))
+      },
       rashi: model.profile.rashi, nakshatra: model.profile.nakshatra, lagna: model.profile.lagna,
       generated_ms: Date.now() - startedAt,
       share_token: randomBytes(6).toString("base64url").slice(0, 10)
@@ -138,6 +182,8 @@ export async function settleAndGenerate({ razorpayOrderId, linkId, publicId: pid
     const pdfUrl = await putReportPdf(buffer, `consumer/${order.public_id}`, report.id);
     await report.update({ pdf_url: pdfUrl });
     await order.update({ status: "ready", report_id: report.id });
+    // Counted at settlement, so an abandoned checkout never burns a use.
+    if (order.coupon_code) await Pricing.redeem(order.coupon_code);
   } catch (e) {
     await order.update({ status: "failed", error: String(e.message).slice(0, 500) });
     throw e;

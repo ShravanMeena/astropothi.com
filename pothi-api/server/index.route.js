@@ -13,6 +13,7 @@ import * as location from "./location/location.route.js";
 import * as pilot from "./pilot/pilot.route.js";
 import * as shop from "./shop/shop.route.js";
 import * as user from "./user/user.route.js";
+import * as events from "./events/events.route.js";
 import * as admin from "./admin/admin.route.js";
 
 // Public: /noauth-api/v1/*
@@ -25,6 +26,7 @@ export function noAuthRoutes() {
   r.use("/pilot", pilot.noAuth());
   r.use("/shop", shop.noAuth());
   r.use("/user", user.noAuth());
+  r.use("/events", events.noAuth());
   return r;
 }
 

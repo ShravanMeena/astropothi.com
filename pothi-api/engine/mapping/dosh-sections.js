@@ -27,6 +27,27 @@ const metaL = (v, lang) => (lang === "hi" ? META_HI[String(v || "").trim()] || v
 
 const PAGE = (lang, en, hi) => t(lang, en, hi);
 
+/**
+ * The verdict as structured data, so the renderer can colour it.
+ *
+ * The subtitle already said "Present · 59/100", but a string cannot be styled —
+ * the reader had to parse severity out of grey text. Bands follow the same
+ * thresholds the "How Severity Is Scored" chapter explains, so the colour and
+ * the prose can never disagree.
+ */
+export function statusOf(detected, severity, cancelled) {
+  if (!detected) return { kind: "absent", severity: "none", score: 0 };
+  if (cancelled) return { kind: "cancelled", severity: "none", score: Number(severity) || 0 };
+  // These bands are the ones chapter 4 prints. If they ever drift apart the
+  // report will colour a dosh one way and explain it another.
+  const n = Number(severity) || 0;
+  return {
+    kind: "present",
+    severity: n >= 75 ? "severe" : n >= 55 ? "high" : n >= 30 ? "moderate" : "mild",
+    score: n
+  };
+}
+
 export function buildSections(ctx, chapters, cancellations, minorPatterns) {
   const lang = ctx.lang;
   const C = Object.fromEntries(chapters.map((c) => [c.id, c]));
@@ -168,6 +189,7 @@ export function buildSections(ctx, chapters, cancellations, minorPatterns) {
     subtitle: mangal.detected
       ? t(lang, `Present · ${mangal.severity}/100`, `उपस्थित · ${mangal.severity}/100`)
       : t(lang, "Not present", "अनुपस्थित"),
+    status: statusOf(mangal.detected, mangal.severity, mangal.cancelled),
     body: [
       mangal.rule,
       mangal.short_description,
@@ -263,6 +285,7 @@ export function buildSections(ctx, chapters, cancellations, minorPatterns) {
     id: "kaal_sarp_check", page: 8,
     title: PAGE(lang, "Kaal Sarp Dosh — Full Check", "काल सर्प दोष — पूर्ण जाँच"),
     subtitle: ks.detected ? t(lang, `Present · ${ks.severity}/100`, `उपस्थित · ${ks.severity}/100`) : t(lang, "Not present", "अनुपस्थित"),
+    status: statusOf(ks.detected, ks.severity, ks.cancelled),
     body: [
       ks.rule,
       ks.short_description,
@@ -287,6 +310,7 @@ export function buildSections(ctx, chapters, cancellations, minorPatterns) {
     id: "pitru_formation", page: 9,
     title: PAGE(lang, "Pitru Dosh — Formation", "पितृ दोष — निर्माण"),
     subtitle: pitru.detected ? t(lang, `Present · ${pitru.severity}/100`, `उपस्थित · ${pitru.severity}/100`) : t(lang, "Not present", "अनुपस्थित"),
+    status: statusOf(pitru.detected, pitru.severity, pitru.cancelled),
     body: [
       pitru.rule,
       pitru.short_description,
@@ -407,6 +431,7 @@ export function buildSections(ctx, chapters, cancellations, minorPatterns) {
     id: "kemadruma_page", page: 15,
     title: PAGE(lang, "Kemadruma Dosh", "केमद्रुम दोष"),
     subtitle: kem.detected ? t(lang, `Present · ${kem.severity}/100`, `उपस्थित · ${kem.severity}/100`) : t(lang, "Not present", "अनुपस्थित"),
+    status: statusOf(kem.detected, kem.severity, kem.cancelled),
     body: [kem.rule, kem.short_description, kem.detected ? kem.what_to_be_aware_of : (kem.why_not || "")].filter(Boolean),
     bullets: (() => {
       const moon = ctx.moon;
@@ -557,6 +582,7 @@ export function buildSections(ctx, chapters, cancellations, minorPatterns) {
     id: "chandra_page", page: 20,
     title: PAGE(lang, "Chandra Dosh & Mental Weather", "चंद्र दोष और मानसिक स्थिति"),
     subtitle: ch.detected ? t(lang, `Present · ${ch.severity}/100`, `उपस्थित · ${ch.severity}/100`) : t(lang, "Not present", "अनुपस्थित"),
+    status: statusOf(ch.detected, ch.severity, ch.cancelled),
     body: [ch.rule, ch.short_description, ch.what_does_this_mean, ch.what_to_be_aware_of].filter(Boolean),
     bullets: [
       t(lang, `Moon: ${ctx.moon ? `${sg(ctx.moon.sign, lang)} ${deg(ctx.moon.degree)}, house ${ctx.moon.house}, ${nk(ctx.moon.nakshatra, lang)}` : "—"}`,

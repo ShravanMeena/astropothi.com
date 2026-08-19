@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, rupees, num, when, ago, ms } from "../api";
 import type { PanditRow, PanditDetail, Catalogue } from "../types";
-import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Btn, Drawer, Facts, SubHead, Note, Stat, StatRow } from "../ui";
+import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Btn, Drawer, Facts, SubHead, Hint, Stat, StatRow } from "../ui";
 
 export default function Pandits() {
   const [rows, setRows] = useState<PanditRow[]>([]);
@@ -40,7 +40,7 @@ export default function Pandits() {
           <TableWrap pin>
             <PinnedHead><tr>
               <Th w="52px">Seat</Th><Th>Account</Th><Th align="right">Credits</Th>
-              <Th align="right">Reports</Th><Th align="right">Paid us</Th><Th align="right">Last seen</Th><Th>Status</Th>
+              <Th align="right">Reports</Th><Th align="right">Paid us <Hint>What this astrologer spent on credit packs — real platform revenue. What he charges his own clients is his, is an estimate from prices he sets himself, and is not ours.</Hint></Th><Th align="right">Last seen</Th><Th>Status</Th>
             </tr></PinnedHead>
             <tbody>
               {rows.map((p) => (
@@ -62,11 +62,6 @@ export default function Pandits() {
             </tbody>
           </TableWrap>
         )}
-        <Note>
-          “Paid us” is what this astrologer spent on credit packs — real platform revenue. It is deliberately the
-          only money column here. What he charges his own clients lives in his console as an estimate, is derived
-          from prices he sets himself, and is not ours.
-        </Note>
       </Panel>
 
       <PanditDrawer id={open} onClose={() => setOpen(null)} onChanged={load} />
@@ -120,12 +115,6 @@ function PanditDrawer({ id, onClose, onChanged }: { id: string | null; onClose: 
                   Grant pilot seat
                 </Btn>}
           </div>
-          {d.pilot_seat && (
-            <Note>
-              Revoking a seat frees it for someone else but does not claw back credits already granted —
-              those reports may already have been generated and delivered to his clients.
-            </Note>
-          )}
 
           <StatRow cols={3}>
             <Stat label="Credit balance" value={num(d.balance)} tone="brass" sub="SUM(ledger), never a stored column" />
@@ -160,12 +149,6 @@ function PanditDrawer({ id, onClose, onChanged }: { id: string | null; onClose: 
                 ["Identity changes", `${b.changes_this_quarter ?? 0} this quarter`],
                 ["Assets", [b.logo_url && "logo", b.photo_url && "photo", b.signature_url && "signature"].filter(Boolean).join(", ") || "none"]
               ]} />
-              {Number(b.changes_this_quarter ?? 0) > 2 && (
-                <Note>
-                  More than two identity changes in a quarter is the arbitrage signal this counter exists for —
-                  a reseller has to keep re-badging. Worth a look.
-                </Note>
-              )}
             </div>
           )}
 
@@ -186,7 +169,6 @@ function PanditDrawer({ id, onClose, onChanged }: { id: string | null; onClose: 
                 </tbody>
               </TableWrap>
             </div>
-            <Note>These are his retail prices to his own clients. Not Pothi revenue.</Note>
           </div>
 
           <div>

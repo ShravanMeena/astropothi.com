@@ -22,7 +22,17 @@ export default (sequelize, DataTypes) =>
     state:        { type: DataTypes.STRING(60) },   // GST place of supply
 
     birth:        { type: DataTypes.JSONB },        // name, dob, tob, pob, lat, lon, tzone, gender
+    // Vastu's subject is a building, not a person: { name, facing, rooms{} }.
+    // Kept in its own column rather than overloading `birth`, so nothing that
+    // reads a chart can ever be handed a floor plan.
+    property:     { type: DataTypes.JSONB },
 
+    // What was charged, and what it would have been. Keeping the list price
+    // means discount depth is a column, not a join against a coupon that may
+    // since have been edited.
+    list_paise:   { type: DataTypes.INTEGER },
+    coupon_code:  { type: DataTypes.STRING(32) },
+    discount_paise: { type: DataTypes.INTEGER, defaultValue: 0 },
     amount_paise: { type: DataTypes.INTEGER, allowNull: false },
     gst_paise:    { type: DataTypes.INTEGER, defaultValue: 0 },
     razorpay_order_id:   { type: DataTypes.STRING(64), unique: true },
@@ -41,6 +51,9 @@ export default (sequelize, DataTypes) =>
     // arrive twice — without this the buyer gets the same message repeatedly.
     whatsapp_sent_at: { type: DataTypes.DATE },
     whatsapp_error:   { type: DataTypes.TEXT },
+    // How many questions this buyer has asked their report. The assistant is a
+    // metered cost behind a public URL, so it is capped per order.
+    ai_questions:     { type: DataTypes.INTEGER, defaultValue: 0, allowNull: false },
     error:        { type: DataTypes.TEXT }
   }, { tableName: "orders",
        indexes: [{ fields: ["public_id"], unique: true }, { fields: ["buyer_phone"] },

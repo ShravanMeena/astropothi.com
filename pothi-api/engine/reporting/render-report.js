@@ -13,6 +13,7 @@ import PDFDocument from "pdfkit";
 import { mergeBranding, loadLogoBuffer } from "./branding.js";
 import { composeStyle } from "./style.js";
 import { L } from "./doc-model.js";
+import { waLink, mailLink, prettyPhone } from "./support.js";
 
 const A4 = { w: 595.28, h: 841.89 };
 const ASSETS = path.resolve(import.meta.dirname, "../assets");
@@ -180,7 +181,10 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       laalkitab:  { deva: "लाल किताब",     houses: [],         line: { en: "A tradition with its own remedies",
                                                                        hi: "अपने ही उपायों वाली परंपरा" } },
       varshaphal: { deva: "वर्षफल",        houses: [],         line: { en: "The year ahead, month by month",
-                                                                       hi: "आने वाला वर्ष, मास दर मास" } }
+                                                                       hi: "आने वाला वर्ष, मास दर मास" } },
+      // The one report about a building rather than a person.
+      vastu:      { deva: "वास्तु चक्र",   houses: [],         line: { en: "Nine directions, and what belongs in each",
+                                                                       hi: "नौ दिशाएँ, और प्रत्येक में क्या उचित है" } }
     };
     const art = COVER_ART[model.reportType] || COVER_ART.kundli;
 
@@ -260,6 +264,53 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       }
       drawWheel(A4.w / 2, top + size / 2, size / 2, { line, accent });
       return top + size;
+    }
+
+    /**
+     * The verdict, in colour.
+     *
+     * A reader should be able to flip through and see at a glance which doshas
+     * apply and how hard, without reading a word. These five are fixed rather
+     * than palette-derived, because a status colour that changes with the
+     * chosen ink is not a status colour — green must mean clear in every
+     * edition. They are chosen to stay legible on a light page and a dark one.
+     */
+    const STATUS = {
+      absent:    { fill: "#1E7A4B", label: { en: "NOT PRESENT", hi: "अनुपस्थित" } },
+      cancelled: { fill: "#2F7DBF", label: { en: "CANCELLED",   hi: "निवारण सहित" } },
+      mild:      { fill: "#B8912B", label: { en: "MILD",        hi: "मंद" } },
+      moderate:  { fill: "#C9761F", label: { en: "MODERATE",    hi: "मध्यम" } },
+      high:      { fill: "#C2451A", label: { en: "HIGH",        hi: "उच्च" } },
+      severe:    { fill: "#96201B", label: { en: "SEVERE",      hi: "प्रबल" } }
+    };
+    const statusOf = (st) =>
+      !st ? null : STATUS[st.kind === "present" ? st.severity : st.kind] || null;
+
+    /** A filled pill with the verdict, and a score bar when there is a score. */
+    function statusChip(st, cx, cy) {
+      const look = statusOf(st);
+      if (!look) return 0;
+      const text = look.label[hi ? "hi" : "en"];
+      const showScore = st.kind === "present" && st.score > 0;
+
+      pdf.font(FT(text, true)).fontSize(S(7.6));
+      const tw = pdf.widthOfString(text) + 18;
+      const sw = showScore ? 52 : 0;
+      const w = tw + sw, h = 17, x = cx - w / 2;
+
+      pdf.roundedRect(x, cy, tw, h, h / 2).fill(look.fill);
+      pdf.fillColor("#FFFFFF").text(text, x, cy + 4.6, { width: tw, align: "center" });
+
+      if (showScore) {
+        // The bar IS the score, so the number is not repeated under it — the
+        // subtitle above already prints "Present · 59/100". The empty track is
+        // the status colour at low opacity, because a neutral grey track
+        // disappears on a light page.
+        const bx = x + tw + 8, bw = 44, by = cy + h / 2 - 3.5;
+        pdf.fillOpacity(0.18).roundedRect(bx, by, bw, 7, 3.5).fill(look.fill).fillOpacity(1);
+        pdf.roundedRect(bx, by, Math.max(4, bw * (st.score / 100)), 7, 3.5).fill(look.fill);
+      }
+      return h + 6;
     }
 
     // ── cover ───────────────────────────────────────────────────────────────
@@ -344,7 +395,14 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       footer();
     }
 
-    const birthLine = () => [model.subject.dob, model.subject.tob, model.subject.pob].filter(Boolean).join("  ·  ");
+    const birthLine = () => {
+      if (model.subject.dob || model.subject.tob) {
+        return [model.subject.dob, model.subject.tob, model.subject.pob].filter(Boolean).join("  ·  ");
+      }
+      // No birth moment — this is a building. Say what it is instead of nothing.
+      return [model.subject.facingName, model.subject.propertyType, model.subject.pob]
+        .filter(Boolean).join("  ·  ");
+    };
 
     function profileRow(x0, top, w, ink, acc, style) {
       let items = [[t.rashi, model.profile.rashi], [t.nakshatra, model.profile.nakshatra],
@@ -412,16 +470,28 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
     // ── front matter ────────────────────────────────────────────────────────
     function blessingPage() {
       newPage();
-      const cy = A4.h / 2 - 90;
-      if (ganesh) try { pdf.image(ganesh, A4.w/2 - 30, cy - 40, { width: 60 }); } catch {}
-      pdf.font(F(0)).fontSize(FS(13)).fillColor(P.accent)
-         .text(hi ? "।। शुभम् भवतु ।।" : "|| Shubham Bhavatu ||", 0, cy + 40, { width: A4.w, align: "center" });
-      pdf.font(F(0)).fontSize(FS(10.5)).fillColor(P.inkSoft)
+      // This leaf is deliberately quiet, but a 60pt icon on an A4 page reads as
+      // an accident rather than an invocation. It is the only image in the book
+      // and the page is already spent on it, so let it carry the page.
+      const IW = 168;
+      const cy = A4.h / 2 - 150;
+      if (ganesh) try { pdf.image(ganesh, A4.w / 2 - IW / 2, cy, { width: IW }); } catch {}
+      let by = cy + (ganesh ? IW + 34 : 20);
+
+      pdf.font(F(0)).fontSize(FS(15)).fillColor(P.accent)
+         .text(hi ? "।। शुभम् भवतु ।।" : "|| Shubham Bhavatu ||", 0, by, { width: A4.w, align: "center" });
+      by = pdf.y + 16;
+
+      pdf.lineWidth(0.7).strokeColor(P.accent)
+         .moveTo(A4.w / 2 - 46, by).lineTo(A4.w / 2 + 46, by).stroke();
+      pdf.circle(A4.w / 2, by, 2.2).fill(P.accent);
+      by += 20;
+
+      pdf.font(F(0)).fontSize(FS(11.5)).fillColor(P.inkSoft)
          .text(hi
            ? `यह ${model.title} ${model.subject.name} के लिए विशेष रूप से तैयार की गई है।`
            : `This ${model.title} has been prepared especially for ${model.subject.name}.`,
-           M + 60, cy + 76, { width: CW - 120, align: "center", lineGap: 4 });
-      pdf.lineWidth(0.6).strokeColor(P.rule).moveTo(A4.w/2 - 40, cy + 140).lineTo(A4.w/2 + 40, cy + 140).stroke();
+           M + 60, by, { width: CW - 120, align: "center", lineGap: 4 });
     }
 
     function h1(s) {
@@ -564,6 +634,99 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
         y += rh;
       });
       y += D.gapSec;
+    }
+
+    /**
+     * The two numbers in a kundali worth drawing rather than listing.
+     *
+     * Both come straight from the computed chart — no smoothing, no invented
+     * scale. Printed only when the chart produced them, so a report that has
+     * neither never shows an empty axis.
+     */
+    function graphsPage() {
+      const g = model.graphs || {};
+      if (!g.bindus?.length && !g.dashaTimeline?.length) return;
+      newPage(t.strengths); h1(t.strengths);
+
+      // ── Ashtakavarga: bindus per house, against the average ───────────────
+      if (g.bindus.length) {
+        h2(t.bindus);
+        const total = g.bindus.reduce((a, b) => a + (b.score || 0), 0);
+        const avg = total / g.bindus.length;                 // 337 / 12 ≈ 28
+        const max = Math.max(...g.bindus.map((b) => b.score || 0), avg) * 1.12;
+        const H = 132, bw = CW / g.bindus.length, gap = bw * 0.28;
+
+        pdf.font(FT(t.bindusNote, false)).fontSize(S(8.6)).fillColor(P.inkSoft)
+           .text(t.bindusNote.replace("{total}", String(total)).replace("{avg}", avg.toFixed(1)),
+                 M, y, { width: CW });
+        y = pdf.y + 10;
+
+        const base = y + H;
+        g.bindus.forEach((b, i) => {
+          const v = b.score || 0;
+          const bh = Math.max(2, (v / max) * H);
+          const bx = M + i * bw + gap / 2, bwid = bw - gap;
+          // Above the average is the whole point of the chart, so it is the
+          // only thing that gets the accent.
+          const strong = v >= avg;
+          pdf.fillOpacity(strong ? 1 : 0.32)
+             .rect(bx, base - bh, bwid, bh).fill(P.accent).fillOpacity(1);
+          pdf.font(FT(String(v), true)).fontSize(S(7.4)).fillColor(P.ink)
+             .text(String(v), bx - 4, base - bh - 11, { width: bwid + 8, align: "center" });
+          pdf.font("Helvetica").fontSize(S(7)).fillColor(P.inkSoft)
+             .text(String(b.house ?? i + 1), bx - 4, base + 5, { width: bwid + 8, align: "center" });
+        });
+        // The average line, labelled — a bar chart without it says nothing.
+        const ay = base - (avg / max) * H;
+        pdf.lineWidth(0.7).strokeColor(P.accent).dash(3, { space: 2.5 })
+           .moveTo(M, ay).lineTo(M + CW, ay).stroke().undash();
+        pdf.font(FT(t.average, false)).fontSize(S(6.8)).fillColor(P.accent)
+           .text(`${t.average} ${avg.toFixed(1)}`, M, ay - 9, { width: CW, align: "right" });
+        pdf.lineWidth(0.6).strokeColor(P.rule).moveTo(M, base).lineTo(M + CW, base).stroke();
+        y = base + 20 + D.gapSec;
+      }
+
+      // ── Vimshottari: the whole life on one line ──────────────────────────
+      if (g.dashaTimeline.length) {
+        need(96, t.strengths);
+        h2(t.dashaLine);
+        const segs = g.dashaTimeline
+          .map((d) => ({ ...d, s: Date.parse(d.start), e: Date.parse(d.end) }))
+          .filter((d) => !isNaN(d.s) && !isNaN(d.e) && d.e > d.s);
+        if (segs.length) {
+          const t0 = segs[0].s, t1 = segs[segs.length - 1].e, span = t1 - t0;
+          const H = 26;
+          let x = M;
+          segs.forEach((d, i) => {
+            const w = (CW * (d.e - d.s)) / span;
+            const now = d.mahaDasha === g.currentDasha;
+            pdf.fillOpacity(now ? 1 : 0.22).rect(x, y, w, H).fill(P.accent).fillOpacity(1);
+            pdf.lineWidth(0.4).strokeColor(P.bg).rect(x, y, w, H).stroke();
+            if (w > 16) {
+              pdf.font(FT(d.mahaDasha, now)).fontSize(S(7)).fillColor(now ? "#FFFFFF" : P.ink)
+                 .text(d.mahaDasha.slice(0, w > 34 ? 9 : 2), x, y + H / 2 - 4,
+                       { width: w, align: "center", lineBreak: false });
+            }
+            // A year label under every other boundary, so they never collide.
+            if (i % 2 === 0) {
+              pdf.font("Helvetica").fontSize(S(6.4)).fillColor(P.inkSoft)
+                 .text(String(new Date(d.s).getUTCFullYear()), x - 12, y + H + 22,
+                       { width: 24, align: "center" });
+            }
+            x += w;
+          });
+          // Where the reader is standing on that line.
+          const nowMs = Date.now();
+          if (nowMs > t0 && nowMs < t1) {
+            const nx = M + (CW * (nowMs - t0)) / span;
+            pdf.lineWidth(1.2).strokeColor(P.ink).moveTo(nx, y - 4).lineTo(nx, y + H + 8).stroke();
+            // Below the band, not above it — above collides with the heading.
+            pdf.font(FT(t.today, true)).fontSize(S(6.6)).fillColor(P.ink)
+               .text(t.today, nx - 26, y + H + 11, { width: 52, align: "center" });
+          }
+          y += H + 38 + D.gapPara;
+        }
+      }
     }
 
     function tocPage() {
@@ -774,6 +937,7 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
            .text(s.subtitle, x, y, { width: w, align: "center" });
         y = pdf.y;
       }
+      if (s.status) y += statusChip(s.status, x + w / 2, y + 6);
       y += D.gapSec;
     }
 
@@ -792,6 +956,7 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       if (s.subtitle)
         pdf.font(FT(s.subtitle, false)).fontSize(FS(10)).fillColor(P.inkSoft)
            .text(s.subtitle, M + 50, pdf.y + 8, { width: CW - 100, align: "center" });
+      if (s.status) statusChip(s.status, A4.w / 2, pdf.y + 14);
       newPage(model.title);
     }
 
@@ -803,6 +968,15 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       if (s.subtitle) {
         pdf.font(FT(s.subtitle, false)).fontSize(S(9.4)).fillColor(P.inkSoft).text(s.subtitle, textX(), y, { width: w });
         y = pdf.y + 3;
+      }
+      if (s.status) {
+        // Left-aligned head, so the chip sits under the text rather than centred.
+        const look = statusOf(s.status);
+        if (look) {
+          pdf.font(FT(look.label[hi ? "hi" : "en"], true)).fontSize(S(7.6));
+          y += statusChip(s.status, textX() + pdf.widthOfString(look.label[hi ? "hi" : "en"]) / 2 + 9
+                          + (s.status.kind === "present" && s.status.score > 0 ? 24 : 0), y + 2);
+        }
       }
       if (spec.divider !== "space") {
         pdf.lineWidth(0.7).strokeColor(P.rule).moveTo(textX(), y + 5).lineTo(textX() + w, y + 5).stroke();
@@ -823,22 +997,125 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
              .text(branding.companyName, 0, cy + 44, { width: A4.w, align: "center" });
         pdf.circle(A4.w/2, cy + 80, 3).fill(P.accent);
       }
+      // The closing page carries the disclaimer AND the way to reach a human.
+      // A buyer with a question is holding a PDF, not a browser tab, so the
+      // contact has to be in the paper and it has to be tappable — pdfkit's
+      // link annotation makes wa.me and mailto: open the real app.
+      //
+      // Laid out as one centred group rather than dropped at a fixed y: this
+      // page used to be 700pt of white with two lines floating in it.
       newPage();
-      y = A4.h/2 - 50;
+      closingPage();
+    }
+
+    function closingPage() {
+      const phone = branding.mobile || branding.landline;
+      const email = branding.email;
+      const rows  = (phone ? 1 : 0) + (email ? 1 : 0);
+      const inner = CW - 96;
+
+      // Measure first, then place, so the block sits on the optical centre
+      // whatever the language does to the line count.
+      pdf.font(FT(t.supportBody, false)).fontSize(FS(8.6));
+      const bodyH = rows ? pdf.heightOfString(t.supportBody, { width: inner - 56, lineGap: 2.2 }) : 0;
+      const cardH = rows ? 30 + bodyH + 14 + rows * (FS(10.5) + 12) + 18 : 0;
+      pdf.font(F(0)).fontSize(FS(9));
+      const discH = pdf.heightOfString(t.disclaimer, { width: CW - 136, lineGap: 2.6 }) + FS(10) + 14;
+      const refH  = model.reference ? 30 : 0;
+      const total = cardH + (cardH && discH ? 40 : 0) + discH + refH;
+
+      let y0 = Math.max(160, (A4.h - total) / 2);
+
+      if (rows) {
+        pdf.roundedRect(M + 48, y0, inner, cardH, 6)
+           .fillOpacity(dark ? 0.10 : 1).fill(dark ? "#FFFFFF" : P.accentSoft).fillOpacity(1);
+        pdf.roundedRect(M + 48, y0, inner, cardH, 6)
+           .lineWidth(0.7).strokeColor(P.accent).stroke();
+        supportBlock(y0 + 18, inner);
+        y0 += cardH + 40;
+      }
+
       pdf.font(F(1)).fontSize(FS(10)).fillColor(P.inkSoft)
-         .text(hi ? "सूचना" : "Disclaimer", M, y, { width: CW, align: "center" });
+         .text(hi ? "सूचना" : "Disclaimer", M, y0, { width: CW, align: "center" });
       pdf.font(F(0)).fontSize(FS(9)).fillColor(P.inkSoft)
-         .text(t.disclaimer, M + 34, pdf.y + 8, { width: CW - 68, align: "center", lineGap: 2.6 });
+         .text(t.disclaimer, M + 68, pdf.y + 8, { width: CW - 136, align: "center", lineGap: 2.6 });
+
+      // Quoting the order number is the difference between "my report is wrong"
+      // and a message we can act on without a round trip.
+      if (model.reference) {
+        // Letter-spacing splits Devanagari conjuncts and strands the matras, so
+        // the Hindi label gets none — see tr().
+        const refLabel = `${hi ? "संदर्भ" : "REFERENCE"}   ${model.reference}`;
+        pdf.font(FT(refLabel, false)).fontSize(S(7.6)).fillColor(dark ? "#8d8474" : P.rule)
+           .text(refLabel, M, pdf.y + 16,
+                 { width: CW, align: "center", characterSpacing: tr(refLabel, 1.2) });
+      }
+    }
+
+    /**
+     * Returns the y it finished at. When no contact is configured it returns
+     * `top` untouched — a white-label report for a pandit who gave us no phone
+     * gets no empty heading, and never gets ours.
+     */
+    function supportBlock(top, width) {
+      const phone = branding.mobile || branding.landline;
+      const email = branding.email;
+      if (!phone && !email) return top;
+      const x0 = M + (CW - width) / 2;
+
+      const ref = model.reference || "";
+      const greeting = hi
+        ? `नमस्ते, मुझे अपनी रिपोर्ट${ref ? ` (${ref})` : ""} के बारे में एक प्रश्न पूछना है।`
+        : `Namaste, I have a question about my report${ref ? ` ${ref}` : ""}.`;
+
+      let yy = top;
+      pdf.font(FT(t.supportTitle, true)).fontSize(FS(11)).fillColor(P.accent)
+         .text(t.supportTitle, x0, yy, { width, align: "center" });
+      yy = pdf.y + 5;
+      pdf.font(FT(t.supportBody, false)).fontSize(FS(8.6)).fillColor(P.inkSoft)
+         .text(t.supportBody, x0 + 28, yy, { width: width - 56, align: "center", lineGap: 2.2 });
+      yy = pdf.y + 12;
+
+      // Two rows, not one run-on line: a link buried mid-sentence is a tap
+      // target a few millimetres wide on a phone.
+      const row = (label, value, link) => {
+        pdf.font(FT(label, false)).fontSize(FS(8.4));
+        const lw = pdf.widthOfString(label + "   ");
+        pdf.font(F(1)).fontSize(FS(10.5));
+        const vw = pdf.widthOfString(value);
+        const sx = x0 + (width - (lw + vw)) / 2;
+        pdf.font(FT(label, false)).fontSize(FS(8.4)).fillColor(P.inkSoft)
+           .text(label + "   ", sx, yy + 2, { lineBreak: false });
+        pdf.font(F(1)).fontSize(FS(10.5)).fillColor(P.accent)
+           .text(value, sx + lw, yy, { lineBreak: false });
+        // The annotation is placed by hand rather than through text({link}):
+        // with lineBreak:false and no width pdfkit computes a NaN rect and the
+        // whole document fails to serialise.
+        const rowH = FS(10.5) + 4;
+        if (link) {
+          pdf.link(sx + lw, yy - 2, vw, rowH, link);
+          pdf.lineWidth(0.5).strokeColor(P.accent)
+             .moveTo(sx + lw, yy + FS(10.5) + 1).lineTo(sx + lw + vw, yy + FS(10.5) + 1).stroke();
+        }
+        yy += rowH + 8;
+      };
+      if (phone) row(t.supportWhatsapp, prettyPhone(phone), waLink(phone, greeting));
+      if (email) row(t.supportEmail, email, mailLink(email, hi ? `पोथी रिपोर्ट ${ref}`.trim() : `Pothi report ${ref}`.trim()));
+      return yy;
     }
 
     // ── assemble ────────────────────────────────────────────────────────────
     try {
       cover();
       for (const fm of spec.frontMatter) {
+        // A Vastu report has no birth moment and no chart, so the pages that
+        // exist to present them would print as empty leaves. Skip rather than
+        // render a heading with nothing under it.
+        const hasBirth = Boolean(model.subject.dob || model.subject.pob || model.planets.length);
         if (fm === "blessing") blessingPage();
-        else if (fm === "details") detailsPage();
-        else if (fm === "profileGrid") profileGridPage();
-        else if (fm === "chart") chartPage();
+        else if (fm === "details" && hasBirth) detailsPage();
+        else if (fm === "profileGrid" && hasBirth) profileGridPage();
+        else if (fm === "chart") { chartPage(); graphsPage(); }
         else if (fm === "toc" && model.sections.length > 3) tocPage();
       }
 
@@ -847,13 +1124,26 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       // half-empty leaves — half the book. Require more than a full page of body.
       const LEAF_MIN = (A4.h - M * 2) * 1.35;
 
+      // A chapter of forty words does not deserve a page of its own. Below this
+      // it continues on the current leaf instead, which is what turned the Love
+      // report from twenty-four mostly-blank pages into a book somebody can read
+      // without flipping past white space.
+      const OWN_PAGE_MIN = 190;
+
       model.sections.forEach((s, i) => {
         let opener = "head";
         if (spec.chapterOpen === "titlepage") {
+          const h = chapterHeight(s);
           // chapterTitlePage() opens its own leaf and then the content page, so
           // it must NOT be preceded by a newPage — that left a blank sheet.
-          if (chapterHeight(s) >= LEAF_MIN) { chapterTitlePage(s); opener = "none"; }
-          else { newPage(model.title); opener = "inpage"; }
+          if (h >= LEAF_MIN) { chapterTitlePage(s); opener = "none"; }
+          else if (h >= OWN_PAGE_MIN) { newPage(model.title); opener = "inpage"; }
+          else {
+            // Short chapter: flow it, but never split its heading from its body.
+            need(h + 40, model.title);
+            y += D.gapSec;
+            opener = "inpage";
+          }
         } else if (spec.chapterOpen === "newpage" || i === 0) {
           newPage(model.title);
         } else {

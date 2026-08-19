@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, rupees, num, when, ms } from "../api";
 import type { OrderRow, OrderDetail } from "../types";
-import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Loading, Empty, ErrorNote, Search, Segmented, Btn, Drawer, Facts, SubHead, Note } from "../ui";
+import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Loading, Empty, ErrorNote, Search, Segmented, Btn, Drawer, Facts, SubHead, Hint } from "../ui";
 
 const FILTERS = [
   { value: "all", label: "All" }, { value: "ready", label: "Delivered" },
@@ -167,7 +167,7 @@ function OrderDrawer({ publicId, onClose, onChanged }: {
           </div>
 
           <div>
-            <SubHead>Payment</SubHead>
+            <SubHead>Payment <Hint>Payment state is owned by the Razorpay webhook. There is deliberately no “mark as paid” here — a button that forged it would make every revenue figure in this panel a guess.</Hint></SubHead>
             <Facts rows={[
               ["Link id", d.razorpay_link_id || "—"],
               ["Payment id", d.razorpay_payment_id || "—"],
@@ -175,10 +175,6 @@ function OrderDrawer({ publicId, onClose, onChanged }: {
                 ? <a className="text-brass underline break-all" href={d.razorpay_link_url} target="_blank" rel="noreferrer">{d.razorpay_link_url}</a>
                 : "—"]
             ]} />
-            <Note>
-              Payment state is owned by the Razorpay webhook. There is no “mark as paid” here on purpose —
-              a button that forged it would make every revenue figure in this panel a guess.
-            </Note>
           </div>
 
           {d.report && (
@@ -197,11 +193,6 @@ function OrderDrawer({ publicId, onClose, onChanged }: {
           {!!d.orphan_reports.length && (
             <div>
               <SubHead>Unlinked reports</SubHead>
-              <Note>
-                {d.orphan_reports.length} report(s) exist for this order but are not the one the order points at.
-                That is the signature of a generate that produced a book and then failed to file it — a retry will
-                adopt a finished one rather than re-rendering.
-              </Note>
               <ul className="mt-2 space-y-1.5 text-[12px]">
                 {d.orphan_reports.map((r) => (
                   <li key={r.id} className="flex items-center gap-2">

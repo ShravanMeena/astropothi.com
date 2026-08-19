@@ -32,7 +32,9 @@ async function call(path: string, opts: RequestInit = {}) {
 
 export const adminApi = {
   get:  (p: string) => call(p),
-  post: (p: string, b?: unknown) => call(p, { method: "POST", body: JSON.stringify(b ?? {}) })
+  post: (p: string, b?: unknown) => call(p, { method: "POST", body: JSON.stringify(b ?? {}) }),
+  put:  (p: string, b?: unknown) => call(p, { method: "PUT",  body: JSON.stringify(b ?? {}) }),
+  del:  (p: string) => call(p, { method: "DELETE" })
 };
 
 // ── Formatting ───────────────────────────────────────────────────────────────

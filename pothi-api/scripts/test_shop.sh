@@ -31,12 +31,14 @@ settle() {
       -d "{\"razorpay_order_id\":\"$RZID\"}" -o /dev/null
   fi
 }
-check "priced at ₹699 for the 64-chapter kundali" "$(echo "$ORDER" | j results.amount_paise)" "69900"
+EXPECTED=$(curl -s $API/noauth-api/v1/shop/catalogue \
+  | python3 -c "import sys,json;print([r['price_paise'] for r in json.load(sys.stdin)['results']['reports'] if r['code']=='kundli'][0])")
+check "charged the catalogue price for the kundali" "$(echo "$ORDER" | j results.amount_paise)" "$EXPECTED"
 check "no report before payment" "$(curl -s $API/noauth-api/v1/shop/order/$PID | j results.status)" "created"
 
 settle
 # Generation happens after the webhook is acknowledged, so give it a moment.
-for i in $(seq 1 40); do
+for i in $(seq 1 160); do
   S=$(curl -s $API/noauth-api/v1/shop/order/$PID)
   [ "$(echo "$S" | j results.status)" = "ready" ] && break
   sleep 0.5

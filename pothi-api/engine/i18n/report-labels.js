@@ -258,6 +258,10 @@ const EN = {
 
   // Final page
   "FINAL_DISCLAIMER_TITLE":        "DISCLAIMER",
+  "SUPPORT_TITLE":                 "Need help with this report?",
+  "SUPPORT_BODY":                  "Write to us and a person will read it. We answer questions about your chart, your reading, or your order.",
+  "SUPPORT_WHATSAPP":              "WhatsApp",
+  "SUPPORT_EMAIL":                 "Email",
   "FINAL_DISCLAIMER_BODY":
     "This report is generated using classical Vedic astrology principles (Lahiri Ayanamsha, Whole-Sign houses) "
     + "and is provided for spiritual guidance and entertainment purposes only. Accuracy depends on the exactness of the "
@@ -570,6 +574,10 @@ const HI = {
   "ASCENDANT_SPIRITUAL_LESSON":    "सीखने योग्य आध्यात्मिक पाठ",
 
   "FINAL_DISCLAIMER_TITLE":        "अस्वीकरण",
+  "SUPPORT_TITLE":                 "इस रिपोर्ट के बारे में कोई प्रश्न है?",
+  "SUPPORT_BODY":                  "हमें लिखिए — आपका संदेश एक व्यक्ति पढ़ेगा। कुंडली, रिपोर्ट या ऑर्डर से जुड़ा कोई भी प्रश्न पूछ सकते हैं।",
+  "SUPPORT_WHATSAPP":              "व्हाट्सएप",
+  "SUPPORT_EMAIL":                 "ईमेल",
   "FINAL_DISCLAIMER_BODY":
     "यह रिपोर्ट शास्त्रीय वैदिक ज्योतिष सिद्धांतों (लाहिड़ी अयनांश, संपूर्ण-राशि भाव) के आधार पर तैयार की गई है "
     + "और केवल आध्यात्मिक मार्गदर्शन एवं मनोरंजन के उद्देश्य से प्रदान की जा रही है। सटीकता प्रदान किए गए जन्म "

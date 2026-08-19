@@ -72,7 +72,7 @@ What *is* reachable, and worth aiming at honestly:
   per-minute talk-time is where the money actually is; reports are the entry drug)
 - **Beyond that** — a different business, not this one
 
-Reports are the **acquisition wedge**, not the destination. A ₹299 report buyer is the
+Reports are the **acquisition wedge**, not the destination. A ₹399 report buyer is the
 cheapest possible lead for a ₹30/min consultation. That is the path with real headroom.
 
 ---
@@ -81,16 +81,88 @@ cheapest possible lead for a ₹30/min consultation. That is the path with real 
 
 ### Pricing — anchored to what the market already charges
 
-| Report | Chapters | Our price | Market comparison |
-|---|---|---|---|
-| Basic Kundali | ~12 | **₹199** | IndiaMART floor ₹200 |
-| Dosh / Love / Health / Horoscope | 22–28 | **₹299** | Prokerala matching ₹99, GrahAI ₹499 |
-| Laal Kitaab / Varshaphal | 30–40 | **₹499** | VedicRishi ₹550 |
-| **Premium Kundali** | 64 | **₹699** | Clickastro ₹1,416, AstroSage ₹996–1,999 |
-| **Guna Milan** *(to build)* | ~30 | **₹499** | pandit charges ₹1,500–8,000 |
+Three tiers, priced by depth. The previous ladder was set one report at a time
+and drifted badly: measured against the words a buyer actually receives, Kundali
+cost ₹45 per thousand and Vastu ₹181 — a four-fold spread across one shelf, with
+the largest book the cheapest per page. Tiers are defined in
+`server/catalog/catalog.js` as `PRICE_TIERS`, and a report is assigned a band
+rather than a number.
 
-Undercuts every incumbent while carrying 3 designs they do not have. Prices are
-GST-inclusive; most consumers cannot claim it.
+| Tier | Reports | Chapters | Pages | Price | ₹ per 1,000 words |
+|---|---|---|---|---|---|
+| **Flagship** | Premium Personalised Kundali | 64 | 87 | **₹999** | 65 |
+| **Full** | Dosh · Laal Kitaab · Varshaphal | 28–40 | 39–43 | **₹599** | 97–105 |
+| **Focused** | Love · Health · Horoscope · Vastu | 22–26 | 15–26 | **₹399** | 126–151 |
+| **Guna Milan** *(to build)* | ~30 | — | — | **₹599** | pandit charges ₹1,500–8,000 |
+
+Market comparison: Clickastro ₹1,416, AstroSage ₹996–1,999, VedicRishi ₹550,
+GrahAI ₹499, Prokerala matching ₹99. The flagship sits at AstroSage's floor and
+30% under Clickastro, while carrying three designs, eight report types and a
+report assistant that none of them offer.
+
+The flagship is deliberately the best value per word on the shelf — it is the
+anchor everything else is compared against, and the report the ads point at.
+
+Prices are GST-inclusive; most consumers cannot claim it.
+
+**These levels are a judgement call, not a finding.** What the tiers fixed is
+*coherence* — the 4× spread was measurably wrong. Whether ₹999/₹599/₹399 is what
+this market will pay is unknown until real buyers see it, which is what the
+override table below exists for.
+
+### Changing a price without a deploy
+
+`price_overrides` is a one-row-per-report table that wins over the tier. Staff
+edit it at **Admin → Pricing**; the change is live on the next page load, with a
+30-second cache in `pricing.service.js`. Clearing the override falls back to the
+tier, so the code stays the source of the default and the database only holds
+the deliberate exceptions. The panel shows tier price and charged price side by
+side, because "why is Love ₹349" should be answerable without reading a git log.
+
+An order stores `list_paise`, `coupon_code`, `discount_paise` and `amount_paise`.
+A price change never rewrites an existing order — a buyer pays what they were
+quoted.
+
+### Coupons
+
+`coupons` holds a code, a kind (`percent` or `flat`), a value, and the limits
+worth having: a discount cap, a minimum order, a list of reports it applies to,
+a total-use count, a start and an expiry. Managed at **Admin → Pricing**.
+
+Three rules the implementation enforces, each because the obvious version is
+wrong:
+
+1. **The amount charged comes from our arithmetic, never the browser's.** The
+   checkout re-validates the code server-side and recomputes the total; a posted
+   `amount_paise` is ignored. `scripts/test_pricing.js` asserts this directly.
+2. **A use is spent on payment, not on order creation.** Otherwise a hundred
+   abandoned carts exhaust a hundred-use code before anyone pays.
+3. **The discount is rounded up to a whole rupee.** 25% of ₹399 is ₹99.75, and
+   ₹299.25 on a Razorpay page reads as a mistake. The rounding always favours
+   the buyer.
+
+Percent coupons are capped at 90% server-side, and no coupon can take an order
+below ₹1 — a zero-rupee payment link cannot be created, and a free report should
+be a deliberate act rather than an arithmetic accident.
+
+### Support, and where it appears
+
+One contact, in four places, from two sources that must be changed together:
+
+| Where | Source |
+|---|---|
+| Site footer, every browse page, order page, profile | `pothi-app/src/lib/support.ts` |
+| The closing page of every generated PDF | `CONSUMER_SUPPORT_PHONE` / `CONSUMER_SUPPORT_EMAIL` in `pothi-api/.env` |
+
+Both are direct links, not a contact form: WhatsApp opens with the order number
+already in the message and the email with it in the subject, so "it is not
+working" arrives as something answerable. In the PDF they are real link
+annotations, so they are tappable in a phone's reader — a buyer holding a PDF has
+no browser tab to click in.
+
+A pandit's white-label report carries the **pandit's** contact, never ours, and a
+report for a pandit who gave us no number prints no support block at all rather
+than falling back to the house one.
 
 ### The flow — three screens, no account
 

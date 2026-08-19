@@ -8,7 +8,8 @@ import GrahaOrbit from "../components/GrahaOrbit";
 const FACTS: [string, string][] = [
   ["Sidereal, Lahiri", "Chitrapaksha ayanamsha, within 2.3 arcseconds of the reference value."],
   ["480 invariants", "Every chart is checked: nodes exactly 180° apart, dashas totalling 120 years, Ashtakavarga summing to 337."],
-  ["Your minute, not your day", "Lagna moves a full sign every two hours. We use the birth time you give us."]
+  ["Your minute, not your day", "Lagna moves a full sign every two hours. We use the birth time you give us."],
+  ["Facts, then plain language", "The chart is arithmetic and never guessed. What it means is explained in words anyone can read — checked, so it can only explain what was computed."]
 ];
 
 export default function Engine() {
@@ -21,8 +22,9 @@ export default function Engine() {
             Nine grahas.<br />One ephemeris.
           </h2>
           <p className="lede mt-5 max-w-prose2">
-            Every sentence in your book traces back to a planetary position we can show
-            you. Nothing is drawn from a pool of pre-written paragraphs.
+            Every fact in your book — every sign, house, date and score — is computed
+            from your own chart. The explanation around those facts is written in plain
+            language, and it may never introduce a placement the calculation did not find.
           </p>
           <dl className="mt-10 space-y-5">
             {FACTS.map(([k, v]) => (

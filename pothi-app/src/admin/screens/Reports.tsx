@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, num, when, ms } from "../api";
 import type { ReportRow, Catalogue } from "../types";
-import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Search, Segmented, Note } from "../ui";
+import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Search, Segmented, Hint } from "../ui";
 
 const SOURCES = [{ value: "all", label: "All" }, { value: "consumer", label: "Consumer" }, { value: "pandit", label: "Astrologer" }];
 const STATUSES = [{ value: "all", label: "Any" }, { value: "ready", label: "Ready" }, { value: "failed", label: "Failed" }, { value: "generating", label: "Generating" }];
@@ -29,8 +29,6 @@ export default function Reports() {
 
   useEffect(load, [load]);
 
-  const timed = rows.filter((r) => r.generated_ms !== null).length;
-
   return (
     <Panel title="Reports" sub={`${num(total)} generated`}
            right={<div className="flex flex-wrap items-center gap-2 justify-end">
@@ -56,7 +54,7 @@ export default function Reports() {
         <TableWrap pin>
           <PinnedHead><tr>
             <Th w="60px">Id</Th><Th>Report</Th><Th>For</Th><Th>Belongs to</Th>
-            <Th align="right">Pages</Th><Th align="right">Time</Th><Th>Status</Th><Th align="right">Made</Th><Th />
+            <Th align="right">Pages</Th><Th align="right">Time <Hint>Consumer reports were not timed before this panel existed, so older rows are blank. The figure is not recoverable, so nothing is shown rather than a guess.</Hint></Th><Th>Status</Th><Th align="right">Made</Th><Th />
           </tr></PinnedHead>
           <tbody>
             {rows.map((r) => (
@@ -96,19 +94,6 @@ export default function Reports() {
           </tbody>
         </TableWrap>
       )}
-
-      {!loading && timed < rows.length && (
-        <Note>
-          {rows.length - timed} of these have no generation time recorded. Consumer reports were not timed
-          before this panel existed; new ones are. There is no way to recover the figure for older rows,
-          so the column stays blank rather than showing a made-up number.
-        </Note>
-      )}
-      <Note>
-        A report failing to generate is not the same as an order failing. A pandit's failed generate is rolled
-        back inside its transaction and costs him no credit, so it usually leaves no row here at all — the place
-        to look for those is the order list.
-      </Note>
     </Panel>
   );
 }

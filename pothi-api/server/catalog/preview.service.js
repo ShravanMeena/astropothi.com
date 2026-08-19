@@ -9,6 +9,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import { renderReport } from "../../engine/render.js";
+import { getReportType } from "./catalog.js";
 import config from "../../config.js";
 
 const run = promisify(execFile);
@@ -55,6 +56,16 @@ const DEMO_SUBJECT = {
   name: "Poonam Kumawat", dob: "2001-01-09", tob: "10:30",
   pob: "Jaipur, Rajasthan", lat: 26.9124, lon: 75.7873, tzone: 5.5, gender: "female"
 };
+
+// A Vastu report's subject is a building, so feeding it a birth date produced a
+// sample cover that printed one. This layout is deliberately imperfect — a
+// sample that finds nothing wrong sells nothing and teaches nothing.
+const DEMO_PROPERTY = {
+  name: "Poonam Kumawat", facing: "N", property_type: "home", pob: "Jaipur, Rajasthan",
+  rooms: { entrance: "N", kitchen: "NE", master_bedroom: "SW", pooja: "NE",
+           toilet: "NE", water: "NE", staircase: "SW", store: "NW" }
+};
+const demoFor = (type) => (getReportType(type)?.subject === "property" ? DEMO_PROPERTY : DEMO_SUBJECT);
 // Two audiences, two imprints. The console previews a white-labelled report so
 // the pandit sees HIS name; the storefront previews the house edition, because
 // showing a consumer a stranger's name on the product is a bug, not a demo.
@@ -101,7 +112,7 @@ export async function getPreview(type, design, palette, lang = "en", brand = "pa
   const job = (async () => {
     await mkdir(dir, { recursive: true });
     const { buffer, pages } = await renderReport({
-      reportType: type, input: DEMO_SUBJECT, designId: design, paletteId: palette,
+      reportType: type, input: demoFor(type), designId: design, paletteId: palette,
       branding: BRANDINGS[brand] || BRANDINGS.pandit, language: lang
     });
     const pdfPath = path.join(dir, "sample.pdf");

@@ -16,7 +16,8 @@ export const COVER_PALETTE: Record<string, string> = {
   health:     "emerald",
   horoscope:  "indigo",
   laalkitab:  "crimson",
-  varshaphal: "parchment"
+  varshaphal: "parchment",
+  vastu:      "emerald"
 };
 
 /**

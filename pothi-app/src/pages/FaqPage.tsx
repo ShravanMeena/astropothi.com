@@ -44,7 +44,7 @@ const GROUPS: { group: string; qa: [string, string][] }[] = [
       ["Can I read it without downloading?",
        "Yes. The order page opens the report as a book you can turn, page by page, in the browser."],
       ["Do you offer refunds?",
-       "Reports are generated on payment and are non-refundable once delivered — the work is done the moment you pay. If something is wrong with the file, write to us and we will fix or regenerate it."]
+       "Yes — 100% of what you paid, no questions asked. If the report was not worth it to you, message us and we refund it in full. You do not have to explain why, and you keep the PDF. We would rather refund you than keep money you feel you wasted."]
     ]
   }
 ];

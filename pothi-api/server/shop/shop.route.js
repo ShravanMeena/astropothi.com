@@ -2,9 +2,15 @@ import { Router } from "express";
 import * as Shop from "./shop.service.js";
 import { outline } from "./outline.service.js";
 import { orderPages } from "./reader.service.js";
-import { getReportType, consumerPrice } from "../catalog/catalog.js";
+import { ask, suggestions } from "./ask.service.js";
+import { chat as aiChat } from "../ai/chat.service.js";
+import * as ChatLog from "./chat-log.service.js";
+import * as LLM from "../ai/llm.js";
+import { getReportType } from "../catalog/catalog.js";
+import * as Pricing from "../catalog/pricing.service.js";
 import { getPreview, getThumb } from "../catalog/preview.service.js";
 import config from "../../config.js";
+import db from "../../database/index.js";
 import { consumerCatalogue } from "../catalog/catalog.js";
 import { listDesigns } from "../../engine/reporting/designs/index.js";
 import { listPalettes } from "../../engine/reporting/palettes/index.js";
@@ -18,8 +24,12 @@ export function noAuth() {
   const r = Router();
 
   r.get("/brand", (req, res) => ok(res, { name: config.brand.name, tagline: config.brand.tagline }));
-  r.get("/catalogue", (req, res) => ok(res, {
-    reports: consumerCatalogue(), designs: listDesigns(), palettes: listPalettes()
+  r.get("/catalogue", h(async (req, res) => {
+    const prices = await Pricing.priceMap();
+    return ok(res, {
+      reports: consumerCatalogue().map((r) => ({ ...r, price_paise: prices[r.code] ?? r.price_paise })),
+      designs: listDesigns(), palettes: listPalettes()
+    });
   }));
 
   // Everything a buyer needs to decide: the real chapter list, page count, and
@@ -37,7 +47,7 @@ export function noAuth() {
     ]);
     return ok(res, {
       code: type.code, name_en: type.name_en, name_hi: type.name_hi,
-      chapters: type.chapters, price_paise: consumerPrice(type.code),
+      chapters: type.chapters, price_paise: await Pricing.priceOf(type.code),
       approx_pages: o.approx_pages, outline: o.chapters,
       sample: preview ? { pages: preview.total_pages, images: preview.images, pdf: preview.pdf } : null
     });
@@ -55,11 +65,27 @@ export function noAuth() {
     return ok(res, { url });
   }));
 
+  /** Check a code without creating anything. */
+  r.post("/coupon", h(async (req, res) => {
+    const code = String(req.body?.code || "").trim();
+    const type = getReportType(req.body?.report_type);
+    if (!type) return fail(res, "Unknown report", 400);
+    const amount = await Pricing.priceOf(type.code);
+    const out = await Pricing.applyCoupon(code, { reportType: type.code, amountPaise: amount });
+    return out.ok ? ok(res, out) : fail(res, out.reason, 400);
+  }));
+
   r.post("/order", h(async (req, res) => {
-    const need = ["report_type", "name", "dob", "tob", "buyer_phone"];
+    // A Vastu report is about a building: it needs a facing, not a birth time.
+    const rt = getReportType(req.body.report_type);
+    const isProperty = rt?.subject === "property";
+    const need = isProperty
+      ? ["report_type", "name", "facing", "buyer_phone"]
+      : ["report_type", "name", "dob", "tob", "buyer_phone"];
     const missing = need.filter((k) => !String(req.body[k] || "").trim());
     if (missing.length) return fail(res, `Missing: ${missing.join(", ")}`);
-    if (!req.body.place_id && !req.body.pob) return fail(res, "Birth place is required");
+    if (!isProperty && !req.body.place_id && !req.body.pob)
+      return fail(res, "Birth place is required");
     try {
       // Buying is what creates the account: the number they are reachable on
       // becomes the login, and the order is attached to it from the start.
@@ -68,10 +94,26 @@ export function noAuth() {
         email: req.body.buyer_email,
         birth: { name: req.body.name, dob: req.body.dob, tob: req.body.tob, pob: req.body.pob }
       });
-      const { order, pay_url, mock } = await Shop.createOrder({ ...req.body, user_id: user.id });
+      // Re-validated here: the browser may send any code and any total, and the
+      // amount charged must come from our arithmetic, not theirs.
+      let coupon = null;
+      if (String(req.body.coupon || "").trim()) {
+        const listed = await Pricing.priceOf(rt.code);
+        const c = await Pricing.applyCoupon(req.body.coupon, { reportType: rt.code, amountPaise: listed });
+        if (!c.ok) return fail(res, c.reason, 400);
+        coupon = c;
+      }
+      const { order, pay_url, mock } = await Shop.createOrder({
+        ...req.body, user_id: user.id,
+        coupon: coupon?.code || null,
+        discount_paise: coupon?.discount_paise || 0,
+        final_paise: coupon?.final_paise
+      });
       return ok(res, {
         public_id: order.public_id, razorpay_order_id: order.razorpay_order_id,
         amount_paise: order.amount_paise, gst_paise: order.gst_paise,
+        list_paise: order.list_paise, discount_paise: order.discount_paise,
+        coupon_code: order.coupon_code,
         report_type: order.report_type, mock, pay_url: pay_url || null,
         // Signed in on the number they just gave us, with no OTP step. See the
         // note on config.autoLoginOnOrder for what this trades away.
@@ -109,8 +151,14 @@ export function noAuth() {
 
     const order = await Shop.findByLink(linkId);
     if (!order) return fail(res, "Order not found", 404);
-    // The reference id is ours; a mismatch means the link is not this order's.
-    if (referenceId && referenceId !== order.public_id) return fail(res, "Order mismatch", 400);
+    // The reference id is ours and carries a source prefix ("POTHI-XXXX").
+    // Strip only that exact prefix: public_id is base64url-derived and can
+    // itself contain a dash, so a greedy /^[A-Z0-9]+-/ would eat part of the id
+    // and reject a perfectly good redirect.
+    const bare = referenceId.startsWith(`${config.razorpay.source}-`)
+      ? referenceId.slice(config.razorpay.source.length + 1)
+      : referenceId;
+    if (referenceId && bare !== order.public_id) return fail(res, "Order mismatch", 400);
 
     await Shop.settleAndGenerate({ linkId, paymentId });
     return ok(res, await Shop.statusOf(order.public_id));
@@ -147,6 +195,69 @@ export function noAuth() {
     const pages = await orderPages(req.params.publicId);
     return ok(res, pages ?? { pages: [], total: 0 });
   }));
+
+  /**
+   * Ask a question of a report you own.
+   *
+   * Retrieval over that buyer's own chapters — it quotes, it never composes.
+   * Public like the rest of the order routes: the public_id is the capability,
+   * and everything it can return is already on the order page.
+   */
+  r.get("/order/:publicId/ask", h(async (req, res) => {
+    const lang = req.query.lang === "hi" ? "hi" : "en";
+    if (!String(req.query.q || "").trim()) {
+      return ok(res, {
+        kind: "suggestions", ai: LLM.isLive(),
+        suggestions: await suggestions(req.params.publicId, lang)
+      });
+    }
+    return ok(res, await ask(req.params.publicId, req.query.q, lang));
+  }));
+
+  /**
+   * The report assistant. A real conversation, grounded in this buyer's own
+   * chapters — see server/ai/chat.service.js for the grounding and the rules.
+   *
+   * Falls back to quoting passages when no model key is configured or the model
+   * is unreachable, so a vendor outage degrades the feature instead of breaking
+   * the page somebody just paid for.
+   */
+  r.post("/order/:publicId/chat", h(async (req, res) => {
+    const lang = req.body?.lang === "hi" ? "hi" : "en";
+    const q = String(req.body?.q || "").trim();
+    if (!q) return fail(res, "Ask a question", 400);
+
+    const order = await db.Order.findOne({ where: { public_id: req.params.publicId } });
+    // The thread comes from the database, not the browser. A client-supplied
+    // history could be edited to put words in the assistant's mouth, and it is
+    // lost on reload anyway.
+    const stored = order ? await ChatLog.history(req.params.publicId, 12) : [];
+    const thread = stored.map((m) => ({ role: m.role, content: m.content }));
+
+    const started = Date.now();
+    let reply = null;
+    if (LLM.isLive()) {
+      try {
+        const out = await aiChat(req.params.publicId, q, thread, lang);
+        if (out.kind === "answer" || out.kind === "limit") reply = out;
+      } catch (e) {
+        console.error("[chat] model failed:", e.message);
+      }
+    }
+    // No key, over the cap, or the model failed — quote the report instead.
+    if (!reply) reply = { ...(await ask(req.params.publicId, q, lang)), degraded: true };
+
+    await ChatLog.record(order, {
+      question: q, reply, lang,
+      model: reply.degraded ? "retrieval" : (config.ai.chatModelId || config.ai.bedrockModelId),
+      latencyMs: Date.now() - started
+    });
+    return ok(res, reply);
+  }));
+
+  /** Everything already said in this conversation, so a reload does not lose it. */
+  r.get("/order/:publicId/chat", h(async (req, res) =>
+    ok(res, { messages: await ChatLog.history(req.params.publicId) })));
 
   return r;
 }

@@ -103,5 +103,32 @@ export function adminRoute() {
   r.get("/ops/payment-links", h(async (req, res) => ok(res, await A.paymentLinks(req.query))));
   r.get("/ops/catalogue", h(async (req, res) => ok(res, await A.catalogue())));
 
+  // ── pricing ───────────────────────────────────────────────────────────────
+  r.get("/pricing", h(async (req, res) => ok(res, await A.pricing())));
+  r.put("/pricing/:code", h(async (req, res) => {
+    const paise = Math.round(Number(req.body?.price_paise));
+    if (!Number.isFinite(paise) || paise < 100 || paise > 5000000)
+      return fail(res, "Price must be between ₹1 and ₹50,000", 400);
+    return ok(res, await A.setPrice(req.params.code, paise, req.body?.note, req.admin?.name));
+  }));
+  r.delete("/pricing/:code", h(async (req, res) =>
+    ok(res, await A.clearPrice(req.params.code))));
+
+  // ── coupons ───────────────────────────────────────────────────────────────
+  r.get("/coupons", h(async (req, res) => ok(res, await A.listCoupons())));
+  r.post("/coupons", h(async (req, res) => {
+    const out = await A.upsertCoupon(req.body);
+    return out.error ? fail(res, out.error, 400) : ok(res, out);
+  }));
+  r.post("/coupons/:code/active", h(async (req, res) =>
+    ok(res, await A.setCouponActive(req.params.code, Boolean(req.body?.active)))));
+
+  // ── behaviour ─────────────────────────────────────────────────────────────
+  r.get("/events", h(async (req, res) => ok(res, await A.listEvents(req.query))));
+  r.get("/events/funnel", h(async (req, res) => ok(res, await A.funnel(req.query))));
+  r.get("/events/by-report", h(async (req, res) => ok(res, await A.reportInterest(req.query))));
+  r.get("/events/journey/:anonymousId", h(async (req, res) =>
+    ok(res, await A.journeyOf(req.params.anonymousId))));
+
   return r;
 }

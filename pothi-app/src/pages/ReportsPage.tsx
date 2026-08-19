@@ -10,6 +10,7 @@ const BLURB: Record<string, { deva: string; text: string; for: string }> = {
   health:     { deva: "आरोग्य",   text: "Lagna and its lord, the 6th house, the Moon, your tatva and prakriti — and the areas of the body your chart asks you to look after.", for: "Constitution and energy" },
   horoscope:  { deva: "राशिफल",   text: "Not a sun-sign column. Every transit placed against your own natal houses, the dates that matter, and what each one touches.", for: "The month ahead" },
   laalkitab:  { deva: "लाल किताब", text: "A distinct tradition with its own logic and its own remedies — practical, inexpensive, and drawn from the placements that need help.", for: "Practical remedies" },
+  vastu:      { deva: "वास्तु चक्र", text: "Nine directions, and what the classics assign to each. Your entrance, kitchen, bedroom, pooja space, toilets and water checked against the mandala — every dosh named with the rule behind it, and remedies that need no demolition.", for: "Your home" },
   varshaphal: { deva: "वर्षफल",   text: "The annual chart cast for your solar return: Muntha, Panchavargeeya bala, the Mudda dasha and the themes month by month.", for: "The year ahead" }
 };
 
@@ -26,10 +27,10 @@ export default function ReportsPage({ items, onPick, onAskGuide }: {
         <div className="shell relative z-10 py-16 sm:py-24">
           <div className="flex items-center gap-3">
             <span className="h-px w-8 bg-brass" />
-            <span className="caps text-brass">All seven readings</span>
+            <span className="caps text-brass">{items.length} readings</span>
           </div>
           <h1 className="display text-[40px] sm:text-[60px] leading-[1.02] mt-6 max-w-[16ch]">
-            One chart. Seven ways of reading it.
+            One engine. Many ways of reading.
           </h1>
           <p className="lede mt-5 max-w-prose2">
             Every report is computed from the same ephemeris and the same birth moment.

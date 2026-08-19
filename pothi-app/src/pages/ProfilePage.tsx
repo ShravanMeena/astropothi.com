@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { rupees } from "../lib/api";
 import { userApi, clearUserToken, useMe, type BuyerProfile, type BuyerOrder } from "../lib/account";
 import ChartMark from "../components/ChartMark";
+import Support from "../components/Support";
 
 const STATUS: Record<string, { label: string; tone: string }> = {
   created:    { label: "Awaiting payment", tone: "text-faint border-line" },
@@ -232,6 +233,13 @@ export default function ProfilePage({ onOpenOrder, onHome, onSignIn }: {
             </div>
           </div>
         </div>
+      </section>
+
+      {/* The orders page is where a buyer lands when something has gone wrong
+          with an order, so the way to reach us belongs here rather than only
+          in the footer. */}
+      <section className="shell pb-16 sm:pb-24 max-w-3xl">
+        <Support where="profile" />
       </section>
     </>
   );
