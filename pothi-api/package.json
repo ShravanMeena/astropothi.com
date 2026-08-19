@@ -27,6 +27,7 @@
     "migrate": "node scripts/ensure_consumer_reports.js",
     "test:payments": "node scripts/test_payments.js",
     "test:admin": "node scripts/test_admin.js",
+    "test:catalogue": "node scripts/test_catalogue.js",
     "test:pricing": "node scripts/test_pricing.js",
     "test:events": "node scripts/test_events.js",
     "covers": "node scripts/build_web_covers.js",
@@ -34,10 +35,12 @@
     "test:whatsapp": "MSG91_AUTH_KEY= node scripts/test_whatsapp.js",
     "whatsapp:test-send": "node scripts/send_test_whatsapp.js",
     "test:enrich": "node scripts/test_enrich.js",
-    "test:all": "npm run test:layout && npm run test:content && npm run test:credits && npm run test:pilot && npm run test:shop && npm run test:payments && npm run test:whatsapp && npm run audit:reports && npm run test:admin && npm run test:pricing && npm run test:events && node scripts/audit_astro_sanity.js && node scripts/audit_report_text.js --budget && node scripts/audit_data_driven.js --budget"
+    "test:all": "npm run test:layout && npm run test:content && npm run test:credits && npm run test:pilot && npm run test:shop && npm run test:payments && npm run test:whatsapp && npm run audit:reports && npm run test:admin && npm run test:files && npm run test:catalogue && npm run test:pricing && npm run test:events && node scripts/audit_astro_sanity.js && node scripts/audit_report_text.js --budget && node scripts/audit_data_driven.js --budget",
+    "test:files": "node scripts/test_file_access.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1113.0",
+    "@google-cloud/storage": "^8.0.1",
     "astronomy-engine": "^2.1.19",
     "await-to-js": "^3.0.0",
     "axios": "^1.15.2",

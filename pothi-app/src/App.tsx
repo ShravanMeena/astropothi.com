@@ -97,16 +97,16 @@ export default function App() {
       <main>
         {route.name === "home" && (
           <>
-            <BookHero onOpen={() => go("/reports")} />
+            <BookHero onOpen={() => go("/reports")} items={items} onPick={openReport} />
             <Reports items={items} onPick={openReport} onAll={() => go("/reports")}
                      onAskGuide={() => setGuide(true)} />
             <Engine />
             <How />
             <Designs />
             <section className="relative overflow-hidden grain lamp border-t border-line">
-              <div className="shell relative z-10 py-20 sm:py-28 text-center">
+              <div className="shell relative z-10 py-12 sm:py-28 text-center">
                 <span className="mx-auto mb-8 block h-8 w-px bg-gradient-to-b from-transparent to-brass" />
-                <h2 className="display text-[34px] sm:text-[48px] max-w-[17ch] mx-auto leading-[1.05]">
+                <h2 className="display text-[25px] sm:text-[48px] max-w-[17ch] mx-auto leading-[1.05]">
                   Read what your chart actually says.
                 </h2>
                 <p className="lede mt-5 max-w-prose2 mx-auto">

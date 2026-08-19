@@ -21,9 +21,9 @@ export default function LegalPage({ title, lede, children, onGo }: {
                         w-[620px] max-w-[120vw] text-brass opacity-[.10] dark:opacity-[.14]">
           <ChartMark className="w-full h-auto" weight={0.3} />
         </div>
-        <div className="shell relative z-10 py-14 sm:py-20">
+        <div className="shell relative z-10 py-10 sm:py-20">
           <p className="caps text-brass">Legal</p>
-          <h1 className="display text-[34px] sm:text-[46px] mt-3 leading-[1.05]">{title}</h1>
+          <h1 className="display text-[25px] sm:text-[46px] mt-3 leading-[1.05]">{title}</h1>
           <p className="lede mt-4 max-w-prose2">{lede}</p>
           <p className="text-[13px] text-faint mt-5">Last updated {LEGAL.updated}</p>
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { track, flush, identify } from "../lib/track";
+import { useKeyboardInset } from "../lib/keyboard";
 import { api, rupees, type ReportItem } from "../lib/api";
 import PlaceInput from "../sections/PlaceInput";
 import { DateField, TimeField, Select } from "../components/Picker";
@@ -82,6 +83,9 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
 
   // Coupons. The server is the authority on what a code is worth — this is only
   // what we show, and the order endpoint re-checks it before charging anything.
+  // The pay button lives in a fixed bar, which iOS puts behind the keyboard.
+  const keyboard = useKeyboardInset();
+
   const [coupon, setCoupon] = useState("");
   const [applied, setApplied] = useState<{ code: string; discount_paise: number; final_paise: number } | null>(null);
   const [couponMsg, setCouponMsg] = useState("");
@@ -205,9 +209,9 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
   };
 
   if (busy) return (
-    <div className="shell py-28 sm:py-40 text-center">
+    <div className="shell py-14 sm:py-40 text-center">
       <div className="mx-auto w-10 h-10 rounded-full border-2 border-brass border-t-transparent animate-spin" />
-      <h1 className="display text-[28px] mt-8">
+      <h1 className="display text-[22px] mt-8">
         {stage < 0 ? "Taking you to payment" : "Preparing your report"}
       </h1>
       <p className="text-[14px] text-muted mt-2">
@@ -232,12 +236,12 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
       <button onClick={onBack} className="text-[13.5px] text-faint hover:text-fg">← Back</button>
 
       <div className="mt-6 flex items-baseline justify-between gap-4 flex-wrap">
-        <h1 className="display text-[32px] sm:text-[40px]">
+        <h1 className="display text-[24px] sm:text-[40px]">
           {isProperty ? "About your home" : "Your birth details"}
         </h1>
         <div className="text-right">
           <div className="text-[13px] text-faint">{item?.name_en}</div>
-          <div className="display text-[26px]">{item ? rupees(item.price_paise) : ""}</div>
+          <div className="display text-[21px]">{item ? rupees(item.price_paise) : ""}</div>
         </div>
       </div>
       <p className="lede mt-3">
@@ -301,7 +305,7 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
                              focus-within:border-brass focus-within:ring-4 focus-within:ring-brass/10`}>
               <span className="text-muted text-[15px] tabular-nums shrink-0">+91</span>
               <span className="h-5 w-px bg-line shrink-0" />
-              <input className="flex-1 min-w-0 h-full bg-transparent outline-none text-[15px]
+              <input className="flex-1 min-w-0 h-full bg-transparent outline-none text-[16px] sm:text-[15px]
                                 placeholder:text-faint tabular-nums"
                      inputMode="numeric" maxLength={10} placeholder="98765 43210"
                      aria-label="WhatsApp number" aria-invalid={!!errors.buyer_phone}
@@ -372,8 +376,12 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
         able to see what they are about to pay and get on with paying it.
       */}
       <div className="sm:hidden fixed inset-x-0 bottom-0 z-30 border-t border-line
-                      bg-surface/95 backdrop-blur-xl"
-           style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
+                      bg-surface/95 backdrop-blur-xl transition-transform duration-150"
+           style={{
+             paddingBottom: "env(safe-area-inset-bottom)",
+             // Lifted clear of the keyboard, so the first tap is the one that pays.
+             transform: keyboard ? `translateY(-${keyboard}px)` : undefined
+           }}>
         <div className="shell py-3 flex items-center gap-4">
           <div className="shrink-0">
             <div className="display text-[20px] leading-none">

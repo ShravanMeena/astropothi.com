@@ -37,8 +37,8 @@ a site that takes money and then 404s the thing it sold.
 | # | File | Change |
 |---|---|---|
 | 1 | `package.json` | `npm i @aws-sdk/client-s3 @aws-sdk/s3-request-presigner` — `storage.js` already `import()`s the first one on the production path, and it is not a dependency. The first paid order crashes. |
-| 2 | `config.js` | `s3.endpoint`, `s3.key`, `s3.secret`. GCS needs its own HMAC credentials; it must **not** inherit `AWS_ACCESS_KEY_ID`, which belongs to Bedrock. |
-| 3 | `utilities/storage.js` | Upload to GCS, but keep returning `/files/reports/{pandit}/{report}.pdf`. The path stored in `reports.pdf_url` stays an app path, so nothing downstream has to learn where the bytes actually live. |
+| 2 | `config.js` | A `storage` block keyed on `GCS_BUCKET` alone. No credentials live in config: the client authenticates as the VM's attached service account. |
+| 3 | `utilities/storage.js` | `@google-cloud/storage`: upload, sign, and fetch back — but keep returning `/files/reports/{owner}/{report}.pdf`. The path stored in `reports.pdf_url` stays an app path, so nothing downstream has to learn where the bytes actually live. |
 | 4 | `index.js` | Serve `/files` in production too: local disk first (it is a cache), otherwise a 302 to a short-lived signed GCS URL. Today the whole mount is wrapped in `if (config.env !== "production")`, so previews and reader pages 404 in production. |
 | 5 | `server/shop/reader.service.js` | If the PDF is not on this container's disk, pull it from GCS to a temp path before `pdftoppm`. |
 
@@ -79,6 +79,7 @@ gcloud projects add-iam-policy-binding shravanmeena \
 ```bash
 gcloud sql instances create pothi-db \
   --database-version=POSTGRES_16 \
+  --edition=ENTERPRISE \
   --tier=db-g1-small \
   --region=asia-south1 \
   --storage-size=10GB --storage-auto-increase \
@@ -97,6 +98,10 @@ The instance gets a public IP with **zero authorized networks**, which means not
 internet can open a connection to it. The only way in is the Cloud SQL Auth Proxy, which
 authenticates with IAM rather than an IP allowlist. Do not add an authorized network.
 
+`--edition=ENTERPRISE` is not optional: POSTGRES_16 defaults to Enterprise Plus, which
+rejects every shared-core tier with a message that suggests `db-perf-optimized-N-*` — eight
+times the machine and roughly eight times the bill.
+
 Backups are on from the first minute, with point-in-time recovery. That is the whole reason
 this is not Postgres on the VM.
 
@@ -106,10 +111,19 @@ this is not Postgres on the VM.
 gcloud storage buckets create gs://pothi-content \
   --location=asia-south1 --uniform-bucket-level-access
 
-# S3-compatible credentials — this is what utilities/storage.js signs with.
-gcloud storage hmac create pothi-api@shravanmeena.iam.gserviceaccount.com
-#  → accessId + secret. Note both; the secret is shown once.
+# Signed URLs without a key file: the service account signs as itself, through
+# the IAM API. Skipping this makes every /files/reports/* request 403.
+gcloud services enable iamcredentials.googleapis.com
+gcloud iam service-accounts add-iam-policy-binding \
+  pothi-api@shravanmeena.iam.gserviceaccount.com \
+  --member="serviceAccount:pothi-api@shravanmeena.iam.gserviceaccount.com" \
+  --role=roles/iam.serviceAccountTokenCreator
 ```
+
+**There are no HMAC keys and no key file.** `gcloud storage hmac create` is refused outright
+by the org policy `constraints/iam.disableServiceAccountKeyCreation`, which is the right
+answer — a long-lived credential in a `.env` is a credential that leaks. The bucket is
+reached through the VM's attached identity instead, so there is nothing to rotate.
 
 No `allUsers` binding, ever. See the note in Step 0.
 
@@ -188,10 +202,8 @@ WEB_ORIGIN=https://astropothi.com
 OTP_REQUIRED=false
 OTP_BYPASS=2262
 
-S3_BUCKET=pothi-content
-S3_ENDPOINT=https://storage.googleapis.com
-GCS_HMAC_KEY=<accessId from step 4>
-GCS_HMAC_SECRET=<secret from step 4>
+GCS_BUCKET=pothi-content
+GCS_SIGNED_URL_TTL=900
 
 RAZORPAY_ID=...
 RAZORPAY_SECRET=...
@@ -202,8 +214,8 @@ MSG91_NAMESPACE=...
 GOOGLE_MAPS_API_KEY=...
 
 AWS_REGION=ap-south-1
-AWS_ACCESS_KEY_ID=<Bedrock, not GCS>
-AWS_SECRET_ACCESS_KEY=<Bedrock, not GCS>
+AWS_ACCESS_KEY_ID=<Bedrock only — GCS needs no keys>
+AWS_SECRET_ACCESS_KEY=<Bedrock only — GCS needs no keys>
 ```
 
 `chmod 600 .env`.
@@ -260,22 +272,59 @@ sudo cp -r /tmp/dist/* /var/www/pothi/
 
 sudo tee /etc/caddy/Caddyfile >/dev/null <<'CADDY'
 astropothi.com, www.astropothi.com {
-    encode gzip zstd
-    handle /api/* /user-api/* /admin-api/* /noauth-api/* /files/* {
-        reverse_proxy localhost:4050
-    }
-    handle {
-        root * /var/www/pothi
-        try_files {path} /index.html
-        file_server
-    }
+	encode gzip zstd
+
+	# `handle` takes ONE matcher, so the API namespaces need a named one —
+	# listing the paths inline is a config-parse error, not a subtle bug.
+	@api path /api/* /user-api/* /admin-api/* /noauth-api/* /files/* /health
+	handle @api {
+		reverse_proxy localhost:4050
+	}
+
+	handle {
+		root * /var/www/pothi
+		try_files {path} /index.html
+		file_server
+	}
 }
 CADDY
-sudo systemctl reload caddy
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl restart caddy
 ```
 
 DNS: `A` records for `astropothi.com` and `www` → the Step 5 address. Caddy fetches the
 certificate itself once the record resolves.
+
+## Live state — 20 Aug 2026
+
+Everything below Step 11 is built and running. What is left is listed under
+"Still to do" at the end.
+
+| | |
+|---|---|
+| Project | `shravanmeena`, billing `Main DreamyHook Account` |
+| VM | `pothi-api`, `asia-south1-a`, e2-small, **34.14.166.109** |
+| Database | `pothi-db`, POSTGRES_16 ENTERPRISE, db-g1-small, backups + PITR on, **0 authorized networks** |
+| Bucket | `gs://pothi-content`, private, uniform access |
+| Identity | `pothi-api@shravanmeena.iam.gserviceaccount.com` — cloudsql.client, storage.objectAdmin, tokenCreator on itself |
+| Schema | 16 tables created, `ensure_consumer_reports.js` applied |
+| Domain | **https://astropothi.com** + `www`, Let's Encrypt cert issued, HTTP → HTTPS 308 |
+
+Proven end to end from the public internet: catalogue, SPA deep links, `robots.txt`,
+a 16-URL sitemap, and a 58-page Hindi Kundali rendered live in 11 s, rasterised by poppler
+and served from `/files`. A round trip through the bucket returns **200 on a signed URL and
+403 on the unsigned one**.
+
+Credentials are the development set, copied over deliberately: **Razorpay in TEST mode**,
+MSG91 live, Bedrock live, Google Places live (`/location/mode` → `google`, real place ids).
+Swap Razorpay for live keys before the first real rupee.
+
+**A stale apex A record will silently halve the site.** Hostinger's parking record
+(`2.57.91.91`) survived alongside the new one, so DNS round-robined between the real server
+and a parking page — and every ACME challenge failed with `remote error: tls: no
+application protocol`, because Let's Encrypt kept landing on the parking IP. Deleting the
+old record and restarting Caddy issued both certificates within a minute. Check
+`dig +short <domain>` returns exactly ONE address before blaming Caddy.
 
 ## Step 12 · The outside world
 
@@ -312,6 +361,14 @@ docker build -t pothi-api . \
   && docker rm -f pothi-api \
   && docker run -d --name pothi-api --restart unless-stopped --network host --env-file .env pothi-api
 ```
+
+**`docker restart` is not enough after editing `.env`.** `--env-file` is read once, when the
+container is created, and baked into it; a restart replays the old values. Nothing errors —
+the app simply keeps running with the environment it was born with. That cost us a silent
+regression here: with `GOOGLE_MAPS_API_KEY` apparently set, `/location/mode` still answered
+`offline`, meaning every birth place was being resolved against the 296 bundled cities. A
+village that does not resolve gets the wrong coordinate, and the wrong coordinate moves the
+ascendant. Always `docker rm -f` and `docker run` again.
 
 Cloud SQL takes an automatic backup nightly and keeps point-in-time recovery, so there is no
 pre-deploy dump ritual. For a schema change, take an on-demand backup first:

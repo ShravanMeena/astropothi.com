@@ -10,6 +10,16 @@
 //   node scripts/audit_data_driven.js --budget   pass/fail against thresholds
 
 import { renderReport, REPORT_CODES } from "../engine/render.js";
+import { REPORT_TYPES } from "../server/catalog/catalog.js";
+
+// This audit's whole premise is eight different BIRTH CHARTS. A report whose
+// subject is a building ignores them and returns the same empty audit eight
+// times, which scores 100% static and reads like a broken report. It is not
+// broken — it is being asked the wrong question, so it is excluded by name
+// rather than left to cry wolf on every run.
+const CHART_BASED = new Set(
+  REPORT_TYPES.filter((r) => (r.subject || "person") === "person").map((r) => r.code)
+);
 
 const CHARTS = [
   { name: "S1", dob: "1992-03-17", tob: "09:42", lat: 25.3176, lon: 82.9739, gender: "male" },
@@ -35,7 +45,18 @@ const sectionText = (sec) =>
 const budget = process.argv.includes("--budget");
 // A ratchet, not an aspiration: these are TODAY's measured values +1. The build
 // fails if static content grows. Lower them deliberately as the corpus improves.
-const MAX = { kundli: 19, dosh: 43, love: 41, health: 50, horoscope: 24, laalkitab: 24, varshaphal: 14 };
+// career sits above kundli by design: each chapter explains the classical
+// framework before applying it, and an explanation reads the same for everyone.
+// It was 44% until the chapter openers were rewritten — "Saturn signifies
+// labour, discipline and long endurance." followed by "In your chart it stands
+// in…" made the FIRST sentence of every chapter identical across all eight
+// charts. Folding the meaning into the placement took it to 40.
+//
+// What is left is teaching, not boilerplate: "The 10th earns it; the 2nd is
+// whether it stays", the Dashamsha and Jaimini explanations. Cutting those
+// would lower this number and make the report worse, so they stay and the
+// budget records the truth. Lower it only by writing something better.
+const MAX = { kundli: 19, dosh: 43, love: 38, health: 50, horoscope: 24, laalkitab: 24, varshaphal: 14, career: 41 };
 
 console.log("report       chapters  sentences  same-in-all-8   static");
 console.log("─".repeat(64));
@@ -43,7 +64,10 @@ console.log("─".repeat(64));
 let fail = 0;
 const offenders = {};
 
+const skipped = REPORT_CODES.filter((t) => !CHART_BASED.has(t));
+
 for (const type of REPORT_CODES) {
+  if (!CHART_BASED.has(type)) continue;
   const runs = [];
   for (const c of CHARTS) {
     const r = await renderReport({ reportType: type, input: c, designId: "classic",
@@ -71,6 +95,9 @@ for (const type of REPORT_CODES) {
 }
 
 console.log("─".repeat(64));
+if (skipped.length) {
+  console.log(`not chart-based, so not audited here: ${skipped.join(", ")}`);
+}
 if (budget) {
   console.log(fail ? `${fail} report(s) over their static-content budget` : "all reports within budget");
   process.exit(fail ? 1 : 0);
@@ -80,6 +107,6 @@ console.log("\nStatic across all eight charts:");
 for (const [t, l] of Object.entries(offenders)) {
   if (!l.length) continue;
   console.log(`\n  ${t} (${l.length}):`);
-  for (const x of l.slice(0, 6)) console.log(`    ${x.slice(0, 108)}`);
+  for (const x of l.slice(0, (process.env.SHOW_ALL ? 500 : 6))) console.log(`    ${x.slice(0, 108)}`);
   if (l.length > 6) console.log(`    …and ${l.length - 6} more`);
 }

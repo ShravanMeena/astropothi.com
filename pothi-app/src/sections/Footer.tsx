@@ -3,7 +3,7 @@ export default function Footer({ onAstrologers, onGo }: {
   onAstrologers: () => void; onGo: (path: string) => void;
 }) {
   return (
-    <footer className="shell py-14">
+    <footer className="shell py-10">
       <div className="flex flex-col sm:flex-row gap-8 sm:items-end justify-between">
         <div>
           <div className="flex items-baseline gap-2">

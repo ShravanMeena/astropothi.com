@@ -85,7 +85,15 @@ export async function generate({ pandit, input, reportType, design, palette, lan
     });
     const ms = Date.now() - t0;
 
-    const pdfUrl = await putReportPdf(buffer, pandit.id, report.id);
+    // Keyed by the report's own share_token, never by pandit.id.
+    //
+    // This link is deliberately a capability: the pandit WhatsApps it straight
+    // to his client, who has no account and must not need one. That only works
+    // if the URL cannot be guessed — and `reports/<pandit_id>/<report_id>.pdf`
+    // is two autoincrementing integers, so /files/reports/1/1.pdf was a real,
+    // unauthenticated download of somebody's birth chart. The consumer path was
+    // already random; this makes both unguessable.
+    const pdfUrl = await putReportPdf(buffer, `p/${report.share_token}`, report.id);
 
     await report.update({
       status: "ready", pdf_url: pdfUrl, generated_ms: ms, page_count: pages,

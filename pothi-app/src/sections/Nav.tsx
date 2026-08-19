@@ -62,9 +62,11 @@ export default function Nav({ onBuy, onAstrologers, onGo, signedIn, onSignIn, on
                     : <><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></>}
             </svg>
           </button>
-          <button className="btn-dark btn-sm" onClick={onBuy}>
-            <span className="hidden xs:inline">Get your report</span>
-            <span className="xs:hidden">Get report</span>
+          {/* Desktop only. On a phone the header had a burger, an account
+              circle and a CTA in 390px, and the CTA is duplicated by the one in
+              the hero and the one pinned to the bottom of every report page. */}
+          <button className="btn-dark btn-sm hidden md:inline-flex" onClick={onBuy}>
+            Get your report
           </button>
         </div>
       </div>

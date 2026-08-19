@@ -70,7 +70,7 @@ export default function SignIn({ open, onClose, onDone, reason }: {
                          text-faint hover:text-fg hover:bg-sunken">✕</button>
 
             <p className="caps text-brass">Your account</p>
-            <h2 className="display text-[26px] mt-2">Sign in with your mobile</h2>
+            <h2 className="display text-[21px] mt-2">Sign in with your mobile</h2>
             <p className="text-[13.5px] text-muted mt-2 leading-relaxed">
               {reason || "Your reports stay here, ready to open whenever you come back."}
             </p>
@@ -80,7 +80,7 @@ export default function SignIn({ open, onClose, onDone, reason }: {
                             focus-within:border-brass focus-within:ring-4 focus-within:ring-brass/10">
               <span className="text-muted text-[15px] tabular-nums shrink-0">+91</span>
               <span className="h-5 w-px bg-line shrink-0" />
-              <input className="flex-1 min-w-0 h-full bg-transparent outline-none text-[15px] tabular-nums
+              <input className="flex-1 min-w-0 h-full bg-transparent outline-none text-[16px] sm:text-[15px] tabular-nums
                                 placeholder:text-faint"
                      inputMode="numeric" maxLength={10} placeholder="98765 43210" autoFocus
                      aria-label="Mobile number" value={phone} disabled={sent}

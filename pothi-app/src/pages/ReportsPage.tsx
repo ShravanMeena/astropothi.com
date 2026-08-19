@@ -25,12 +25,12 @@ export default function ReportsPage({ items, onPick, onAskGuide }: {
                         w-[860px] max-w-[128vw] text-brass opacity-[.14] dark:opacity-[.18]">
           <ChartMark className="w-full h-auto" weight={0.32} />
         </div>
-        <div className="shell relative z-10 py-16 sm:py-24">
+        <div className="shell relative z-10 py-11 sm:py-24">
           <div className="flex items-center gap-3">
             <span className="h-px w-8 bg-brass" />
             <span className="caps text-brass">{items.length} readings</span>
           </div>
-          <h1 className="display text-[40px] sm:text-[60px] leading-[1.02] mt-6 max-w-[16ch]">
+          <h1 className="display text-[26px] sm:text-[60px] leading-[1.02] mt-6 max-w-[16ch]">
             One engine. Many ways of reading.
           </h1>
           <p className="lede mt-5 max-w-prose2">
@@ -45,7 +45,7 @@ export default function ReportsPage({ items, onPick, onAskGuide }: {
         </div>
       </section>
 
-      <section className="shell py-16 sm:py-24">
+      <section className="shell py-11 sm:py-24">
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-14">
           {items.map((r, i) => {
             const b = BLURB[r.code];

@@ -1,5 +1,17 @@
 {
-  "watch": ["bin", "server", "engine", "database", "utilities", "config.js"],
+  "watch": [
+    "bin",
+    "server",
+    "engine",
+    "database",
+    "utilities",
+    "index.js",
+    "config.js"
+  ],
   "ext": "js,json",
-  "ignore": ["out/**", "scripts/**", "node_modules/**"]
+  "ignore": [
+    "out/**",
+    "scripts/**",
+    "node_modules/**"
+  ]
 }

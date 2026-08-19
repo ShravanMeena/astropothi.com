@@ -104,8 +104,8 @@ export default function ProfilePage({ onOpenOrder, onHome, onSignIn }: {
 
   if (!signedIn) {
     return (
-      <section className="shell py-24 sm:py-32 text-center">
-        <h1 className="display text-[32px] sm:text-[42px]">Your reports live here</h1>
+      <section className="shell py-12 sm:py-32 text-center">
+        <h1 className="display text-[24px] sm:text-[42px]">Your reports live here</h1>
         <p className="lede mt-4 max-w-prose2 mx-auto">
           Sign in with the mobile number you ordered on and every report you have bought
           appears here, ready to open.
@@ -148,10 +148,10 @@ export default function ProfilePage({ onOpenOrder, onHome, onSignIn }: {
                         w-[720px] max-w-[128vw] text-brass opacity-[.12] dark:opacity-[.16]">
           <ChartMark className="w-full h-auto" weight={0.32} />
         </div>
-        <div className="shell relative z-10 py-14 sm:py-20 flex flex-wrap items-end justify-between gap-6">
+        <div className="shell relative z-10 py-10 sm:py-20 flex flex-wrap items-end justify-between gap-6">
           <div>
             <p className="caps text-brass">Your account</p>
-            <h1 className="display text-[34px] sm:text-[46px] mt-3">
+            <h1 className="display text-[25px] sm:text-[46px] mt-3">
               {f?.name?.trim() || `+91 ${f?.phone ?? ""}`}
             </h1>
             <p className="text-[13.5px] text-faint mt-2 tabular-nums">
@@ -164,9 +164,9 @@ export default function ProfilePage({ onOpenOrder, onHome, onSignIn }: {
 
       {err && <p className="shell mt-6 text-[14px] text-ember">{err}</p>}
 
-      <section className="shell py-14 sm:py-20 grid lg:grid-cols-[1.15fr_.85fr] gap-x-16 gap-y-14">
+      <section className="shell py-10 sm:py-20 grid lg:grid-cols-[1.15fr_.85fr] gap-x-16 gap-y-14">
         <div>
-          <h2 className="display text-[26px] sm:text-[32px]">Your reports</h2>
+          <h2 className="display text-[21px] sm:text-[32px]">Your reports</h2>
           <p className="lede mt-2">Every book you have ordered, oldest at the bottom.</p>
           <div className="mt-8">
             <Orders orders={data?.orders ?? []} onOpen={onOpenOrder} />
@@ -174,7 +174,7 @@ export default function ProfilePage({ onOpenOrder, onHome, onSignIn }: {
         </div>
 
         <div>
-          <h2 className="display text-[26px] sm:text-[32px]">About you</h2>
+          <h2 className="display text-[21px] sm:text-[32px]">About you</h2>
           <p className="lede mt-2">
             All optional. What you share here shapes what we emphasise in future readings —
             leave any of it blank.

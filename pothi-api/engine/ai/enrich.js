@@ -73,12 +73,44 @@ STYLE
 - Never frighten. No death, disease, divorce, financial ruin or curses.
 - Do not give medical, legal or financial advice.
 - Do not repeat the sentences you were given — the report already prints them.
-- No headings, no bullet points, no markdown. Plain paragraphs separated by a
-  blank line.
+- No headings, no bullet points, no markdown.
 
-Return ONLY a JSON object: {"<chapter id>": "<the paragraphs>", ...}
+Return ONLY a JSON object mapping each chapter id to an ARRAY OF PARAGRAPHS:
+{"<chapter id>": ["<paragraph>", "<paragraph>"], ...}
+One array element per paragraph. Never put a line break inside a string — that
+is not valid JSON and the response will be discarded.
 No prose outside the JSON, no code fence.
 `.trim();
+
+/**
+ * Parse the model's reply, surviving the one thing it gets wrong.
+ *
+ * Asked for paragraphs, a model will sometimes put a literal newline inside a
+ * JSON string, which is invalid JSON. Devanagari responses do it more often
+ * because they are longer. Before batching, one such reply cost the whole book
+ * its expansion and the failure was invisible — it looked like "unparseable"
+ * and shipped the thin computed text.
+ *
+ * So: try it straight, then repair raw newlines inside strings and try again.
+ * Anything still broken is the caller's problem to log, not to swallow.
+ */
+function parseChapters(raw) {
+  const body = raw.replace(/^```(?:json)?\s*|\s*```$/g, "").trim();
+  try {
+    return JSON.parse(body);
+  } catch {
+    // Escape only the newlines that sit between an opening and a closing quote.
+    let out = "", inStr = false, esc = false;
+    for (const ch of body) {
+      if (esc) { out += ch; esc = false; continue; }
+      if (ch === "\\") { out += ch; esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; out += ch; continue; }
+      if (inStr && (ch === "\n" || ch === "\r")) { out += "\\n"; continue; }
+      out += ch;
+    }
+    return JSON.parse(out);
+  }
+}
 
 /** Anything that looks like a hard fact, so we can check none were invented. */
 const SIGNS = /\b(Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|Sagittarius|Capricorn|Aquarius|Pisces|मेष|वृषभ|मिथुन|कर्क|सिंह|कन्या|तुला|वृश्चिक|धनु|मकर|कुम्भ|मीन)\b/g;
@@ -118,41 +150,69 @@ export async function enrichSections(model, { lang = "en", reportType = "" } = {
     .map((x) => x.s);
   if (!thin.length) return { expanded: 0, rejected: 0, skipped: "nothing thin" };
 
-  const payload = thin.map((s) => ({
+  const describe = (s) => ({
     id: s.id || `ch${s.n}`,
     title: s.title,
     subtitle: s.subtitle || "",
     computed: [s.summary, ...(s.paras || []), ...(s.bullets || [])].filter(Boolean).join("\n")
+  });
+
+  /**
+   * Sent as several concurrent calls rather than one.
+   *
+   * The Love report asks for 15 chapters at up to 300 words each. As a single
+   * request that is one ~5,000-word completion, and it took 34 seconds — which
+   * a buyer spends staring at a spinner immediately after paying. The work
+   * splits perfectly: chapters are expanded independently and never reference
+   * each other, so N smaller calls in parallel produce identical output in a
+   * fraction of the wall-clock.
+   *
+   * Batches of five, because one chapter per call would multiply the fixed
+   * per-request overhead by fifteen for no gain.
+   */
+  const BATCH = 5;
+  const batches = [];
+  for (let i = 0; i < thin.length; i += BATCH) batches.push(thin.slice(i, i + BATCH));
+
+  const results = await Promise.all(batches.map(async (batch) => {
+    try {
+      const raw = await LLM.complete({
+        system: SYSTEM(lang, profile.add),
+        messages: [{ role: "user", content: JSON.stringify({ chapters: batch.map(describe) }) }],
+        // Devanagari costs several tokens per word, and a truncated response
+        // surfaces as "unparseable" and silently ships the thin computed text.
+        // The Love report failed exactly that way on every Hindi render while
+        // English passed, because Hindi is where the budget actually binds.
+        maxTokens: 8000,
+        modelId: config.ai.enrichModelId,
+        // Zero, so the same birth data keeps producing the same book. The
+        // reports are advertised as reproducible; a warm temperature would
+        // quietly break that.
+        temperature: 0
+      });
+      return parseChapters(raw);
+    } catch (e) {
+      // One failed batch costs its own chapters, not the whole book.
+      console.warn(`[enrich] batch failed, shipping its computed text: ${e.message}`);
+      return {};
+    }
   }));
 
-  let raw;
-  try {
-    raw = await LLM.complete({
-      system: SYSTEM(lang, profile.add),
-      messages: [{ role: "user", content: JSON.stringify({ chapters: payload }) }],
-      maxTokens: 4000,
-      modelId: config.ai.enrichModelId,
-      // Zero, so the same birth data keeps producing the same book. The reports
-      // are advertised as reproducible and a warm temperature would break that.
-      temperature: 0
-    });
-  } catch (e) {
-    console.warn(`[enrich] model failed, shipping the computed text: ${e.message}`);
-    return { expanded: 0, rejected: 0, skipped: `model error: ${e.message}` };
-  }
-
-  let map;
-  try {
-    map = JSON.parse(raw.replace(/^```(?:json)?\s*|\s*```$/g, "").trim());
-  } catch {
-    console.warn("[enrich] model returned unparseable JSON; shipping the computed text");
-    return { expanded: 0, rejected: 0, skipped: "unparseable" };
-  }
+  const map = Object.assign({}, ...results);
+  if (!Object.keys(map).length) return { expanded: 0, rejected: 0, skipped: "no usable response" };
 
   let expanded = 0, rejected = 0;
   for (const s of thin) {
-    const text = map[s.id || `ch${s.n}`];
-    if (typeof text !== "string" || text.trim().length < 80) continue;
+    const reply = map[s.id || `ch${s.n}`];
+    // The contract asks for an array of paragraphs; older replies send one
+    // string with blank lines. Both are accepted, neither is required.
+    const paras = Array.isArray(reply)
+      ? reply.map((x) => String(x).trim()).filter(Boolean)
+      : typeof reply === "string"
+        ? reply.split(/\n{2,}/).map((x) => x.trim()).filter(Boolean)
+        : [];
+    const text = paras.join("\n\n");
+    if (text.length < 80) continue;
 
     const original = [s.summary, ...(s.paras || []), ...(s.bullets || [])].filter(Boolean).join(" ");
     const invented = inventsFacts(original, text);
@@ -163,7 +223,7 @@ export async function enrichSections(model, { lang = "en", reportType = "" } = {
     }
     // Appended, never substituted. The computed sentences stay exactly as they
     // were and stay first — this adds to the chapter, it does not rewrite it.
-    s.paras = [...(s.paras || []), ...text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean)];
+    s.paras = [...(s.paras || []), ...paras];
     s.enriched = true;
     expanded++;
   }

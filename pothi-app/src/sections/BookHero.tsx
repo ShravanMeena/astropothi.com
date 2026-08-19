@@ -1,6 +1,8 @@
 import { useRef } from "react";
 import { motion, useScroll, useTransform, useSpring, useReducedMotion } from "framer-motion";
 import ChartMark from "../components/ChartMark";
+import ReportBanners from "./ReportBanners";
+import type { ReportItem } from "../lib/api";
 
 /**
  * The pothi opens as you scroll.
@@ -10,7 +12,7 @@ import ChartMark from "../components/ChartMark";
  * as the book settles. It is the product doing the talking rather than a hero
  * image — and every page shown is a real render.
  */
-/** The pitch. Identical in both branches so the two can never drift apart. */
+/** The pitch. Identical in every branch so they can never drift apart. */
 function Copy({ onOpen }: { onOpen: () => void }) {
   return (
     <>
@@ -19,10 +21,10 @@ function Copy({ onOpen }: { onOpen: () => void }) {
         <span className="caps text-brass">Vedic · computed, then explained</span>
       </div>
       <h1 className="mt-6">
-        <span className="deva foil block text-[36px] sm:text-[48px] leading-[1.18] font-semibold">
+        <span className="deva foil block text-[25px] sm:text-[48px] leading-[1.18] font-semibold">
           जन्म कुंडली
         </span>
-        <span className="display block text-[40px] sm:text-[56px] lg:text-[64px] leading-[1.0] mt-1">
+        <span className="display block text-[26px] sm:text-[56px] lg:text-[64px] leading-[1.0] mt-1">
           Your birth chart,<br />read properly.
         </span>
       </h1>
@@ -30,15 +32,22 @@ function Copy({ onOpen }: { onOpen: () => void }) {
         A 64-chapter kundali computed from your exact birth time — every line traceable
         to a planetary position we can show you.
       </p>
-      <div className="mt-9 flex flex-wrap gap-3">
-        <button className="btn-brass h-[52px] px-8 text-[16px]" onClick={onOpen}>See what's inside</button>
-        <a href="#reports" className="btn-line h-[52px]">See every report</a>
+      {/* One button, not two. "See what's inside" and "See every report" both
+          went to the range, so the pair was a choice between two words for the
+          same thing — and on a phone it wrapped and pushed itself under the
+          fold. */}
+      <div className="mt-8">
+        <button className="btn-brass h-[52px] px-8 text-[16px] w-full sm:w-auto" onClick={onOpen}>
+          See every report
+        </button>
       </div>
     </>
   );
 }
 
-export default function BookHero({ onOpen }: { onOpen: () => void }) {
+export default function BookHero({ onOpen, items, onPick }: {
+  onOpen: () => void; items: ReportItem[]; onPick: (code: string) => void;
+}) {
   const track = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: track, offset: ["start start", "end start"] });
@@ -61,9 +70,28 @@ export default function BookHero({ onOpen }: { onOpen: () => void }) {
   const hintOpacity = useTransform(p, [0, .18], [1, 0]);
   const markRot     = useTransform(p, [0, 1], [0, 22]);
 
+  // ── phones ────────────────────────────────────────────────────────────────
+  // Rendered alongside the desktop hero and switched by CSS rather than by a
+  // width test in JS: a JS breakpoint renders the wrong one for a frame on
+  // first paint, and this is the first thing an ad click sees.
+  const mobile = (
+    <section className="sm:hidden relative overflow-hidden grain lamp">
+      <div className="pointer-events-none absolute left-1/2 -top-10 -translate-x-1/2
+                      w-[520px] max-w-[150vw] text-brass opacity-[.13] dark:opacity-[.17]">
+        <ChartMark className="w-full h-auto" weight={0.32} draw={false} />
+      </div>
+      <div className="shell relative z-10 pt-10 pb-12">
+        <Copy onOpen={onOpen} />
+        <ReportBanners items={items} onPick={onPick} />
+      </div>
+    </section>
+  );
+
   if (reduce) {
     return (
-      <section className="relative overflow-hidden grain lamp">
+      <>
+      {mobile}
+      <section className="hidden sm:block relative overflow-hidden grain lamp">
         <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
                         w-[820px] max-w-[128vw] text-brass opacity-[.16] dark:opacity-[.2]">
           <ChartMark className="w-full h-auto" weight={0.32} draw={false} />
@@ -74,11 +102,14 @@ export default function BookHero({ onOpen }: { onOpen: () => void }) {
                className="rounded-[2px] border border-line shadow-book w-[72%] mx-auto" />
         </div>
       </section>
+      </>
     );
   }
 
   return (
-    <section ref={track} className="relative h-[220vh]">
+    <>
+    {mobile}
+    <section ref={track} className="hidden sm:block relative h-[220vh]">
       <div className="sticky top-0 h-dvh flex items-center overflow-hidden grain">
         <div aria-hidden className="absolute inset-0 pointer-events-none lamp" />
         <motion.div aria-hidden style={{ rotate: markRot }}
@@ -127,5 +158,6 @@ export default function BookHero({ onOpen }: { onOpen: () => void }) {
         </motion.div>
       </div>
     </section>
+    </>
   );
 }

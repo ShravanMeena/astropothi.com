@@ -1,3 +1,10 @@
-# No SITE_ORIGIN was set at build time, so this build is not indexable.
 User-agent: *
-Disallow: /
+Allow: /
+
+# Nothing here is useful to a crawler and some of it is private.
+Disallow: /buy/
+Disallow: /order/
+Disallow: /profile
+Disallow: /astrologers
+
+Sitemap: https://astropothi.com/sitemap.xml

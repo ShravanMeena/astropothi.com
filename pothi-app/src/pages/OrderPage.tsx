@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { api, rupees, type OrderStatus } from "../lib/api";
 import Support from "../components/Support";
 import { track } from "../lib/track";
-import PageTurner from "../components/PageTurner";
+import BookReader from "../components/BookReader";
 import ChartMark from "../components/ChartMark";
 import AskReport from "../components/AskReport";
 
@@ -84,8 +84,8 @@ export default function OrderPage({ id, onHome, onProfile }: {
   }, [id, o?.status]);
 
   if (err) return (
-    <div className="shell py-28 text-center">
-      <h1 className="display text-[28px]">We could not find that order</h1>
+    <div className="shell py-14 text-center">
+      <h1 className="display text-[22px]">We could not find that order</h1>
       <p className="lede mt-3">{err}</p>
       <button className="btn-line mt-7" onClick={onHome}>Back to reports</button>
     </div>
@@ -114,7 +114,7 @@ export default function OrderPage({ id, onHome, onProfile }: {
           <ChartMark className="w-full h-auto" weight={0.32} />
         </div>
 
-        <div className="shell relative z-10 py-16 sm:py-24 text-center">
+        <div className="shell relative z-10 py-11 sm:py-24 text-center">
           <motion.div initial={{ scale: .8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
             transition={{ duration: .5, ease: [0.22, 0.7, 0.2, 1] }}
             className="mx-auto w-14 h-14 rounded-full border border-brass/40 bg-brassSoft/30
@@ -125,7 +125,7 @@ export default function OrderPage({ id, onHome, onProfile }: {
                      strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>}
           </motion.div>
 
-          <h1 className="display text-[34px] sm:text-[48px] mt-7">{headline}</h1>
+          <h1 className="display text-[25px] sm:text-[48px] mt-7">{headline}</h1>
           <p className="lede mt-3">{sub}</p>
 
           <div className="flex flex-wrap justify-center gap-3 mt-9">
@@ -152,26 +152,19 @@ export default function OrderPage({ id, onHome, onProfile }: {
         </div>
       </section>
 
-      {/* The book itself. Rendered once the reader is opened so a buyer who only
-          wants the file never pays for a few dozen page images. */}
-      {reading && canRead && (
-        <section className="relative overflow-hidden grain border-b border-line">
-          <div className="shell relative z-10 py-14 sm:py-20">
-            <div className="flex items-center justify-between gap-4 flex-wrap mb-10">
-              <div>
-                <p className="caps text-brass">Reading</p>
-                <h2 className="display text-[26px] sm:text-[34px] mt-2">{o?.report_name_en ?? o?.report_type}</h2>
-              </div>
-              <button className="btn-quiet" onClick={() => setReading(false)}>Close reader</button>
-            </div>
-            <PageTurner shots={pages!} maxW={880} keyboard caption={`Order ${o?.public_id}`} />
-          </div>
-        </section>
-      )}
+      {/* The reader is a full-screen mode, not a section in the page.
+          Inline, it put a viewport-tall book inside a scrolling document, and
+          on a phone every drag over the book belonged to the book — so the page
+          could not be scrolled past it. */}
+      <BookReader open={reading && canRead} onClose={() => setReading(false)}
+                  shots={pages ?? []}
+                  title={o?.report_name_en ?? o?.report_type ?? "Your report"}
+                  subtitle={`Order ${o?.public_id ?? ""}`}
+                  pdfUrl={o?.pdf_url} />
 
       {/* Somewhere to put a question, for a reader who is stuck on page 40. */}
       {st === "ready" && (
-        <section id="ask" className="shell py-14 sm:py-20 max-w-3xl scroll-mt-20">
+        <section id="ask" className="shell py-10 sm:py-20 max-w-3xl scroll-mt-20">
           <AskReport publicId={id} language={o?.language} />
         </section>
       )}

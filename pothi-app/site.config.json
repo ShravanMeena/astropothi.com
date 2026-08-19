@@ -1,0 +1,4 @@
+{
+  "_comment": "The canonical public origin. The sitemap generator reads this so an ordinary build produces a correct sitemap without anyone remembering an environment variable. SITE_ORIGIN in the environment still overrides it, for a staging host.",
+  "origin": "https://astropothi.com"
+}

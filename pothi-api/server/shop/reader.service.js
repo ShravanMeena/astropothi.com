@@ -10,6 +10,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
 import db from "../../database/index.js";
+import { fetchToFile } from "../../utilities/storage.js";
 
 const run = promisify(execFile);
 const OUT = path.resolve(import.meta.dirname, "../..", "out");
@@ -21,8 +22,7 @@ const DPI = 96;   // legible on a laptop without making every page a megabyte
 
 /**
  * Page images for a delivered order, rasterised on first read and cached.
- * Returns null when there is nothing to read yet, or when the PDF lives in
- * object storage rather than on this disk.
+ * Returns null when there is nothing to read yet.
  */
 export async function orderPages(publicId) {
   const order = await db.Order.findOne({ where: { public_id: publicId } });
@@ -30,12 +30,14 @@ export async function orderPages(publicId) {
   const report = await db.Report.findByPk(order.report_id);
   if (!report?.pdf_url) return null;
 
-  // Only local-disk deliveries can be rasterised here. An S3 URL would need the
-  // object pulled back first, which is a deploy-time concern, not a silent
-  // fallback — say so plainly instead of half-working.
+  // pdf_url is always an application path, never a storage URL — see the note in
+  // utilities/storage.js. Anything else is a row written by an older build.
   if (!report.pdf_url.startsWith("/files/")) return null;
-  const pdfPath = path.join(OUT, report.pdf_url.slice("/files/".length));
-  if (!(await exists(pdfPath))) return null;
+  const objectKey = report.pdf_url.slice("/files/".length);
+  const pdfPath = path.join(OUT, objectKey);
+  // On a fresh container the book is only in the bucket. pdftoppm needs a real
+  // file, so pull it down once; from then on this disk is the cache.
+  if (!(await exists(pdfPath)) && !(await fetchToFile(objectKey, pdfPath))) return null;
 
   const key = `${publicId}_${report.id}`;
   const dir = path.join(ROOT, key);

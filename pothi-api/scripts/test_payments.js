@@ -7,7 +7,10 @@
  * signatures, duplicate deliveries, unknown ids, and out-of-order arrival.
  */
 import crypto from "node:crypto";
+import { execSync } from "node:child_process";
 import config from "../config.js";
+
+const DB = config.db.name;
 
 const API = process.env.API || "http://localhost:4050";
 const B = `${API}/noauth-api/v1/shop`;
@@ -49,6 +52,11 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 console.log("payment links + webhook");
 
 // ── an order, with a real hosted link ────────────────────────────────────────
+// Auto-login must look like a first-time buyer for the check below to mean
+// anything. psql rather than the API, because there is deliberately no
+// endpoint that un-verifies an account.
+execSync(`psql -d ${DB} -q -c "UPDATE users SET verified_at = NULL WHERE phone = '9660801827'"`);
+
 const created = await post("/noauth-api/v1/shop/order", {
   report_type: "love", name: "Ravi Sharma", gender: "male",
   dob: "1992-03-17", tob: "09:42",
@@ -71,6 +79,11 @@ if (!linkId) { console.log("  ✗ no payment link on the order"); process.exit(1
 // ── checkout signs the buyer in, with no OTP ─────────────────────────────────
 is("checkout returned a session", Boolean(order.token), true);
 is("session is for the number given", order.user?.phone, "9660801827");
+// This asserts what auto-login means: typing a number signs you in but does
+// NOT prove you own it. The precondition is that this buyer has never
+// completed an OTP — so reset it here rather than depending on the order the
+// suites happen to run in. Without this the check passes or fails according
+// to whether some earlier suite signed in as the same number.
 is("session is marked unverified", order.user?.verified, false);
 
 const meRes = await fetch(`${API}/user-api/v1/me`, {

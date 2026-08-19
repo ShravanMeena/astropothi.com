@@ -43,6 +43,10 @@ export default function PageTurner({
   const spreads = useMemo(() => chunk(shots, per), [shots, per]);
 
   const root = useRef<HTMLDivElement>(null);
+  // Declared with the other refs, above the empty-shots guard. Putting it down
+  // beside the JSX meant it sat after an early return, so React saw a different
+  // number of hooks on the render where there were no pages yet.
+  const touch = useRef<{ x: number; y: number } | null>(null);
   const [i, setI] = useState(0);
   const [flip, setFlip] = useState<null | { dir: 1 | -1; from: number }>(null);
   const busy = useRef(false);
@@ -88,6 +92,24 @@ export default function PageTurner({
     else if (want < i) go(-1);
   });
 
+  // Swipe. The left/right halves are click targets, which works with a mouse
+  // and is not how anyone reads on a phone — a thumb drags. Only acted on past
+  // 45px, and only when the gesture is more sideways than vertical, so a scroll
+  // is never mistaken for a page turn.
+  const onTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touch.current = { x: t.clientX, y: t.clientY };
+  };
+  const onTouchEnd = (e: React.TouchEvent) => {
+    const start = touch.current;
+    touch.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x, dy = t.clientY - start.y;
+    if (Math.abs(dx) < 45 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    go(dx < 0 ? 1 : -1);
+  };
+
   if (!spreads.length) {
     return <div className={`w-full ${single ? "aspect-[1/1.414]" : "aspect-[1.414/1]"}
                             rounded-[2px] bg-sunken border border-line animate-pulse`} />;
@@ -115,7 +137,8 @@ export default function PageTurner({
   const many = spreads.length > 14;
 
   return (
-    <div ref={root} className="relative">
+    <div ref={root} className="relative"
+         onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
       {/* the reading table: warm light pooled under the book */}
       <div aria-hidden className="pointer-events-none absolute -inset-x-8 -inset-y-10 rounded-[40px]"
            style={{ background: "radial-gradient(closest-side, rgb(var(--brass) / .20), transparent 76%)" }} />

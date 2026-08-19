@@ -1,4 +1,4 @@
-# Where the seven reports come from, and how to add an eighth
+# Where the nine reports come from, and how to add another
 
 ## The chain, for every report
 
@@ -11,7 +11,7 @@ input {name, dob, tob, pob, lat, lon, gender, language}
   1 ── engine/astrology/normalize-kundli-data.js
   │      buildCalculatedKundliData(request)
   │      The actual sky: astronomy-engine + Lahiri ayanamsha → planets, houses,
-  │      dashas, ascendant. ONE source of planetary truth, shared by all seven.
+  │      dashas, ascendant. ONE source of planetary truth, shared by every report.
   │
   2 ── engine/astrology/*.js
   │      Pull out the facts this report argues from:
@@ -39,10 +39,23 @@ input {name, dob, tob, pob, lat, lon, gender, language}
   │
   5 ── engine/reporting/doc-model.js → render-report.js
          Normalise to one shape, then lay out the PDF in the chosen design and
-         palette. Shared by all seven — no report has its own renderer.
+         palette. Shared by every report — none has its own renderer.
 ```
 
-Nothing here calls an LLM. The same birth data always produces the same book.
+**Stage 6, added later: `engine/ai/enrich.js`.** A chapter shorter than 90 words
+is handed to a model to expand — one call per report, temperature 0. The split it
+enforces is the point: **facts stay computed and are never touched** (placements,
+signs, houses, degrees, dasha dates, dosh scores, bindus), and only the
+*explanation* around them is written. The output is checked before it is
+accepted, and any paragraph that states a placement, sign, house or date not
+already present in the computed text is rejected — you will see
+`[enrich] rejected "…": introduced "Taurus"` in the log when that fires.
+
+So the earlier claim on this line — that nothing calls an LLM — is no longer
+true, and the reports are no longer bit-for-bit reproducible. What *is* still
+true, and is the part that matters, is that no astrological fact comes from a
+model. Set `AI_ENRICH_REPORTS=false` to turn it off; the test suite does exactly
+that so the assertions stay deterministic.
 
 ## Where a report is *registered*
 
@@ -66,7 +79,8 @@ export const REPORT_TYPES = [
     chapters: 26, credits: 2, engine: "health", ready: true },
   …
 ];
-export const CONSUMER_PRICES = { health: 29900, … };   // paise, GST inclusive
+// Price comes from a TIER, not a per-report number — see PRICE_TIERS.
+const TIER_OF = { health: "focused", … };   // flagship | full | focused
 ```
 
 `credits` is what a pandit pays. `CONSUMER_PRICES` is what a buyer pays.
@@ -135,7 +149,7 @@ the static covers under `pothi-app/public/covers/` do not — that is what
 
 Adding a report touches **ten** places across two codebases, and four of them
 are hardcoded lookup tables that fail quietly or, worse, fall back to the wrong
-value. That was fine for seven reports written in one go. If reports are going
+value. That was fine for the first seven, written in one go. If reports are going
 to be added regularly, the right fix is one manifest per report — code, names,
 price, credits, palette, cover art, copy — that both the API and the frontend
 read, so there is a single place to edit and a single place to forget.

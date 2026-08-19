@@ -187,11 +187,12 @@ export function buildCareerSections(f, P) {
       ? (hi ? `इस पर ${P.planets(h.aspects)} की दृष्टि है${S}` : `${P.planets(h.aspects)} aspects it.`)
       : (hi ? `इस पर किसी ग्रह की दृष्टि नहीं${S}` : `No planet aspects it.`);
     add(i, P.block(
-      hi ? `${N(h.house)} भाव ${HM(h.house)} का है${S}` : `The ${N(h.house)} house governs ${HM(h.house)}.`,
-      occ, asp,
+      // Named with its sign, so the opening line is this chart's and not every
+      // chart's — see the note in grahaChapter.
       hi
-        ? `इसका स्वामी ${pl(h.lord)} है, जो ${sg(h.lordSign)} राशि में ${N(h.lordHouse)} भाव में ${dg(h.lordDignity)} अवस्था में है${S}`
-        : `Its lord is ${pl(h.lord)}, placed in ${sg(h.lordSign)} in the ${N(h.lordHouse)} house, ${dg(h.lordDignity)}.`,
+        ? `आपका ${N(h.house)} भाव — ${HM(h.house)} का भाव — ${pl(h.lord)} के स्वामित्व में है, जो ${sg(h.lordSign)} राशि में ${N(h.lordHouse)} भाव में ${dg(h.lordDignity)} अवस्था में बैठा है${S}`
+        : `Your ${N(h.house)} house — which governs ${HM(h.house)} — is ruled by ${pl(h.lord)}, sitting in ${sg(h.lordSign)} in your ${N(h.lordHouse)} house, ${dg(h.lordDignity)}.`,
+      occ, asp,
       h.lordCombust ? (hi ? `स्वामी अस्त है — फल मिलता है पर दिखता कम है${S}` : `The lord is combust: the result arrives but is less visible than it deserves.`) : "",
       h.lordRetrograde ? (hi ? `स्वामी वक्री है — फल विलंब से, किंतु दोहराकर मिलता है${S}` : `The lord is retrograde: results come late, and tend to come round a second time.`) : "",
       extraLine || "",
@@ -203,11 +204,17 @@ export function buildCareerSections(f, P) {
   const grahaChapter = (i, g, governs, whenStrong, whenWeak) => {
     if (!g) return add(i, hi ? `यह ग्रह गणना में नहीं मिला${S}` : `This graha was not found in the computation.`);
     const good = ["exalted", "own", "moolatrikona"].includes(g.dignity);
+    // The rule and the placement go in ONE sentence, not two.
+    //
+    // Written as "Saturn signifies labour, discipline and long endurance." and
+    // then "In your chart it stands in…", the first sentence is word-for-word
+    // identical in every report we sell — and it is the one the reader meets
+    // first, so the chapter opens by sounding generic. Folding the meaning into
+    // the placement keeps the teaching and loses the boilerplate.
     add(i, P.block(
-      hi ? `${pl(g.name)} ${governs} का कारक है${S}` : `${pl(g.name)} signifies ${governs}.`,
       hi
-        ? `आपकी कुंडली में यह ${sg(g.sign)} राशि में ${N(g.house)} भाव में है, ${dg(g.dignity)} अवस्था में${S}`
-        : `In your chart it stands in ${sg(g.sign)}, in the ${N(g.house)} house, ${dg(g.dignity)}.`,
+        ? `${pl(g.name)} — ${governs} का कारक — आपकी कुंडली में ${sg(g.sign)} राशि में ${N(g.house)} भाव में है, ${dg(g.dignity)} अवस्था में${S}`
+        : `${pl(g.name)} — which signifies ${governs} — stands in ${sg(g.sign)}, in your ${N(g.house)} house, ${dg(g.dignity)}.`,
       g.combust ? (hi ? `यह अस्त है — इसका बल भीतर है, बाहर नहीं${S}` : `It is combust, so its strength is felt inwardly rather than seen outwardly.`) : "",
       g.retrograde ? (hi ? `यह वक्री है — इसका फल अपने समय पर, दोबारा लौटकर आता है${S}` : `It is retrograde, so what it gives comes back around rather than arriving once.`) : "",
       good ? whenStrong : whenWeak,

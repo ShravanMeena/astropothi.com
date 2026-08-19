@@ -91,9 +91,6 @@ export function buildLoveSections(f, P) {
 
   add(1, P.block(
     hi
-      ? `पूरी रिपोर्ट पढ़ने से पहले, एक नज़र में यह रहा${S}`
-      : `Before the rest of it, here is the whole reading on one page${S}`,
-    hi
       ? `आपकी सबसे बड़ी ताक़त: ${(V.strength(p.theme.strength) || "").split(S)[0]}${S}`
       : `Your biggest strength: ${(V.strength(p.theme.strength) || "").split(".")[0]}.`,
     hi
@@ -104,8 +101,8 @@ export function buildLoveSections(f, P) {
       : `Over the long run this reads as ${p.longTerm.grade}${S}`
   ), {
     summary: hi
-      ? `यह छह आँकड़े पूरी रिपोर्ट का सार हैं${S} हर एक कई ग्रह-स्थितियों से निकला है, किसी एक से नहीं${S}`
-      : `These six figures are the whole report in miniature${S} Each is derived from several placements rather than one${S}`,
+      ? `${sg(f.lagnaSign)} लग्न, ${sg(f.moonSign)} राशि — नीचे के छह आँकड़े इसी कुंडली से निकले हैं${S}`
+      : `${sg(f.lagnaSign)} ascendant, Moon in ${sg(f.moonSign)} — the six figures below are read from that chart${S}`,
     bullets: [
       dialLine("Relationship strength", "रिश्ते की मज़बूती", d.strength),
       dialLine("Emotional connection", "भावनात्मक जुड़ाव", d.emotional),
@@ -156,14 +153,14 @@ export function buildLoveSections(f, P) {
 
   add(3, P.block(
     hi
-      ? `“मुझे क्या चाहिए” का जवाब आमतौर पर “एक अच्छा इंसान” होता है, जो सच है और किसी काम का नहीं${S} कुंडली इससे ज़्यादा ठोस बात कहती है${S}`
-      : `Asked what they need, most people say "someone kind", which is true and useless${S} The chart says something more specific than that${S}`,
+      ? `“मुझे क्या चाहिए” का जवाब आमतौर पर “एक अच्छा इंसान” होता है, जो सच है और किसी काम का नहीं${S}`
+      : `Asked what they need, most people say "someone kind", which is true and useless${S}`,
     hi
-      ? `आपका चंद्रमा ${sg(p.attachment.moonSign)} में ${N(p.attachment.moonHouse)} भाव में है${S} चंद्रमा वही है जो बताता है कि सुरक्षित महसूस करने के लिए क्या चाहिए — और यह वह चीज़ नहीं है जिसे आप चुनते हैं, यह वह है जो आप हैं${S}`
-      : `Your Moon is in ${sg(p.attachment.moonSign)} in the ${N(p.attachment.moonHouse)} house${S} The Moon is what says what you need in order to feel safe — and that is not something you choose, it is something you are${S}`,
+      ? `आपका चंद्रमा ${sg(p.attachment.moonSign)} में ${N(p.attachment.moonHouse)} भाव में है, और यही बताता है कि सुरक्षित महसूस करने के लिए आपको क्या चाहिए — यह वह चीज़ नहीं जिसे आप चुनते हैं, यह वह है जो आप हैं${S}`
+      : `Your Moon is in ${sg(p.attachment.moonSign)} in the ${N(p.attachment.moonHouse)} house, and that is what says what you need in order to feel safe — not something you choose, something you are${S}`,
     hi
-      ? `इसका उलटा भी उतना ही उपयोगी है${S} जिस साथी के साथ ये चीज़ें नहीं मिलतीं, वह बुरा इंसान नहीं होता — बस आपके लिए महँगा पड़ता है${S}`
-      : `The inverse is just as useful${S} A partner who cannot give these is not a bad person — they are simply expensive for you${S}`
+      ? `जिस साथी के साथ ये चीज़ें नहीं मिलतीं, वह बुरा इंसान नहीं होता — बस आपके लिए महँगा पड़ता है${S}`
+      : `A partner who cannot give these is not a bad person — they are simply expensive for you${S}`
   ), {
     bullets: needs,
     advisory: hi
@@ -252,9 +249,6 @@ export function buildLoveSections(f, P) {
 
   // ── 8. Strengths ───────────────────────────────────────────────────────────
   add(8, P.block(
-    hi
-      ? `रिपोर्ट का यह हिस्सा उतना ही सच है जितना पिछला${S} जो कुंडली सिर्फ़ समस्याएँ गिनाए वह पढ़ने लायक़ नहीं होती, और सच भी नहीं होती${S}`
-      : `This part of the report is as true as the last one${S} A chart reading that only counts problems is neither worth reading nor accurate${S}`,
     ...p.strengths.map((s) => V.strength(s.key)).filter(Boolean)
   ), {
     summary: hi
@@ -265,19 +259,19 @@ export function buildLoveSections(f, P) {
   // ── 9. Will it last ────────────────────────────────────────────────────────
   add(9, P.block(
     hi
-      ? `यह वह सवाल है जिसके लिए यह रिपोर्ट ख़रीदी जाती है, इसलिए इसका जवाब सीधा दिया जा रहा है${S} लंबी दौड़ में यह कुंडली ${p.longTerm.grade === "supportive" ? "सहयोगी दिखती है" : p.longTerm.grade === "workable" ? "निभने लायक़ दिखती है" : "देखभाल माँगती दिखती है"}${S}`
-      : `This is the question the report gets bought for, so here is the answer plainly${S} Over the long run this chart reads as ${p.longTerm.grade}${S}`,
+      ? `लंबी दौड़ में यह कुंडली ${p.longTerm.grade === "supportive" ? "सहयोगी दिखती है" : p.longTerm.grade === "workable" ? "निभने लायक़ दिखती है" : "देखभाल माँगती दिखती है"}${S}`
+      : `Over the long run this chart reads as ${p.longTerm.grade}${S}`,
     hi
-      ? `यह निर्णय जन्म कुंडली के सप्तम भाव के साथ-साथ नवांश से भी निकला है${S} नवांश ही वह वर्ग है जिसे शास्त्र विवाह के लिए पढ़ता है — मज़बूत सप्तम और कमज़ोर नवांश उस रिश्ते की तस्वीर है जो अच्छा शुरू होकर बाद में खिंचता है, और उल्टा भी उतना ही सच है${S}`
-      : `That judgement comes from the navamsa as well as the seventh house of the birth chart${S} The navamsa is the divisional chart the classics read for marriage — a strong seventh with a weak navamsa is the picture of a relationship that starts well and strains later, and the reverse holds just as much${S}`,
+      ? `यह निर्णय आपके सप्तम भाव के साथ-साथ आपके नवांश से निकला है, जिसका लग्न ${sg(f.navamsa?.lagnaSign)} है${S} नवांश ही वह वर्ग है जिसे शास्त्र विवाह के लिए पढ़ता है — मज़बूत सप्तम और कमज़ोर नवांश उस रिश्ते की तस्वीर है जो अच्छा शुरू होकर बाद में खिंचता है, और उल्टा भी उतना ही सच है${S}`
+      : `That judgement comes from your seventh house together with your navamsa, whose ascendant is ${sg(f.navamsa?.lagnaSign)}${S} The navamsa is the divisional chart the classics read for marriage — a strong seventh with a weak navamsa is the picture of a relationship that starts well and strains later, and the reverse holds just as much${S}`,
     p.longTerm.slowStart
       ? (hi
           ? `आपकी कुंडली में शनि विवाह भाव को छूता है${S} इसका शास्त्रीय अर्थ अकेलापन नहीं, देरी और भार है — शुरुआती साल ज़्यादा मेहनत माँगते हैं और बाद के साल ज़्यादा स्थिर होते हैं${S} शनि जो देता है देर से देता है, और फिर वापस नहीं लेता${S}`
           : `Saturn touches the house of marriage in your chart${S} The classical meaning of that is not loneliness but delay and weight — the early years ask more work and the later years are steadier${S} What Saturn gives, it gives late and does not take back${S}`)
       : "",
     hi
-      ? `ध्यान रखिए कि यह निश्चितता नहीं है${S} कुंडली प्रवृत्ति बताती है${S} जो लोग इसे निभाते हैं वे वही होते हैं जिन्होंने वही किया जो अगले दो अध्यायों में लिखा है${S}`
-      : `Understand what this is not${S} A chart shows tendency${S} The people it works out for are the ones who did the things in the next two chapters${S}`
+      ? `ध्यान रखिए: कुंडली प्रवृत्ति बताती है, निश्चितता नहीं${S} जो लोग इसे निभाते हैं वे वही होते हैं जिन्होंने वही किया जो अगले दो अध्यायों में लिखा है${S}`
+      : `Understand what this is not: a chart shows tendency, not certainty${S} The people it works out for are the ones who did the things in the next two chapters${S}`
   ), {
     bullets: p.growth.map((g) => V.growth(g.key)).filter(Boolean),
     data: { longTerm: p.longTerm }
@@ -287,8 +281,8 @@ export function buildLoveSections(f, P) {
   const lean = p.marriagePath.lean;
   add(10, P.block(
     hi
-      ? `प्रेम और विवाह एक ही चीज़ नहीं हैं, और कुंडली दोनों को अलग-अलग पढ़ती है${S} पंचम भाव प्रेम का है, सप्तम भाव साथ निभाने का${S} जिनके ये दोनों जुड़े हों, उनके लिए प्यार ही शादी बन जाता है${S} जिनके अलग हों, उनके लिए ये दो अलग कहानियाँ रहती हैं${S}`
-      : `Love and marriage are not the same thing, and the chart reads them separately${S} The fifth house is romance; the seventh is partnership${S} Where the two are linked, love turns into marriage${S} Where they are not, they stay two different stories${S}`,
+      ? `प्रेम और विवाह एक ही चीज़ नहीं हैं, और कुंडली दोनों को अलग-अलग पढ़ती है${S} आपका पंचम भाव ${sg(f.houses.find((h) => h.house === 5)?.sign)} का है और सप्तम ${sg(f.houses.find((h) => h.house === 7)?.sign)} का — पहला प्रेम का, दूसरा साथ निभाने का${S} जिनके ये दोनों जुड़े हों, उनके लिए प्यार ही शादी बन जाता है${S} जिनके अलग हों, उनके लिए ये दो अलग कहानियाँ रहती हैं${S}`
+      : `Love and marriage are not the same thing, and the chart reads them separately${S} Your fifth house is ${sg(f.houses.find((h) => h.house === 5)?.sign)} and your seventh is ${sg(f.houses.find((h) => h.house === 7)?.sign)} — the first is romance, the second is partnership${S} Where the two are linked, love turns into marriage${S} Where they are not, they stay two different stories${S}`,
     lean === "love"
       ? (hi
           ? `आपकी कुंडली में ये जुड़े हुए हैं${S} शास्त्रीय संकेत प्रेम विवाह की ओर झुकते हैं — यानी जिस व्यक्ति से आप ख़ुद जुड़ेंगे, उसी के साथ बात आगे बढ़ने की संभावना ज़्यादा है${S}`
@@ -306,8 +300,8 @@ export function buildLoveSections(f, P) {
           : `One more thing${S} Your second and fourth houses say family will be present in this decision — not necessarily as opposition, but present${S} Accepting that in advance saves a great deal of argument later${S}`)
       : "",
     hi
-      ? `शादी के बाद का जीवन द्वितीय भाव से पढ़ा जाता है${S} आपके यहाँ यह ${f.houses2?.judgement?.grade === "strong" ? "मज़बूत है — घर और ससुराल सहारा बनने की ओर झुके हैं" : f.houses2?.judgement?.grade === "weak" ? "दबाव में है — घरेलू व्यवस्था और पैसा वे जगहें हैं जहाँ ध्यान देना होगा" : "मिला-जुला है — कुछ चीज़ें आसानी से बैठेंगी, कुछ पर काम करना होगा"}${S}`
-      : `Life after marriage is read from the second house${S} In your chart it is ${f.houses2?.judgement?.grade === "strong" ? "strong — household and in-laws lean towards being a support" : f.houses2?.judgement?.grade === "weak" ? "under pressure — household arrangements and money are where the attention will be needed" : "mixed — some of it will settle easily and some will need work"}${S}`
+      ? `शादी के बाद का जीवन द्वितीय भाव से पढ़ा जाता है${S} आपके यहाँ यह ${f.houses2?.grade === "strong" ? "मज़बूत है — घर और ससुराल सहारा बनने की ओर झुके हैं" : f.houses2?.grade === "weak" ? "दबाव में है — घरेलू व्यवस्था और पैसा वे जगहें हैं जहाँ ध्यान देना होगा" : "मिला-जुला है — कुछ चीज़ें आसानी से बैठेंगी, कुछ पर काम करना होगा"}${S}`
+      : `Life after marriage is read from the second house${S} In your chart it is ${f.houses2?.grade === "strong" ? "strong — household and in-laws lean towards being a support" : f.houses2?.grade === "weak" ? "under pressure — household arrangements and money are where the attention will be needed" : "mixed — some of it will settle easily and some will need work"}${S}`
   ), { data: { marriagePath: p.marriagePath } });
 
   // ── 11. Timing ─────────────────────────────────────────────────────────────
@@ -329,8 +323,8 @@ export function buildLoveSections(f, P) {
 
   add(11, P.block(
     hi
-      ? `यह अध्याय सबसे ज़्यादा माँगा जाता है और इसे सबसे ज़्यादा सावधानी से पढ़ना चाहिए${S} दशाएँ समय की गणना हैं — वे बताती हैं कि कौन-सा दौर किस विषय को आगे लाता है${S} वे तारीख़ नहीं बतातीं, और जो कोई तारीख़ बताए उससे सावधान रहिए${S}`
-      : `This is the most asked-for chapter and the one to read most carefully${S} Dasha periods are a computation of time — they say which stretch of life brings which subject forward${S} They do not name a date, and anyone who names one should be treated with suspicion${S}`,
+      ? `दशाएँ समय की गणना हैं — वे बताती हैं कि कौन-सा दौर किस विषय को आगे लाता है${S} वे तारीख़ नहीं बतातीं, और जो कोई तारीख़ बताए उससे सावधान रहिए${S}`
+      : `Dasha periods are a computation of time — they say which stretch of life brings which subject forward${S} They do not name a date, and anyone who names one should be treated with suspicion${S}`,
     ...windows.map((w) => {
       const why = (WHY[L] || WHY.en)[w.why] || w.why;
       return hi
@@ -363,8 +357,8 @@ export function buildLoveSections(f, P) {
 
   add(12, P.block(
     hi
-      ? `कुंडली बताती है कि क्या है${S} यह अध्याय बताता है कि उसके साथ करना क्या है${S} नीचे की बातें आपकी अपनी स्थितियों से निकली हैं, सामान्य सलाह नहीं हैं${S}`
-      : `The chart says what is${S} This chapter is what to do about it${S} What follows comes from your own placements, not from general advice${S}`
+      ? `नीचे की हर बात आपकी अपनी स्थितियों से निकली है${S} इनमें से एक भी सामान्य सलाह नहीं है — हर एक ऊपर के किसी अध्याय का सीधा नतीजा है${S}`
+      : `Each of the following comes from your own placements${S} None of it is general advice — every line is the direct consequence of one of the chapters above${S}`
   ), {
     bullets: doList,
     summary: hi
@@ -397,11 +391,11 @@ export function buildLoveSections(f, P) {
   ));
 
   // ── 14. The chart, as evidence ─────────────────────────────────────────────
-  const seventh = f.houses7?.judgement || {};
+  const seventh = f.houses7 || {};
   add(14, P.block(
     hi
-      ? `ऊपर की हर बात इन्हीं स्थितियों से निकली है${S} यह अध्याय पाठ नहीं है, प्रमाण है — ताकि आप या आपके ज्योतिषी हर निर्णय को जाँच सकें${S}`
-      : `Everything above was derived from these placements${S} This chapter is not the reading, it is the evidence — so that you, or your own astrologer, can check any judgement in it${S}`,
+      ? `यह अध्याय पाठ नहीं, प्रमाण है — ऊपर का हर निर्णय इन्हीं स्थितियों से निकला है और यहाँ जाँचा जा सकता है${S}`
+      : `This chapter is not the reading, it is the evidence — every judgement above came from these placements and can be checked here${S}`,
     hi
       ? `सप्तम भाव ${sg(f.houses.find((h) => h.house === 7)?.sign)} का है, स्वामी ${pl(seventh.lord)} — ${seventh.occupants?.length ? `भाव में ${seventh.occupants.map(pl).join(", ")}` : "भाव रिक्त"}${seventh.aspects?.length ? `, दृष्टि ${seventh.aspects.map(pl).join(", ")}` : ""}${S}`
       : `The seventh house is ${sg(f.houses.find((h) => h.house === 7)?.sign)}, its lord ${pl(seventh.lord)} — ${seventh.occupants?.length ? `occupied by ${seventh.occupants.map(pl).join(", ")}` : "unoccupied"}${seventh.aspects?.length ? `, aspected by ${seventh.aspects.map(pl).join(", ")}` : ""}${S}`,
@@ -416,11 +410,11 @@ export function buildLoveSections(f, P) {
   ), {
     placements: ["Venus", "Mars", "Moon", "Mercury", "Jupiter", "Saturn"].map(where).filter(Boolean),
     bullets: [
-      hi ? `पंचम भाव: ${f.houses5?.judgement?.grade || "—"}` : `Fifth house: ${f.houses5?.judgement?.grade || "—"}`,
+      hi ? `पंचम भाव: ${f.houses5?.grade || "—"}` : `Fifth house: ${f.houses5?.grade || "—"}`,
       hi ? `सप्तम भाव: ${seventh.grade || "—"}` : `Seventh house: ${seventh.grade || "—"}`,
-      hi ? `द्वितीय भाव: ${f.houses2?.judgement?.grade || "—"}` : `Second house: ${f.houses2?.judgement?.grade || "—"}`,
-      hi ? `अष्टम भाव: ${f.houses8?.judgement?.grade || "—"}` : `Eighth house: ${f.houses8?.judgement?.grade || "—"}`,
-      hi ? `द्वादश भाव: ${f.houses12?.judgement?.grade || "—"}` : `Twelfth house: ${f.houses12?.judgement?.grade || "—"}`
+      hi ? `द्वितीय भाव: ${f.houses2?.grade || "—"}` : `Second house: ${f.houses2?.grade || "—"}`,
+      hi ? `अष्टम भाव: ${f.houses8?.grade || "—"}` : `Eighth house: ${f.houses8?.grade || "—"}`,
+      hi ? `द्वादश भाव: ${f.houses12?.grade || "—"}` : `Twelfth house: ${f.houses12?.grade || "—"}`
     ]
   });
 

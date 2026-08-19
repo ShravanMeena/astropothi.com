@@ -8,10 +8,10 @@ const STEPS = [
 export default function How() {
   return (
     <section id="how" className="bg-sunken border-y border-line">
-      <div className="shell py-20 sm:py-28">
+      <div className="shell py-12 sm:py-28">
         <Reveal>
           <p className="eyebrow">How it works</p>
-          <h2 className="display text-[34px] sm:text-[44px] mt-3 leading-[1.08]">Three steps, no account.</h2>
+          <h2 className="display text-[25px] sm:text-[44px] mt-3 leading-[1.08]">Three steps, no account.</h2>
         </Reveal>
         <div className="grid sm:grid-cols-3 gap-10 sm:gap-8 mt-14">
           {STEPS.map((s, i) => (

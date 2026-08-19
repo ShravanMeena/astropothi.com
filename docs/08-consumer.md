@@ -92,7 +92,7 @@ rather than a number.
 |---|---|---|---|---|---|
 | **Flagship** | Premium Personalised Kundali | 64 | 87 | **₹999** | 65 |
 | **Full** | Dosh · Laal Kitaab · Varshaphal | 28–40 | 39–43 | **₹599** | 97–105 |
-| **Focused** | Love · Health · Horoscope · Vastu | 22–26 | 15–26 | **₹399** | 126–151 |
+| **Focused** | Love · Health · Horoscope · Vastu | 15–26 | 25–28 | **₹399** | 60–151 |
 | **Guna Milan** *(to build)* | ~30 | — | — | **₹599** | pandit charges ₹1,500–8,000 |
 
 Market comparison: Clickastro ₹1,416, AstroSage ₹996–1,999, VedicRishi ₹550,
@@ -109,6 +109,65 @@ Prices are GST-inclusive; most consumers cannot claim it.
 *coherence* — the 4× spread was measurably wrong. Whether ₹999/₹599/₹399 is what
 this market will pay is unknown until real buyers see it, which is what the
 override table below exists for.
+
+### The Love report was rebuilt
+
+It is the worked example of what a report here should be, and worth reading
+before writing another one.
+
+**What was wrong.** Twenty-four chapters, 1,071 words, **45 words a chapter** —
+and every chapter title was a *chart component*: "The 7th House", "Venus — The
+Significator of Love", "The 7th Lord in the Navamsa". Each said which planets
+sat where. That is a description of a chart, not an answer to a question, and
+nobody buys a chart description. Every classical source agrees on the point the
+structure missed: Venus, the Moon and the 7th house have to be read *together*,
+because each alone says almost nothing about how a person loves.
+
+**What it is now.** Fifteen chapters, ~3,600 words, **240 a chapter**, and every
+title is a question — *How you are in love*, *Where the friction will come
+from*, *Will it last?* Each answer synthesises several placements. The chart is
+still in the report in full, as the closing chapter, as evidence for a reader
+who wants to check the working.
+
+| | Before | After |
+|---|---|---|
+| Chapters | 24 | 15 |
+| Words | 1,071 | ~3,600 |
+| Words/chapter | 45 | ~240 |
+| Pages (heritage) | 15 | 25–28 |
+| Identical for every buyer | 41% | 37% |
+
+**Three pieces:**
+
+- `engine/astrology/love-profile.js` — the derivation layer. Deterministic and
+  classical: attachment style from the Moon, expression from Venus, chemistry
+  from Venus–Mars, communication from Mercury, friction from Mars/Saturn/Rahu,
+  endurance from the navamsa. Each judgement carries the `why` rule that fired.
+- `engine/i18n/love-strings.js` — the vocabulary, in both languages, for things
+  the chart does not name.
+- `engine/mapping/love-chapters.js` — one chapter per question.
+
+**The most useful thing it derives** is the split between what Venus is drawn to
+and what the 7th house commits to. When they disagree, the reader is told that
+the person who excites them and the person who suits them may not be the same
+person. That is invisible if Venus and the 7th each get their own chapter, which
+is exactly what the old structure did.
+
+**A bug worth remembering.** `computeLifeFacts` returns house judgements *flat*
+on `facts.houses7` — there is no `.judgement` wrapper. The first draft read
+`facts.houses7?.judgement?.grade` everywhere and `|| "moderate"` made it look
+like a real verdict. Every dial was reading nothing. `gradeOfHouse()` now throws
+instead of defaulting: a wrong path has to fail, not average out.
+
+**Generation cost.** Enrichment is tuned per report (`PROFILES` in
+`engine/ai/enrich.js`) — Love asks for a 300-word floor and 220–300 word
+expansions. As one Bedrock call that took 34 seconds of a buyer staring at a
+spinner; it is now sent as concurrent batches of five, at 15s (en) / 23s (hi).
+
+> **`career` has the same disease.** 44% of its sentences are identical for
+> every buyer, because it is still one chapter per planet opening with a
+> textbook definition. Same fix applies. Recorded in
+> `scripts/audit_data_driven.js`.
 
 ### Changing a price without a deploy
 

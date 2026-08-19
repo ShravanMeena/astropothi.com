@@ -51,7 +51,12 @@ body { @apply bg-surface text-fg font-sans antialiased; transition: background-c
   .btn-quiet { @apply btn text-muted hover:text-fg hover:bg-sunken; }
   .btn-sm    { @apply h-10 px-5 text-[14px]; }
 
-  .field { @apply w-full h-12 px-4 rounded-xl border border-line bg-raised text-fg text-[15px]
+  /* 16px on phones is not a style choice. iOS Safari zooms the whole page in
+     when a focused input is smaller than that, and then leaves the viewport
+     scaled — which is why tapping a field on an iPhone threw the checkout
+     sideways. 15px on larger screens where the behaviour does not apply. */
+  .field { @apply w-full h-12 px-4 rounded-xl border border-line bg-raised text-fg
+                  text-[16px] sm:text-[15px]
                   placeholder:text-faint outline-none transition
                   focus:border-brass focus:ring-4 focus:ring-brass/10; }
   .label { @apply block text-[12.5px] font-medium text-muted mb-1.5; }

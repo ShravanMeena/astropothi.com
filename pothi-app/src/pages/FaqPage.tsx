@@ -59,12 +59,12 @@ export default function FaqPage({ onBuy, onAskGuide }: { onBuy: () => void; onAs
                         w-[720px] max-w-[128vw] text-brass opacity-[.13] dark:opacity-[.17]">
           <ChartMark className="w-full h-auto" weight={0.32} />
         </div>
-        <div className="shell relative z-10 py-16 sm:py-24">
+        <div className="shell relative z-10 py-11 sm:py-24">
           <div className="flex items-center gap-3">
             <span className="h-px w-8 bg-brass" />
             <span className="caps text-brass">Questions</span>
           </div>
-          <h1 className="display text-[40px] sm:text-[58px] leading-[1.03] mt-6 max-w-[15ch]">
+          <h1 className="display text-[26px] sm:text-[58px] leading-[1.03] mt-6 max-w-[15ch]">
             Everything worth asking first.
           </h1>
           <p className="lede mt-5 max-w-prose2">
@@ -74,7 +74,7 @@ export default function FaqPage({ onBuy, onAskGuide }: { onBuy: () => void; onAs
         </div>
       </section>
 
-      <section className="shell py-16 sm:py-24">
+      <section className="shell py-11 sm:py-24">
         <div className="grid lg:grid-cols-[.42fr_1fr] gap-x-16 gap-y-12">
           <nav className="lg:sticky lg:top-24 self-start">
             <p className="caps text-faint">Sections</p>
@@ -91,7 +91,7 @@ export default function FaqPage({ onBuy, onAskGuide }: { onBuy: () => void; onAs
           <div className="space-y-14">
             {GROUPS.map((g, gi) => (
               <div key={g.group} id={g.group.replace(/\s+/g, "-").toLowerCase()} className="scroll-mt-24">
-                <h2 className="display text-[26px] sm:text-[32px]">{g.group}</h2>
+                <h2 className="display text-[21px] sm:text-[32px]">{g.group}</h2>
                 <div className="mt-6 border-t border-line">
                   {g.qa.map(([q, a], qi) => {
                     const k = `${gi}-${qi}`;

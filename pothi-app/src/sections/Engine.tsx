@@ -15,10 +15,10 @@ const FACTS: [string, string][] = [
 export default function Engine() {
   return (
     <section id="engine" className="relative overflow-hidden grain lamp border-y border-line scroll-mt-20">
-      <div className="shell relative z-10 py-20 sm:py-28 grid lg:grid-cols-[.95fr_1.05fr] gap-14 items-center">
+      <div className="shell relative z-10 py-12 sm:py-28 grid lg:grid-cols-[.95fr_1.05fr] gap-14 items-center">
         <div>
           <p className="caps text-brass">Computed, not copied</p>
-          <h2 className="display text-[32px] sm:text-[46px] mt-3 leading-[1.05]">
+          <h2 className="display text-[24px] sm:text-[46px] mt-3 leading-[1.05]">
             Nine grahas.<br />One ephemeris.
           </h2>
           <p className="lede mt-5 max-w-prose2">
@@ -35,7 +35,9 @@ export default function Engine() {
             ))}
           </dl>
         </div>
-        <div className="relative mx-auto w-full max-w-[520px] text-brass">
+        {/* Desktop only: a square animation next to four facts is a nice
+            aside on a wide screen and 500px of scrolling on a phone. */}
+        <div className="hidden sm:block relative mx-auto w-full max-w-[520px] text-brass">
           <GrahaOrbit className="w-full h-auto" />
         </div>
       </div>

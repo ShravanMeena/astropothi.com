@@ -7,13 +7,21 @@ const D = [
   { id: "editorial", name: "Editorial", line: "Modern and quiet. Two columns, generous margins, no ornament — a magazine rather than a manuscript.", img: "/covers/editorial.png" }
 ];
 
+/**
+ * Desktop only.
+ *
+ * Choosing between three layouts is a considered decision made at a desk, and
+ * on a phone it was 1,184px of scrolling for a choice almost nobody changes.
+ * Mobile buyers get Heritage — the presentation edition, and the default the
+ * checkout already carries — without being asked.
+ */
 export default function Designs() {
   const [active, setActive] = useState(1);
   return (
-    <section id="designs" className="shell py-20 sm:py-28">
+    <section id="designs" className="hidden sm:block shell py-12 sm:py-28">
       <Reveal>
         <p className="eyebrow">The designs</p>
-        <h2 className="display text-[34px] sm:text-[44px] mt-3 max-w-prose2 leading-[1.08]">
+        <h2 className="display text-[25px] sm:text-[44px] mt-3 max-w-prose2 leading-[1.08]">
           Three books, not three colours.
         </h2>
         <p className="lede mt-4 max-w-prose2">

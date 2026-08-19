@@ -4,7 +4,7 @@
 export const REPORT_TYPES = [
   { code: "kundli",     name_en: "Premium Personalised Kundali", name_hi: "प्रीमियम व्यक्तिगत कुंडली",      chapters: 64, credits: 5, engine: "kundli",     ready: true  },
   { code: "dosh",       name_en: "Kundali Dosh Report",   name_hi: "कुंडली दोष रिपोर्ट",   chapters: 28, credits: 2, engine: "dosh",       ready: true },
-  { code: "love",       name_en: "Love & Marriage",       name_hi: "प्रेम कुंडली",         chapters: 24, credits: 2, engine: "love",       ready: true  },
+  { code: "love",       name_en: "Love & Marriage",       name_hi: "प्रेम कुंडली",         chapters: 15, credits: 2, engine: "love",       ready: true  },
   { code: "health",     name_en: "Health Report",         name_hi: "स्वास्थ्य कुंडली",     chapters: 26, credits: 2, engine: "health",     ready: true  },
   { code: "horoscope",  name_en: "Personalised Horoscope",name_hi: "व्यक्तिगत राशिफल",     chapters: 22, credits: 2, engine: "horoscope",  ready: true },
   { code: "laalkitab",  name_en: "Laal Kitaab Report",    name_hi: "लाल किताब रिपोर्ट",    chapters: 30, credits: 3, engine: "laalkitab",  ready: true },

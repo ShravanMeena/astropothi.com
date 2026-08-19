@@ -175,14 +175,21 @@ export function GuideButton({ onClick, hidden }: { onClick: () => void; hidden?:
           initial={{ opacity: 0, scale: .8, y: 12 }} animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: .8, y: 12 }} transition={{ duration: .22 }}
           onClick={onClick}
-          className="fixed z-40 bottom-5 right-5 h-14 pl-5 pr-6 rounded-full bg-brass text-surface
-                     shadow-lift ring-1 ring-black/10 flex items-center gap-3
-                     transition-transform hover:scale-[1.03] active:scale-[.98]">
+          aria-label="Which report suits me?"
+          // A circle on a phone. The pill was 190px of a 390px screen, parked
+          // over whatever the reader was trying to look at; on desktop there is
+          // room for the label and it earns the clicks.
+          className="fixed z-40 bottom-4 right-4 sm:bottom-5 sm:right-5
+                     h-12 w-12 sm:h-14 sm:w-auto sm:pl-5 sm:pr-6
+                     rounded-full bg-brass text-surface
+                     shadow-lift ring-1 ring-black/10 flex items-center justify-center sm:gap-3
+                     transition-transform hover:scale-[1.03] active:scale-[.98]"
+          style={{ marginBottom: "env(safe-area-inset-bottom)" }}>
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
                strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.3 9.3 0 0 1-3.3-.6L3 21l1.8-5a8.2 8.2 0 0 1-.8-3.5 8.4 8.4 0 0 1 8.5-8.4 8.4 8.4 0 0 1 8.5 8.4Z" />
           </svg>
-          <span className="text-[15px] font-medium whitespace-nowrap">Which report?</span>
+          <span className="hidden sm:inline text-[15px] font-medium whitespace-nowrap">Which report?</span>
         </motion.button>
       )}
     </AnimatePresence>

@@ -62,8 +62,12 @@ const catalogue = async () => {
 const priceOf = async (code) => (await catalogue()).find((r) => r.code === code)?.price_paise;
 
 console.log("pricing");
+// Counted from the catalogue rather than hard-coded. A literal here means the
+// suite fails the day a ninth report ships, which is exactly the day nobody
+// wants to be reading a red test that is not about their change.
+const { REPORT_TYPES } = await import("../server/catalog/catalog.js");
 const list = await call("/admin-api/v1/pricing", { token: T });
-is("every report is priced", list.json?.results?.length, 8);
+is("every report is priced", list.json?.results?.length, REPORT_TYPES.length);
 const kundli = list.json.results.find((r) => r.code === "kundli");
 is("kundli is the flagship", kundli?.tier, "flagship");
 is("with no override the tier price applies", kundli?.price_paise, kundli?.tier_paise);

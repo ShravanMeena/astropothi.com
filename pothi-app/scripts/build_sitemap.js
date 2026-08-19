@@ -19,7 +19,8 @@
  *   SITE_ORIGIN=https://pothi.in node scripts/build_sitemap.js
  *   node scripts/build_sitemap.js --strict     # exit 1 rather than warn
  */
-import { writeFile, mkdir, readFile } from "node:fs/promises";
+import { writeFile, mkdir, readFile, rm } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 
 const HERE = import.meta.dirname;
@@ -28,21 +29,42 @@ const CATALOG = path.resolve(HERE, "../../pothi-api/server/catalog/catalog.js");
 const ROUTES = path.resolve(HERE, "../src/lib/route.ts");
 const strict = process.argv.includes("--strict");
 
-const origin = (process.env.SITE_ORIGIN || "").replace(/\/+$/, "");
+/**
+ * The origin, from the environment or from the repo.
+ *
+ * Requiring an environment variable for the ordinary case was a mistake: every
+ * `npm run build` without it silently replaced a correct robots.txt with
+ * Disallow-all while leaving the real sitemap.xml in place, so the two
+ * contradicted each other. The domain is not a secret — it belongs in the repo,
+ * with the env var kept as an override for a staging host.
+ */
+function resolveOrigin() {
+  if (process.env.SITE_ORIGIN) return process.env.SITE_ORIGIN.replace(/\/+$/, "");
+  try {
+    const cfg = JSON.parse(readFileSync(path.resolve(HERE, "../site.config.json"), "utf8"));
+    if (cfg.origin) return String(cfg.origin).replace(/\/+$/, "");
+  } catch { /* fall through to the not-indexable branch */ }
+  return "";
+}
+const origin = resolveOrigin();
 
 await mkdir(PUBLIC, { recursive: true });
 
 if (!origin) {
   const msg = [
-    "SITE_ORIGIN is not set.",
-    "  No sitemap written, and robots.txt now disallows crawling.",
-    "  Set it for a production build:  SITE_ORIGIN=https://your-domain npm run build"
+    "No public origin — SITE_ORIGIN is unset and site.config.json is missing or unreadable.",
+    "  No sitemap written, any stale one removed, and robots.txt now disallows crawling.",
+    "  Fix site.config.json, or pass SITE_ORIGIN=https://your-domain for a one-off build."
   ].join("\n");
   if (strict) { console.error(`  ✗ ${msg}`); process.exit(1); }
   console.warn(`  ⚠ ${msg}`);
   await writeFile(path.join(PUBLIC, "robots.txt"),
-    "# No SITE_ORIGIN was set at build time, so this build is not indexable.\n" +
+    "# No origin was resolvable at build time, so this build is not indexable.\n" +
     "User-agent: *\nDisallow: /\n");
+  // And remove any sitemap from an earlier good build. Leaving one behind means
+  // shipping a crawl-me-not robots.txt beside a full sitemap of a real domain —
+  // two files disagreeing about whether the site exists.
+  await rm(path.join(PUBLIC, "sitemap.xml"), { force: true });
   process.exit(0);
 }
 

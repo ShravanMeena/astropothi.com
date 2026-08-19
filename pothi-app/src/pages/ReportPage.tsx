@@ -131,10 +131,10 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
               </div>
 
               <h1 className="mt-6">
-                <span className="deva foil block text-[44px] sm:text-[64px] leading-[1.18] font-semibold -ml-[.02em]">
+                <span className="deva foil block text-[26px] sm:text-[64px] leading-[1.18] font-semibold -ml-[.02em]">
                   {pitch?.deva}
                 </span>
-                <span className="display block text-[40px] sm:text-[64px] lg:text-[74px] leading-[.98] mt-1">
+                <span className="display block text-[26px] sm:text-[64px] lg:text-[74px] leading-[.98] mt-1">
                   {d?.name_en || " "}
                 </span>
               </h1>
@@ -163,10 +163,23 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
                 Delivered as a PDF in under a minute · No account needed
               </p>
 
-              {/* The guarantee sits with the buy button, not buried in a policy
-                  page. The whole objection to a ₹399 reading is "what if it is
-                  worthless to me" — answering it anywhere else is answering it
-                  too late. */}
+              {/* Two things a buyer weighs at exactly this moment: what if the
+                  report is worthless to me, and what if I do not understand it.
+                  Both are answered here rather than three screens later. */}
+              <div className="mt-6 flex items-start gap-3 max-w-prose2">
+                <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+                     strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+                     className="text-brass shrink-0 mt-0.5" aria-hidden>
+                  <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.3 9.3 0 0 1-3.3-.6L3 21l1.8-5a8.2 8.2 0 0 1-.8-3.5 8.4 8.4 0 0 1 8.5-8.4 8.4 8.4 0 0 1 8.5 8.4Z" />
+                </svg>
+                <p className="text-[13.5px] leading-relaxed text-muted">
+                  <span className="text-fg font-medium">You can ask your report anything.</span>{" "}
+                  Once it is ready, ask it in your own words — “what does this say about
+                  my marriage?”, “which period is difficult?”, “explain chapter 7” — and it
+                  answers from your chapters, in English or Hindi.
+                </p>
+              </div>
+
               <div className="mt-6 inline-flex items-start gap-3 rounded-xl border border-brass/35
                               bg-brassSoft/25 dark:bg-brass/10 px-4 py-3 max-w-prose2">
                 <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
@@ -218,11 +231,11 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
       {/* ── The sample, as a book you turn ──────────────────────────────── */}
       {shots.length > 1 && (
         <section className="relative overflow-hidden grain border-b border-line">
-          <div className="shell relative z-10 py-16 sm:py-24">
+          <div className="shell relative z-10 py-11 sm:py-24">
             <div className="flex items-end justify-between gap-6 flex-wrap">
               <div>
                 <p className="caps text-brass">Inside the book</p>
-                <h2 className="display text-[30px] sm:text-[44px] mt-3">Turn the pages.</h2>
+                <h2 className="display text-[23px] sm:text-[44px] mt-3">Turn the pages.</h2>
               </div>
               <p className="lede max-w-[38ch]">
                 Real spreads from this exact edition — the opening chapters and two
@@ -241,10 +254,13 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
       <Engine />
 
       {/* ── Design and colour ────────────────────────────────────────────── */}
-      <section className="border-y border-line bg-sunken">
-        <div className="shell py-16 sm:py-20">
+      {/* Desktop only. A phone buyer gets Heritage — the presentation edition,
+          and what the checkout already defaults to — rather than a three-way
+          layout decision made on a 390px screen. */}
+      <section className="hidden sm:block border-y border-line bg-sunken">
+        <div className="shell py-11 sm:py-20">
           <p className="caps text-brass">Choose the edition</p>
-          <h2 className="display text-[28px] sm:text-[38px] mt-3">Three typesettings. Seven inks.</h2>
+          <h2 className="display text-[22px] sm:text-[38px] mt-3">Three typesettings. Seven inks.</h2>
           <p className="lede mt-3 max-w-prose2">
             The pages above re-render as you choose — this is the book you receive.
           </p>
@@ -272,9 +288,9 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
       </section>
 
       {/* ── The real table of contents ───────────────────────────────────── */}
-      <section className="shell py-16 sm:py-24">
+      <section className="shell py-11 sm:py-24">
         <p className="caps text-brass">What's inside</p>
-        <h2 className="display text-[30px] sm:text-[44px] mt-3">
+        <h2 className="display text-[23px] sm:text-[44px] mt-3">
           {d ? `All ${d.chapters} chapters.` : "Contents"}
         </h2>
         <p className="lede mt-3 max-w-prose2">
@@ -316,10 +332,10 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
             <ChartMark className="w-full h-auto" draw={false} weight={0.4} numerals={false} />
           </motion.div>
         </div>
-        <div className="shell relative z-10 py-20 sm:py-28 text-center">
+        <div className="shell relative z-10 py-12 sm:py-28 text-center">
           <span className="mx-auto mb-8 block h-8 w-px bg-gradient-to-b from-transparent to-brass" />
-          <p className="deva foil text-[30px] sm:text-[40px] leading-[1.2] font-semibold">{pitch?.deva}</p>
-          <h2 className="display text-[32px] sm:text-[46px] mt-3 max-w-[16ch] mx-auto leading-[1.05]">
+          <p className="deva foil text-[23px] sm:text-[40px] leading-[1.2] font-semibold">{pitch?.deva}</p>
+          <h2 className="display text-[24px] sm:text-[46px] mt-3 max-w-[16ch] mx-auto leading-[1.05]">
             Your chart, written out in full.
           </h2>
           <div className="mt-10">

@@ -35,6 +35,23 @@ const MODE = {
 const STRONG = ["exalted", "moolatrikona", "own"];
 const WEAK = ["debilitated", "enemy"];
 
+/**
+ * A house grade, and a loud complaint if it is missing.
+ *
+ * computeLifeFacts puts grade/lord/occupants FLAT on facts.houses7 — there is
+ * no `.judgement` wrapper, and reading one returned undefined on every chart
+ * while `|| "moderate"` made it look like a real verdict. Every dial in this
+ * file was reading nothing for a while. So the accessor is now explicit and
+ * throws in development rather than defaulting: a wrong path must fail, not
+ * quietly average out.
+ */
+function gradeOfHouse(f, house) {
+  const h = f[`houses${house}`];
+  if (!h) throw new Error(`love-profile: facts.houses${house} is missing`);
+  if (!h.grade) throw new Error(`love-profile: facts.houses${house} has no grade`);
+  return h.grade;
+}
+
 const el = (sign) => ELEMENT[sign] || "earth";
 const mode = (sign) => MODE[sign] || "fixed";
 const strong = (d) => STRONG.includes(d);
@@ -180,7 +197,7 @@ function attraction(f) {
   return {
     first, lasting, split,
     venusSign: venus.sign, seventhSign,
-    fifthGrade: fifth?.judgement?.grade || fifth?.grade || "moderate",
+    fifthGrade: gradeOfHouse(f, 5),
     why
   };
 }
@@ -204,7 +221,7 @@ function chemistry(f) {
   else if ([1, 5, 7, 9].includes(between(mars.house, venus.house))) { level = "warm"; why.push("venusMarsTrine"); }
   else { level = "slow"; why.push("venusMarsApart"); }
 
-  const eighth = f.houses8?.judgement?.grade || "moderate";
+  const eighth = gradeOfHouse(f, 8);
   const intensityRisk = level === "immediate" && (weak(mars.dignity) || mars.house === 8);
   if (intensityRisk) why.push("marsUnsteady");
 
@@ -305,7 +322,7 @@ function strengths(f, expr, chem, comm, att) {
   const jup = pick(f, "Jupiter");
   const venus = pick(f, "Venus");
   const moon = pick(f, "Moon");
-  const seventh = f.houses7?.judgement || {};
+  const seventh = f.houses7 || {};
   const nav = f.navamsa || {};
 
   if (seventh.grade === "strong") out.push({ key: "partnership", why: "seventhStrong" });
@@ -318,8 +335,8 @@ function strengths(f, expr, chem, comm, att) {
   if (chem.level === "immediate" || chem.level === "strong") out.push({ key: "spark", why: "venusMars" });
   if (comm.saysItPlainly) out.push({ key: "plainSpeaking", why: "mercuryDirect" });
   if (comm.style === "analytical" || comm.style === "expansive") out.push({ key: "talking", why: "mercuryOpen" });
-  if (f.houses2?.judgement?.grade === "strong") out.push({ key: "family", why: "secondStrong" });
-  if (f.houses5?.judgement?.grade === "strong") out.push({ key: "romance", why: "fifthStrong" });
+  if (gradeOfHouse(f, 2) === "strong") out.push({ key: "family", why: "secondStrong" });
+  if (gradeOfHouse(f, 5) === "strong") out.push({ key: "romance", why: "fifthStrong" });
   if ((nav.dignified || []).includes("Venus")) out.push({ key: "navamsaVenus", why: "venusDignifiedD9" });
   if ((nav.vargottama || []).length) out.push({ key: "consistency", why: "vargottama" });
   if (strong(moon.dignity)) out.push({ key: "steadiness", why: "moonStrong" });
@@ -344,7 +361,7 @@ function growth(f, att, comm, chem) {
   const venus = pick(f, "Venus");
   const mars = pick(f, "Mars");
   const moon = pick(f, "Moon");
-  const seventh = f.houses7?.judgement || {};
+  const seventh = f.houses7 || {};
 
   if (seventh.grade === "weak") out.push({ key: "expectations", why: "seventhWeak" });
   if ((seventh.maleficOccupants || []).length >= 2) out.push({ key: "pressure", why: "maleficsInSeventh" });
@@ -359,7 +376,7 @@ function growth(f, att, comm, chem) {
   if (mars.house === 8) out.push({ key: "intensity", why: "marsEighth" });
   if (f.manglik?.detected && !(f.manglik.cancellations || []).length)
     out.push({ key: "temper", why: "manglikUncancelled" });
-  if (f.houses12?.judgement?.grade === "weak") out.push({ key: "privacy", why: "twelfthWeak" });
+  if (gradeOfHouse(f, 12) === "weak") out.push({ key: "privacy", why: "twelfthWeak" });
   if (att.style === "intense") out.push({ key: "holdingTight", why: "rahuOnMoon" });
   if (att.needsSpace) out.push({ key: "space", why: "moonNeedsAir" });
   if (venus.retrograde) out.push({ key: "past", why: "venusRetrograde" });
@@ -377,7 +394,7 @@ function growth(f, att, comm, chem) {
  * later, and vice versa.
  */
 function longTerm(f) {
-  const seventh = f.houses7?.judgement || {};
+  const seventh = f.houses7 || {};
   const nav = f.navamsa || {};
   const saturn = pick(f, "Saturn");
   const jup = pick(f, "Jupiter");
@@ -432,7 +449,7 @@ function marriagePath(f) {
   if (fl && sl && linked(fl, sl)) { love += 1; why.push("fifthSeventhAspect"); }
 
   // The 2nd and 4th carry the family's part in the decision.
-  const familyWeight = (f.houses2?.judgement?.grade === "strong" ? 1 : 0)
+  const familyWeight = (gradeOfHouse(f, 2) === "strong" ? 1 : 0)
                      + ((f.houses.find((h) => h.house === 4)?.strength === "strong") ? 1 : 0);
   if (familyWeight >= 1) why.push("familyInvolved");
 
@@ -447,7 +464,7 @@ function marriagePath(f) {
 // ── 11. The snapshot dials ───────────────────────────────────────────────────
 
 function dials(f, lt, chem, comm, att) {
-  const seventh = f.houses7?.judgement || {};
+  const seventh = f.houses7 || {};
   const venus = pick(f, "Venus");
   const moon = pick(f, "Moon");
   const g = { strong: 2, moderate: 0, weak: -2 };
@@ -468,7 +485,7 @@ function dials(f, lt, chem, comm, att) {
                         + (comm.style === "blunt" ? -1 : 0)
                         + (comm.thirdStrength === "strong" ? 1 : comm.thirdStrength === "low" ? -1 : 0), 3),
     longTerm: lt.dial,
-    stability: dial((g[f.houses2?.judgement?.grade] ?? 0) + dg(venus.dignity), 4)
+    stability: dial((g[gradeOfHouse(f, 2)] ?? 0) + dg(venus.dignity), 4)
   };
 }
 

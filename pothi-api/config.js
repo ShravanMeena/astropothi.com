@@ -108,10 +108,17 @@ export default {
     webhookSecret: process.env.RAZORPAY_WEBHOOK_SECRET
   },
 
-  s3: {
-    bucket: process.env.S3_BUCKET || "pothi-content",
-    region: process.env.S3_REGION || "ap-south-1",
-    publicBase: process.env.S3_PUBLIC_BASE || ""
+  // Where report PDFs live. A bucket name is the whole switch: set it and reports
+  // go to Cloud Storage, leave it empty and they go to ./out. Credentials are
+  // never configured here — the client uses the VM's attached service account,
+  // so there is no key to leak, rotate, or forget to set. Either way
+  // reports.pdf_url stays `/files/reports/...`; see utilities/storage.js.
+  storage: {
+    enabled: Boolean(process.env.GCS_BUCKET),
+    bucket: process.env.GCS_BUCKET || "",
+    // How long a link handed to a browser stays valid. Long enough to download a
+    // 20 MB book on a phone, short enough that a copied URL is not a permanent one.
+    signedUrlTtlSec: int(process.env.GCS_SIGNED_URL_TTL, 900)
   },
 
   googleMapsKey: process.env.GOOGLE_MAPS_API_KEY,
