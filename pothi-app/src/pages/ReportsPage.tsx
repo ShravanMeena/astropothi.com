@@ -11,7 +11,8 @@ const BLURB: Record<string, { deva: string; text: string; for: string }> = {
   horoscope:  { deva: "राशिफल",   text: "Not a sun-sign column. Every transit placed against your own natal houses, the dates that matter, and what each one touches.", for: "The month ahead" },
   laalkitab:  { deva: "लाल किताब", text: "A distinct tradition with its own logic and its own remedies — practical, inexpensive, and drawn from the placements that need help.", for: "Practical remedies" },
   vastu:      { deva: "वास्तु चक्र", text: "Nine directions, and what the classics assign to each. Your entrance, kitchen, bedroom, pooja space, toilets and water checked against the mandala — every dosh named with the rule behind it, and remedies that need no demolition.", for: "Your home" },
-  varshaphal: { deva: "वर्षफल",   text: "The annual chart cast for your solar return: Muntha, Panchavargeeya bala, the Mudda dasha and the themes month by month.", for: "The year ahead" }
+  varshaphal: { deva: "वर्षफल",   text: "The annual chart cast for your solar return: Muntha, Panchavargeeya bala, the Mudda dasha and the themes month by month.", for: "The year ahead" },
+  career:     { deva: "कर्म",     text: "The 10th house and its lord, the grahas that signify work, the Dashamsha read for career alone, your Amatyakaraka, and the periods in which a career turns. Job or business, answered from the signals actually in your chart.", for: "Work and livelihood" }
 };
 
 export default function ReportsPage({ items, onPick, onAskGuide }: {

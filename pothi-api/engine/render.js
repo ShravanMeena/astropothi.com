@@ -14,6 +14,7 @@ const GENERATORS = {
   horoscope:  { mod: "./reports/horoscope.js",  fn: "generateInhouseHoroscope",  en: "Personalised Horoscope", hi: "व्यक्तिगत राशिफल" },
   laalkitab:  { mod: "./reports/laalkitab.js",  fn: "generateInhouseLaalKitab",  en: "Laal Kitaab Report",     hi: "लाल किताब रिपोर्ट" },
   varshaphal: { mod: "./reports/varshaphal.js", fn: "generateInhouseVarshaphal", en: "Varshaphal (Annual)",    hi: "वर्षफल रिपोर्ट" },
+  career:     { mod: "./reports/career.js",     fn: "generateInhouseCareer",     en: "Career & Livelihood",    hi: "कर्म एवं जीविका" },
   // Not chart-derived: its subject is a building, so it takes facing + rooms
   // rather than birth details. See engine/vastu/rules.js.
   vastu:      { mod: "./reports/vastu.js",      fn: "generateInhouseVastu",      en: "Vastu Wheel Report",     hi: "वास्तु चक्र रिपोर्ट" }
@@ -41,7 +42,7 @@ export async function renderReport({ reportType, input, designId, paletteId, bra
   // sentences are untouched and stay first; anything the model tries to add
   // that names a sign or a date the chapter never mentioned is rejected. If the
   // model is unreachable this is a no-op and the report ships as templates.
-  const enrichment = await enrichSections(model, { lang });
+  const enrichment = await enrichSections(model, { lang, reportType });
 
   const { buffer, pages } = await renderReportPdf({
     doc: model, designId, paletteId, branding

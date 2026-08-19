@@ -20,9 +20,11 @@ export function noAuth() {
       phone, otp, isd_code: req.body.isd_code || "+91",
       expires_at: new Date(Date.now() + OTP_TTL_MS)
     });
-    // TODO: dispatch over WhatsApp. Until then dev returns it inline.
+    // TODO: dispatch over WhatsApp. Until that exists, the only way a code can
+    // reach anybody is in this response — which is exactly what OTP_REQUIRED=false
+    // turns on. With it true and no dispatch, this endpoint sends nothing.
     console.log(`[otp] ${phone} → ${otp}`);
-    return ok(res, { sent: true, ...(config.env !== "production" && { dev_otp: otp }) });
+    return ok(res, { sent: true, ...(!config.otpRequired && { dev_otp: otp }) });
   }));
 
   r.post("/otp/verify", h(async (req, res) => {

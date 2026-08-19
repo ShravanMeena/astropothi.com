@@ -14,7 +14,8 @@ const TYPES = [
   ["horoscope",  "../engine/reports/horoscope.js",  "generateInhouseHoroscope"],
   ["kundli",     "../engine/reports/kundli.js",     "generateInhouseKundli"],
   ["laalkitab",  "../engine/reports/laalkitab.js",  "generateInhouseLaalKitab"],
-  ["varshaphal", "../engine/reports/varshaphal.js", "generateInhouseVarshaphal"]
+  ["varshaphal", "../engine/reports/varshaphal.js", "generateInhouseVarshaphal"],
+  ["career",     "../engine/reports/career.js",     "generateInhouseCareer"]
 ];
 
 const SUBJECT = {

@@ -30,15 +30,19 @@ export default function SignIn({ open, onClose, onDone, reason }: {
     try {
       track("signin_otp_sent", {});
       const r = await api.post("/noauth-api/v1/user/otp/send", { phone });
+      // The server hands the code back while OTP_REQUIRED is false, because
+      // nothing delivers it yet. Sign in with it there and then — showing a
+      // buyer a field we have already filled asks them to confirm a formality.
+      if (r.dev_otp) { setOtp(r.dev_otp); await verify(r.dev_otp); return; }
       setSent(true);
-      if (r.dev_otp) setOtp(r.dev_otp);
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
 
-  const verify = async () => {
+  // `code` covers the send-then-verify path: setOtp has not landed in state yet.
+  const verify = async (code?: string) => {
     setBusy(true); setErr("");
     try {
-      const r = await api.post("/noauth-api/v1/user/otp/verify", { phone, otp });
+      const r = await api.post("/noauth-api/v1/user/otp/verify", { phone, otp: code ?? otp });
       setUserToken(r.token);
       // Everything this device did before anyone knew who they were now belongs
       // to this account — that pre-login half is the interesting half.
@@ -105,7 +109,7 @@ export default function SignIn({ open, onClose, onDone, reason }: {
 
             <button className="btn-brass w-full mt-6 h-[50px]"
                     disabled={busy || (sent ? otp.length < 4 : phone.length !== 10)}
-                    onClick={sent ? verify : send}>
+                    onClick={() => (sent ? verify() : send())}>
               {busy ? "…" : sent ? "Sign in" : "Send OTP"}
             </button>
             <p className="text-[11.5px] text-faint mt-4 leading-relaxed">

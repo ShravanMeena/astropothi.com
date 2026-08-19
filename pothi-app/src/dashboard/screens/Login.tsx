@@ -24,13 +24,18 @@ export default function Login({ onDone }: { onDone: () => void }) {
     setBusy(true); setErr("");
     try {
       const r = await api.post("/noauth-api/v1/auth/otp/send", { phone });
+      // While OTP_REQUIRED is false the server returns the code, because nothing
+      // delivers it yet — so sign in with it directly. A pilot phone with no
+      // invite still fails here, which is what reveals the invite field.
+      if (r.dev_otp && !needsInvite) { setOtp(r.dev_otp); await verify(r.dev_otp); return; }
       setSent(true); if (r.dev_otp) setOtp(r.dev_otp);
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   };
-  const verify = async () => {
+  // `code` covers the send-then-verify path: setOtp has not landed in state yet.
+  const verify = async (code?: string) => {
     setBusy(true); setErr("");
     try {
-      const r = await api.post("/noauth-api/v1/auth/otp/verify", { phone, otp, invite_code: invite });
+      const r = await api.post("/noauth-api/v1/auth/otp/verify", { phone, otp: code ?? otp, invite_code: invite });
       setToken(r.token);
       // Staff accounts get a second, separate token. Same door, different key —
       // there is no admin button anywhere, the row decides what loads next.
@@ -41,6 +46,8 @@ export default function Login({ onDone }: { onDone: () => void }) {
       onDone();
     } catch (e: any) {
       setErr(e.message);
+      // A failed auto-verify has to leave the form usable, not a dead phone box.
+      setSent(true);
       // The server tells us when a code is required, so we only ask once it is.
       if (e.body?.needs_invite) setNeedsInvite(true);
       if (e.body?.pilot) setPilot(e.body.pilot);
@@ -154,7 +161,7 @@ export default function Login({ onDone }: { onDone: () => void }) {
 
           <button className="btn-brass w-full mt-7 h-[50px]"
                   disabled={busy || (!sent ? phone.length !== 10 : otp.length < 4)}
-                  onClick={sent ? verify : send}>
+                  onClick={() => (sent ? verify() : send())}>
             {busy ? "…" : sent ? t.login.verify : t.login.send}
           </button>
         </div>

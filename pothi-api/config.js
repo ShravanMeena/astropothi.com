@@ -3,6 +3,21 @@ dotenv.config();
 
 const int = (v, d) => (v === undefined || v === "" ? d : Number(v));
 
+// Sign-in asks for an OTP that nothing dispatches yet — no SMS or WhatsApp send
+// is wired to /otp/send. In production that means the code is generated, logged
+// and goes nowhere: nobody can sign in at all.
+//
+// OTP_REQUIRED=false is the stopgap until dispatch ships. The code comes back in
+// the response, the client fills it in and verifies immediately, so the buyer
+// never sees an OTP field — and OTP_BYPASS keeps working.
+//
+// It is a deliberate hole, not an oversight: anyone who types a number is signed
+// in as that number and gets its order history and saved birth details. That is
+// the exposure AUTO_LOGIN_ON_ORDER already accepts at checkout. Set it back to
+// true the day dispatch lands.
+const otpRequired =
+  (process.env.OTP_REQUIRED ?? (process.env.NODE_ENV === "production" ? "true" : "false")) !== "false";
+
 export default {
   env: process.env.NODE_ENV || "development",
   port: int(process.env.PORT, 4050),
@@ -16,8 +31,12 @@ export default {
   },
 
   jwtSecret: process.env.JWT_SECRET || "change-me-in-production",
-  // Dev-only OTP that logs in any phone. MUST be unset in production.
-  otpBypass: process.env.NODE_ENV === "production" ? null : process.env.OTP_BYPASS || null,
+  // When false, /otp/send returns the code it just generated so the client can
+  // complete the sign-in without one being delivered. See the note above.
+  otpRequired,
+  // An OTP that logs in any phone. Alive only while otpRequired is false, so a
+  // production .env that leaves OTP_BYPASS set cannot open a door on its own.
+  otpBypass: otpRequired ? null : process.env.OTP_BYPASS || null,
 
   // Checkout signs the buyer in on the strength of the mobile number alone, with
   // no OTP. It removes every step between wanting a report and paying for one —

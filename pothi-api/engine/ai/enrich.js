@@ -25,15 +25,35 @@ import * as LLM from "../../server/ai/llm.js";
 
 /** A chapter this thin is why buyers see half-empty pages. */
 const THIN_WORDS = 90;
-// High enough to cover every thin chapter in the thinnest report we sell (Love
-// has 19). One Haiku call handles them together.
+// High enough to cover every thin chapter in the thinnest report we sell.
+// One Haiku call handles them together.
 const MAX_CHAPTERS = 26;
+
+/**
+ * Per-report tuning.
+ *
+ * One threshold cannot serve both ends of the shelf. The Kundali writes 64
+ * chapters and needs almost no help; the Love report writes 15 long-form
+ * chapters that each answer a question, and a question answered in 130 words
+ * reads like a summary of an answer. So Love asks for a higher floor and a
+ * longer expansion, and everything else keeps the conservative default.
+ *
+ * The guard against padding is unchanged: the model may still not introduce a
+ * single fact, so a longer expansion means more explanation of the same
+ * computed placement, not more claims.
+ */
+const PROFILES = {
+  love: { thin: 300, add: "220 to 300 words, in three or four paragraphs" },
+  health: { thin: 220, add: "160 to 220 words, in two or three paragraphs" },
+  default: { thin: THIN_WORDS, add: "90 to 150 words in total" }
+};
+const profileFor = (t) => PROFILES[t] || PROFILES.default;
 
 const wordsIn = (s) =>
   [s.summary, ...(s.paras || []), ...(s.bullets || [])].filter(Boolean).join(" ")
     .split(/\s+/).filter(Boolean).length;
 
-const SYSTEM = (lang) => `
+const SYSTEM = (lang, add) => `
 You expand chapters of a Vedic astrology report that has ALREADY been computed.
 
 THE ONE RULE: you may not introduce a single new fact. Every sign, house,
@@ -49,7 +69,7 @@ What you are adding is explanation, in this order:
 
 STYLE
 - ${lang === "hi" ? "Hindi (Devanagari). Simple, warm, no Sanskrit the reader would need a dictionary for." : "English. Simple, warm, no jargon without a plain-language gloss in the same sentence."}
-- Two or three paragraphs, 90 to 150 words in total. Not more.
+- ${add}. Not more.\n- Every paragraph must earn its place. If you find yourself\n  restating the previous paragraph in different words, stop instead.
 - Never frighten. No death, disease, divorce, financial ruin or curses.
 - Do not give medical, legal or financial advice.
 - Do not repeat the sentences you were given — the report already prints them.
@@ -83,7 +103,8 @@ function inventsFacts(original, expansion) {
  * @param {object} model  the doc model, mutated in place
  * @returns {Promise<{expanded:number, rejected:number, skipped:string}>}
  */
-export async function enrichSections(model, { lang = "en" } = {}) {
+export async function enrichSections(model, { lang = "en", reportType = "" } = {}) {
+  const profile = profileFor(reportType);
   if (!config.ai.enrichReports) return { expanded: 0, rejected: 0, skipped: "disabled" };
   if (!LLM.isLive()) return { expanded: 0, rejected: 0, skipped: "no model configured" };
 
@@ -91,7 +112,7 @@ export async function enrichSections(model, { lang = "en" } = {}) {
   // need help, not the eighteen-word one at the back of the book.
   const thin = model.sections
     .map((s) => ({ s, w: wordsIn(s) }))
-    .filter((x) => x.w < THIN_WORDS)
+    .filter((x) => x.w < profile.thin)
     .sort((a, b) => a.w - b.w)
     .slice(0, MAX_CHAPTERS)
     .map((x) => x.s);
@@ -107,7 +128,7 @@ export async function enrichSections(model, { lang = "en" } = {}) {
   let raw;
   try {
     raw = await LLM.complete({
-      system: SYSTEM(lang),
+      system: SYSTEM(lang, profile.add),
       messages: [{ role: "user", content: JSON.stringify({ chapters: payload }) }],
       maxTokens: 4000,
       modelId: config.ai.enrichModelId,

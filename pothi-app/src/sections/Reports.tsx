@@ -10,7 +10,8 @@ const BLURB: Record<string, string> = {
   horoscope:  "This month against your own chart — transits, key dates, and the areas they touch.",
   laalkitab:  "The Laal Kitaab reading with its own distinctive remedies, drawn from your weakest placements.",
   vastu:      "Nine directions, and what belongs in each. Every dosh named with the rule behind it, and remedies that need no demolition.",
-  varshaphal: "The year ahead. Muntha, the annual chart, Mudda dasha and month-by-month themes."
+  varshaphal: "The year ahead. Muntha, the annual chart, Mudda dasha and month-by-month themes.",
+  career:     "The 10th house, the Dashamsha, your Amatyakaraka, and when a career turns. Job or business, answered from your own chart."
 };
 
 export default function Reports({ items, onPick, onAll, onAskGuide }: {

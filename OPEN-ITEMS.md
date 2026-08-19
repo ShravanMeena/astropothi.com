@@ -5,11 +5,15 @@
 Everything below works locally. These are the things that stop it working for a
 real customer, in the order they will hurt.
 
-1. **Nobody can log in in production.** `auth.route.js` and `user.route.js` generate an
-   OTP, `console.log` it, and return it in the response **only when `env !== production`**.
-   There is no SMS or WhatsApp dispatch — the `// TODO` is still in both files. In
-   production a user requests an OTP and it goes nowhere. MSG91 is now integrated, so this
-   is an OTP template plus one call to `server/messaging/msg91.js`.
+1. **Production signs people in without an OTP — deliberately, for now.** There is still
+   no SMS or WhatsApp dispatch; the `// TODO` is in both `auth.route.js` and
+   `user.route.js`. Rather than ship a sign-in nobody can complete, production runs with
+   `OTP_REQUIRED=false`: `/otp/send` returns the code it generated and the client verifies
+   with it straight away, so no OTP field is ever shown. **Anyone who types a number is
+   signed in as that number** and sees its orders and saved birth details — the same
+   exposure `AUTO_LOGIN_ON_ORDER` already accepts at checkout, now on the profile door too.
+   Closing it is an OTP template plus one call to `server/messaging/msg91.js`, then
+   `OTP_REQUIRED=true`.
 2. **Nothing is deployed.** `WEB_ORIGIN` is `http://localhost:5190`. That is the address
    Razorpay sends a buyer back to after they pay, and it is baked into the approved
    WhatsApp template's button — so pick the real domain before submitting either.

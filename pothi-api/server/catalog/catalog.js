@@ -9,6 +9,9 @@ export const REPORT_TYPES = [
   { code: "horoscope",  name_en: "Personalised Horoscope",name_hi: "व्यक्तिगत राशिफल",     chapters: 22, credits: 2, engine: "horoscope",  ready: true },
   { code: "laalkitab",  name_en: "Laal Kitaab Report",    name_hi: "लाल किताब रिपोर्ट",    chapters: 30, credits: 3, engine: "laalkitab",  ready: true },
   { code: "varshaphal", name_en: "Varshaphal (Annual)",   name_hi: "वर्षफल रिपोर्ट",       chapters: 40, credits: 3, engine: "varshaphal", ready: true },
+  // Career is the subject the shelf was missing: the Kundali gives work two of
+  // its sixty-four chapters, and Varshaphal answers only "this year".
+  { code: "career",     name_en: "Career & Livelihood",   name_hi: "कर्म एवं जीविका",      chapters: 28, credits: 3, engine: "career",     ready: true },
   // The only report whose subject is a building rather than a person — it asks
   // for the facing and the room layout, not a birth time.
   { code: "vastu",      name_en: "Vastu Wheel Report",    name_hi: "वास्तु चक्र रिपोर्ट",  chapters: 25, credits: 3, engine: "vastu",      ready: true, subject: "property" }
@@ -58,7 +61,9 @@ const TIER_OF = {
   love:       "focused",
   health:     "focused",
   horoscope:  "focused",
-  vastu:      "focused"
+  vastu:      "focused",
+  // 28 chapters, same as Dosh — a complete reading of one whole subject.
+  career:     "full"
 };
 
 export const CONSUMER_PRICES = Object.fromEntries(

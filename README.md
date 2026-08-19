@@ -95,7 +95,7 @@ you no longer print.
 | [docs/07-outreach.md](docs/07-outreach.md) | Reaching pandits legally |
 | [docs/08-consumer.md](docs/08-consumer.md) | Selling direct, without damaging the white-label side |
 | [docs/09-adding-a-report.md](docs/09-adding-a-report.md) | Where the reports come from; adding an eighth |
-| [docs/10-deploy.md](docs/10-deploy.md) | Deploying the API to GCP — the VM, the database, the order of operations |
+| [docs/10-deploy.md](docs/10-deploy.md) | Deploying to GCP — VM, Cloud SQL, GCS, and the order of operations |
 | [ADMIN-PANEL-PROMPT.md](ADMIN-PANEL-PROMPT.md) | Self-contained brief for building the admin panel |
 | [pothi-api/README.md](pothi-api/README.md) | API: run, scripts, current state |
 

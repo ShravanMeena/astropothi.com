@@ -16,59 +16,47 @@ import { getPack } from "./forecast-strings.js";
 // ── titles ───────────────────────────────────────────────────────────────────
 // 24 for Love, 26 for Health — the counts published on astro_chart_listing.
 
+// The Love report is organised around the reader's questions, not the chart's
+// components. The old titles were "The 7th House", "Venus", "The Navamsa" — a
+// description of a chart rather than an answer to anything, and a reader who
+// paid ₹399 to find out whether a relationship will last should not have to
+// assemble that answer from nine chapters about planets. The chart is still all
+// there; it moved to the back, as evidence.
 const LOVE_TITLES = {
   en: [
     "About This Report",
-    "The Significators of Marriage",
-    "The 7th House — Your Marriage",
-    "The Lord of Your 7th House",
-    "Venus — The Significator of Love",
-    "Mars — Passion and Friction",
-    "The Moon — What Your Heart Needs",
-    "The 5th House — Romance and Courtship",
-    "The 2nd House — Family Life After Marriage",
-    "The 8th House — Intimacy and the Bond's Endurance",
-    "The 12th House — Privacy and the Marital Bed",
-    "Navamsa (D9) — The Marriage Chart",
-    "Venus in the Navamsa",
-    "The 7th Lord in the Navamsa",
-    "Manglik (Kuja) Dosha — Tested",
-    "Other Doshas Affecting Marriage",
-    "When Marriage Ripens — Your Dasha Windows",
-    "Transits Over Your Marriage Houses",
-    "Your Partner — Nature and Direction",
-    "Love or Arranged — What the Chart Leans To",
-    "Strengths of the Bond",
+    "Your Relationship, at a Glance",
+    "How You Are in Love",
+    "What You Actually Need From a Partner",
+    "How Your Heart Works",
+    "How You Talk, and How You Argue",
+    "Attraction and Chemistry",
     "Where the Friction Will Come From",
-    "Remedies for Harmony",
-    "How to Use This Report",
+    "What You Bring to a Relationship",
+    "Will It Last?",
+    "From Love to Partnership",
+    "The Periods That Matter",
+    "What to Actually Do",
+    "One Last Thing",
+    "The Chart Behind This Reading"
   ],
   hi: [
     "इस रिपोर्ट के बारे में",
-    "विवाह के कारक ग्रह",
-    "सप्तम भाव — आपका विवाह",
-    "आपके सप्तम भाव का स्वामी",
-    "शुक्र — प्रेम का कारक",
-    "मंगल — आवेग और टकराव",
-    "चंद्रमा — आपके मन की आवश्यकता",
-    "पंचम भाव — प्रेम और आकर्षण",
-    "द्वितीय भाव — विवाह के बाद कुटुंब",
-    "अष्टम भाव — घनिष्ठता और बंधन की आयु",
-    "द्वादश भाव — एकांत और शय्या सुख",
-    "नवांश (D9) — विवाह की कुंडली",
-    "नवांश में शुक्र",
-    "नवांश में सप्तमेश",
-    "मांगलिक (कुज) दोष — परीक्षण",
-    "विवाह को प्रभावित करने वाले अन्य दोष",
-    "विवाह कब — आपकी दशा अवधि",
-    "विवाह भावों पर गोचर",
-    "आपका जीवनसाथी — स्वभाव और दिशा",
-    "प्रेम या अरेंज — कुंडली किस ओर झुकी है",
-    "इस संबंध की शक्तियाँ",
+    "आपका रिश्ता — एक नज़र में",
+    "आप प्यार में कैसे हैं",
+    "आपको साथी से सच में क्या चाहिए",
+    "आपका दिल कैसे काम करता है",
+    "आप बात कैसे करते हैं, और झगड़ते कैसे हैं",
+    "आकर्षण और केमिस्ट्री",
     "टकराव कहाँ से आएगा",
-    "सामंजस्य के उपाय",
-    "इस रिपोर्ट का उपयोग कैसे करें",
-  ],
+    "आप रिश्ते में क्या लाते हैं",
+    "क्या यह रिश्ता टिकेगा",
+    "प्यार से साथ तक",
+    "वे समय जो मायने रखते हैं",
+    "अब असल में करना क्या है",
+    "आख़िरी एक बात",
+    "इस पाठ के पीछे की कुंडली"
+  ]
 };
 
 const HEALTH_TITLES = {

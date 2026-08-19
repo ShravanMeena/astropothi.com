@@ -24,7 +24,8 @@ const PITCH: Record<string, { deva: string; line: string; body: string }> = {
   horoscope:  { deva: "राशिफल", line: "This month against your own chart.", body: "Not a sun-sign column. Every transit placed against your natal houses, the dates that matter, and what each one touches." },
   laalkitab:  { deva: "लाल किताब", line: "The Laal Kitaab reading.", body: "A distinct tradition with its own logic and its own remedies — practical, inexpensive, and drawn from the placements that need help in your chart." },
   vastu:      { deva: "वास्तु चक्र", line: "Your home, read direction by direction.", body: "Where the entrance, kitchen, bedroom, pooja space, toilets and water sit — each checked against the Vastu Purusha Mandala, with the dosh named, its weight given, and a remedy that needs no demolition." },
-  varshaphal: { deva: "वर्षफल", line: "The year ahead.", body: "The annual chart cast for your solar return: Muntha, Panchavargeeya bala, the Mudda dasha and the themes month by month." }
+  varshaphal: { deva: "वर्षफल", line: "The year ahead.", body: "The annual chart cast for your solar return: Muntha, Panchavargeeya bala, the Mudda dasha and the themes month by month." },
+  career:     { deva: "कर्म", line: "What your chart says about work.", body: "The 10th house and its lord, the four grahas that signify livelihood, the Dashamsha read only for work, your Amatyakaraka, and the dasha windows in which a career actually turns. Job or business is answered from the signals found, and each one is printed so you can see what the answer was built from." }
 };
 
 /**

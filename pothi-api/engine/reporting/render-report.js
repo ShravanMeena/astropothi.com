@@ -182,6 +182,8 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
                                                                        hi: "अपने ही उपायों वाली परंपरा" } },
       varshaphal: { deva: "वर्षफल",        houses: [],         line: { en: "The year ahead, month by month",
                                                                        hi: "आने वाला वर्ष, मास दर मास" } },
+      career:     { deva: "कर्म विचार",    houses: [10, 6, 11], line: { en: "The tenth house, and the work it points to",
+                                                                       hi: "दशम भाव और उसका संकेतित कर्म" } },
       // The one report about a building rather than a person.
       vastu:      { deva: "वास्तु चक्र",   houses: [],         line: { en: "Nine directions, and what belongs in each",
                                                                        hi: "नौ दिशाएँ, और प्रत्येक में क्या उचित है" } }
@@ -920,8 +922,9 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
      *  lines of text is not premium, it is empty. */
     function chapterOpener(s) {
       const w = textW(), x = textX();
-      pdf.font("Helvetica").fontSize(S(7.6)).fillColor(P.inkSoft)
-         .text(up(hi ? "अध्याय" : "Chapter"), x, y, { width: w, align: "center", characterSpacing: tr("Chapter", 2.2) });
+      const chLabel = hi ? "अध्याय" : "Chapter";
+      pdf.font(FT(chLabel, false)).fontSize(S(7.6)).fillColor(P.inkSoft)
+         .text(up(chLabel), x, y, { width: w, align: "center", characterSpacing: tr(chLabel, 2.2) });
       y = pdf.y + 4;
       pdf.font(serif ? "Times-Bold" : "Helvetica-Bold").fontSize(S(30)).fillColor(P.accent)
          .text(String(s.n), x, y, { width: w, align: "center" });
@@ -945,8 +948,9 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
     function chapterTitlePage(s) {
       newPage(model.title);
       const cy = A4.h / 2 - 70;
-      pdf.font("Helvetica").fontSize(S(9)).fillColor(P.inkSoft)
-         .text(up(hi ? "अध्याय" : "Chapter"), 0, cy, { width: A4.w, align: "center", characterSpacing: 2.4 });
+      const chLabel = hi ? "अध्याय" : "Chapter";
+      pdf.font(FT(chLabel, false)).fontSize(S(9)).fillColor(P.inkSoft)
+         .text(up(chLabel), 0, cy, { width: A4.w, align: "center", characterSpacing: tr(chLabel, 2.4) });
       pdf.font(HD("0")).fontSize(S(46)).fillColor(P.accent)
          .text(String(s.n), 0, cy + 18, { width: A4.w, align: "center" });
       pdf.lineWidth(0.8).strokeColor(P.rule).moveTo(A4.w/2 - 44, cy + 82).lineTo(A4.w/2 + 44, cy + 82).stroke();

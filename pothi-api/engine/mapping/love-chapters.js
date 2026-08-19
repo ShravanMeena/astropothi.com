@@ -1,13 +1,39 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Love Chart chapter mapper — the exact 24 chapters published for
-// astro_chart_listing id = 1.
+// Love report chapters.
 //
-// Every chapter is written from this native's own placements. Where a rule has
-// a yes/no answer (manglik, for instance) the answer is stated plainly rather
-// than hedged, because a devotee paying for a marriage reading is owed one.
+// The old version had one chapter per chart component — "The 7th House", "Venus
+// — The Significator of Love", "The 7th Lord in the Navamsa" — and each said
+// which planets sat there. Twenty-four chapters, 1,071 words, forty-five words
+// a chapter, and not one of them answered a question anybody actually has. A
+// buyer does not want to be told that Saturn and Rahu occupy the seventh house.
+// They want to know whether this will last, why the same argument keeps
+// happening, and what to do about it.
+//
+// So the order is inverted here. Every chapter is a question, and each one
+// synthesises several placements to answer it — because Venus alone, or the
+// Moon alone, says almost nothing. The chart is still in the report, in full,
+// as the final chapter: evidence for the reader who wants to check the working,
+// rather than the reading itself.
+//
+// Every judgement still comes from engine/astrology/love-profile.js, which is
+// deterministic and classical. Nothing here is invented and nothing predicts
+// what another person will do — see docs/05-legal.md.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const nth = { en: (n) => ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"][n], hi: (n) => `${n}वें` };
+import { buildLoveProfile } from "../astrology/love-profile.js";
+import { lovePack } from "../i18n/love-strings.js";
+
+const nth = {
+  en: (n) => ["", "1st", "2nd", "3rd", "4th", "5th", "6th", "7th", "8th", "9th", "10th", "11th", "12th"][n],
+  hi: (n) => `${n}वें`
+};
+
+/** A 0–100 dial as a word, so the snapshot reads without a chart. */
+const band = (v, L) => {
+  const en = v >= 72 ? "strong" : v >= 56 ? "good" : v >= 44 ? "mixed" : v >= 30 ? "needs work" : "difficult";
+  const hi = { strong: "मज़बूत", good: "अच्छा", mixed: "मिला-जुला", "needs work": "ध्यान चाहिए", difficult: "कठिन" };
+  return L === "hi" ? hi[en] : en;
+};
 
 export function buildLoveSections(f, P) {
   const L = P.lang;
@@ -19,6 +45,8 @@ export function buildLoveSections(f, P) {
   const sg = (s) => P.sign(s);
   const dg = (d) => P.dignity(d);
   const T = P.loveTitles;
+  const V = lovePack(L);
+  const p = buildLoveProfile(f);
 
   const add = (i, body, extra = {}) => sec.push({
     n: i + 1, title: T[i], body,
@@ -29,308 +57,372 @@ export function buildLoveSections(f, P) {
     ...(extra.advisory ? { advisory: extra.advisory } : {}),
   });
 
-  const grade = (g) => (g === "strong" ? P.l2.strong : g === "moderate" ? P.l2.moderate : P.l2.weak);
-
-  /** "Venus in Gemini, 10th house, in a friend's sign" — used all through. */
-  const describe = (p) => {
-    const q = f.placements.find((x) => x.planet === p);
+  /** "Venus in Pisces, 9th house, exalted" — the evidence line under a claim. */
+  const where = (planet) => {
+    const q = f.placements.find((x) => x.planet === planet);
     if (!q) return "";
     return hi
-      ? `${pl(p)} ${sg(q.sign)} में, ${N(q.house)} भाव में, ${dg(q.dignity)}`
-      : `${pl(p)} in ${sg(q.sign)}, ${N(q.house)} house, ${dg(q.dignity)}`;
+      ? `${pl(planet)} ${sg(q.sign)} में, ${N(q.house)} भाव में, ${dg(q.dignity)}`
+      : `${pl(planet)} in ${sg(q.sign)}, ${N(q.house)} house, ${dg(q.dignity)}`;
   };
 
-  // ── 1. About ───────────────────────────────────────────────────────────────
+  // ── 0. About ───────────────────────────────────────────────────────────────
   add(0, P.block(
     hi
-      ? `यह रिपोर्ट आपकी जन्म कुंडली से विवाह और प्रेम के प्रश्न को पढ़ती है। इसमें 24 अध्याय हैं और हर निर्णय आपकी अपनी ग्रह-स्थिति से निकाला गया है — कोई सामान्य राशिफल नहीं${S}`
-      : `This report reads the question of love and marriage from your own birth chart. It runs to 24 chapters, and every judgement in it is drawn from your own planetary positions — not from a sun-sign column${S}`,
+      ? `यह रिपोर्ट आपकी अपनी जन्म कुंडली से पढ़ी गई है — जन्म की तारीख़, समय और स्थान से निकाली गई ग्रह-स्थितियों से, किसी सामान्य राशिफल से नहीं${S} जन्म समय दस मिनट बदल दीजिए तो लग्न, भाव और दशाएँ सब बदल जाती हैं, और यह रिपोर्ट भी${S}`
+      : `This report is read from your own birth chart — from planetary positions computed for your date, time and place of birth, not from a sun-sign column${S} Change the birth time by ten minutes and the ascendant, the houses and the dasha periods all move, and this report moves with them${S}`,
+    hi
+      ? `यह रिपोर्ट ग्रहों के क्रम में नहीं, आपके सवालों के क्रम में लिखी गई है${S} हर अध्याय एक सवाल का जवाब है, और हर जवाब कई स्थितियों को साथ पढ़कर बना है — क्योंकि अकेला शुक्र या अकेला चंद्रमा बहुत कम बताता है${S} कुंडली पूरी की पूरी आख़िरी अध्याय में है, प्रमाण के तौर पर${S}`
+      : `It is written in the order of your questions rather than the order of the planets${S} Each chapter answers one question, and each answer reads several placements together — because Venus alone, or the Moon alone, says very little${S} The chart itself is in the final chapter, in full, as evidence${S}`,
     P.kv([
       ["lagna", sg(f.lagnaSign)],
       ["rashi", sg(f.moonSign)],
       ["nakshatra", P.nakshatra(f.nakshatra)],
     ]),
     hi
-      ? `अध्याय 3 से 11 विवाह के भावों को एक-एक करके पढ़ते हैं, 12 से 14 नवांश को, 15 और 16 दोषों को, 17 और 18 समय को, और 19 से 24 आपके जीवनसाथी, इस बंधन की शक्ति और उपायों को${S}`
-      : `Chapters 3 to 11 read the houses of marriage one by one, 12 to 14 the navamsa, 15 and 16 the doshas, 17 and 18 the timing, and 19 to 24 your partner, the strength of the bond and the remedies${S}`,
+      ? `एक बात साफ़ रहे: यह रिपोर्ट आपके बारे में है${S} यह किसी और के व्यवहार की भविष्यवाणी नहीं करती, और न कर सकती है${S} जो यहाँ लिखा है वह आपकी अपनी प्रवृत्तियाँ हैं — और वही एकमात्र चीज़ है जिसे आप बदल सकते हैं${S}`
+      : `One thing to be clear about: this report is about you${S} It does not predict another person's behaviour, and it cannot${S} What is written here are your own tendencies — which are also the only thing you can actually change${S}`
   ));
 
-  // ── 2. Chart profile ───────────────────────────────────────────────────────
+  // ── 1. Snapshot ────────────────────────────────────────────────────────────
+  const d = p.dials;
+  const dialLine = (labelEn, labelHi, v) =>
+    `${hi ? labelHi : labelEn} — ${band(v, L)} (${v}/100)`;
+
   add(1, P.block(
     hi
-      ? `विवाह का कोई भी निर्णय लग्न, चंद्रमा और शुक्र की स्थिति जाने बिना नहीं हो सकता${S} आपकी कुंडली में ये इस प्रकार हैं${S}`
-      : `No judgement about marriage can be made without first fixing the Lagna, the Moon and Venus. In your chart they stand as follows${S}`,
-    P.ul([describe("Venus"), describe("Mars"), describe("Moon"), describe("Jupiter")]),
-  ), { placements: f.placements });
-
-  // ── 3. The 7th house ───────────────────────────────────────────────────────
-  const h7 = f.houses7;
-  add(2, P.block(
+      ? `पूरी रिपोर्ट पढ़ने से पहले, एक नज़र में यह रहा${S}`
+      : `Before the rest of it, here is the whole reading on one page${S}`,
     hi
-      ? `सप्तम भाव विवाह, जीवनसाथी और हर प्रकार की साझेदारी का भाव है${S} आपके सप्तम भाव में ${h7.occupants.length ? P.planets(h7.occupants) + " स्थित " + (h7.occupants.length > 1 ? "हैं" : "है") : "कोई ग्रह नहीं"}${S}`
-      : `The 7th house is the house of marriage, of the spouse, and of every partnership you enter. In your chart ${h7.occupants.length ? `it holds ${P.planets(h7.occupants)}` : "no planet occupies it"}${S}`,
-    h7.aspects.length
-      ? (hi ? `इस भाव पर ${P.planets(h7.aspects)} की दृष्टि है${S}` : `${P.planets(h7.aspects)} ${h7.aspects.length > 1 ? "cast their glance" : "casts its glance"} on this house${S}`)
-      : (hi ? `इस भाव पर किसी ग्रह की दृष्टि नहीं — विवाह का फल पूर्णतः सप्तमेश पर निर्भर करेगा${S}` : `No planet aspects it, so the whole reading rests on the 7th lord${S}`),
-    `${P.l2.strength}: ${grade(h7.grade)}`,
-  ), { data: { house: 7, judgement: h7 } });
+      ? `आपकी सबसे बड़ी ताक़त: ${(V.strength(p.theme.strength) || "").split(S)[0]}${S}`
+      : `Your biggest strength: ${(V.strength(p.theme.strength) || "").split(".")[0]}.`,
+    hi
+      ? `सबसे ज़्यादा ध्यान माँगने वाली बात: ${(V.growth(p.theme.challenge) || "").split(S)[0]}${S}`
+      : `The thing that most needs your attention: ${(V.growth(p.theme.challenge) || "").split(".")[0]}.`,
+    hi
+      ? `लंबी दौड़ में यह रिश्ता ${p.longTerm.grade === "supportive" ? "सहयोगी" : p.longTerm.grade === "workable" ? "निभने लायक़" : "देखभाल माँगने वाला"} दिखता है${S}`
+      : `Over the long run this reads as ${p.longTerm.grade}${S}`
+  ), {
+    summary: hi
+      ? `यह छह आँकड़े पूरी रिपोर्ट का सार हैं${S} हर एक कई ग्रह-स्थितियों से निकला है, किसी एक से नहीं${S}`
+      : `These six figures are the whole report in miniature${S} Each is derived from several placements rather than one${S}`,
+    bullets: [
+      dialLine("Relationship strength", "रिश्ते की मज़बूती", d.strength),
+      dialLine("Emotional connection", "भावनात्मक जुड़ाव", d.emotional),
+      dialLine("Attraction and chemistry", "आकर्षण और केमिस्ट्री", d.chemistry),
+      dialLine("Communication", "बातचीत", d.communication),
+      dialLine("Long-term potential", "लंबी दौड़ की संभावना", d.longTerm),
+      dialLine("Domestic stability", "घरेलू स्थिरता", d.stability)
+    ],
+    data: { dials: d, theme: p.theme }
+  });
 
-  // ── 4. The 7th lord ────────────────────────────────────────────────────────
+  // ── 2. How you are in love ─────────────────────────────────────────────────
+  const att = V.attachment(p.attachment.style);
+  const expr = V.expression(p.expression.mode);
+  add(2, P.block(
+    `${att.label}${S}`,
+    att.body,
+    hi
+      ? `स्नेह आप ${expr.label} व्यक्त करते हैं${S} ${expr.body}`
+      : `You express affection ${expr.label}${S} ${expr.body}`,
+    p.expression.withheld
+      ? (hi
+          ? `एक बात जोड़ने लायक़ है${S} आपकी कुंडली में शुक्र अस्त है — सूर्य के इतने पास कि उसका अपना प्रकाश दिखता नहीं${S} शास्त्रीय अर्थ सीधा है: आप जितना महसूस करते हैं, उसका एक हिस्सा ही बाहर पहुँचता है${S}`
+          : `One thing worth adding${S} Venus is combust in your chart — so close to the Sun that its own light is not visible${S} The classical meaning is plain: a fraction of what you feel is what actually reaches the other person${S}`)
+      : "",
+    p.expression.revisits
+      ? (hi
+          ? `शुक्र वक्री भी है, जो पुराने लगावों की ओर लौटने का संकेत है${S} आप रिश्तों को मन में दोबारा जीते हैं, और यह ख़त्म हो चुकी बातों को भी खुला रखता है${S}`
+          : `Venus is also retrograde, the marker of returning to old attachments${S} You re-live relationships in your head, and that keeps finished things open longer than they need to be${S}`)
+      : ""
+  ), {
+    placements: [where("Moon"), where("Venus")].filter(Boolean),
+    data: { attachment: p.attachment, expression: p.expression }
+  });
+
+  // ── 3. What you need ───────────────────────────────────────────────────────
+  const needs = [];
+  if (p.attachment.needsReassurance)
+    needs.push(hi ? "यह सुनना कि सब ठीक है — कभी-कभी, बिना माँगे" : "To be told it is fine — sometimes, without having to ask");
+  if (p.attachment.needsSpace)
+    needs.push(hi ? "अपनी जगह, बिना यह समझाए कि जगह क्यों चाहिए" : "Room of your own, without having to justify wanting it");
+  if (p.attachment.opensSlowly)
+    needs.push(hi ? "धैर्य — शुरुआत में जल्दी न मचाया जाए" : "Patience early on, and not being rushed");
+  needs.push(p.expression.mode === "practical"
+    ? (hi ? "ऐसा साथी जो कामों में जताए गए प्यार को पहचान सके" : "A partner who can read love that is shown by doing")
+    : (hi ? "ऐसा साथी जो कहे भी, सिर्फ़ करे नहीं" : "A partner who says it, not only does it"));
+  needs.push(hi ? "भरोसा कि जो कहा गया है वह टिकेगा" : "Confidence that what was said will still be true next month");
+
   add(3, P.block(
     hi
-      ? `आपके सप्तम भाव का स्वामी ${pl(h7.lord)} है, जो ${sg(h7.lordSign)} में ${N(h7.lordHouse)} भाव में बैठा है और ${dg(h7.lordDignity)} है${S} सप्तमेश जहाँ बैठता है, विवाह का फल वहीं से आता है${S}`
-      : `The lord of your 7th house is ${pl(h7.lord)}, placed in ${sg(h7.lordSign)} in the ${N(h7.lordHouse)} house, ${dg(h7.lordDignity)}. Wherever the 7th lord sits is where the marriage will be felt${S}`,
+      ? `“मुझे क्या चाहिए” का जवाब आमतौर पर “एक अच्छा इंसान” होता है, जो सच है और किसी काम का नहीं${S} कुंडली इससे ज़्यादा ठोस बात कहती है${S}`
+      : `Asked what they need, most people say "someone kind", which is true and useless${S} The chart says something more specific than that${S}`,
     hi
-      ? `अर्थात् आपके विवाह का केंद्र ${P.houseArea(h7.lordHouse)} रहेगा${S}`
-      : `In practice that means your married life will centre on ${P.houseArea(h7.lordHouse)}${S}`,
-    h7.lordCombust ? (hi ? `सप्तमेश अस्त है — विवाह के प्रश्न पर स्पष्टता देर से आती है${S}` : `The 7th lord is combust: clarity in matters of marriage arrives late rather than never${S}`) : "",
-    h7.lordRetrograde ? (hi ? `सप्तमेश वक्री है — पुराने संबंध या पुनर्विचार का योग बनता है${S}` : `The 7th lord is retrograde: old connections resurface, and decisions get revisited${S}`) : "",
-  ), { data: { lord: h7.lord, house: h7.lordHouse } });
+      ? `आपका चंद्रमा ${sg(p.attachment.moonSign)} में ${N(p.attachment.moonHouse)} भाव में है${S} चंद्रमा वही है जो बताता है कि सुरक्षित महसूस करने के लिए क्या चाहिए — और यह वह चीज़ नहीं है जिसे आप चुनते हैं, यह वह है जो आप हैं${S}`
+      : `Your Moon is in ${sg(p.attachment.moonSign)} in the ${N(p.attachment.moonHouse)} house${S} The Moon is what says what you need in order to feel safe — and that is not something you choose, it is something you are${S}`,
+    hi
+      ? `इसका उलटा भी उतना ही उपयोगी है${S} जिस साथी के साथ ये चीज़ें नहीं मिलतीं, वह बुरा इंसान नहीं होता — बस आपके लिए महँगा पड़ता है${S}`
+      : `The inverse is just as useful${S} A partner who cannot give these is not a bad person — they are simply expensive for you${S}`
+  ), {
+    bullets: needs,
+    advisory: hi
+      ? `इनमें से कोई भी माँगना अनुचित नहीं है${S} अनुचित यह उम्मीद रखना है कि सामने वाला बिना बताए जान जाएगा${S}`
+      : `None of these is an unreasonable thing to ask for${S} What is unreasonable is expecting someone to work them out unprompted${S}`
+  });
 
-  // ── 5. Venus ───────────────────────────────────────────────────────────────
-  const v = f.venus;
+  // ── 4. How your heart works ────────────────────────────────────────────────
   add(4, P.block(
     hi
-      ? `शुक्र प्रेम, आकर्षण और वैवाहिक सुख का कारक है${S} आपकी कुंडली में शुक्र ${sg(v.sign)} में ${N(v.house)} भाव में, ${dg(v.dignity)} है${S}`
-      : `Venus is the significator of love, attraction and marital comfort. In your chart Venus stands in ${sg(v.sign)} in the ${N(v.house)} house, ${dg(v.dignity)}${S}`,
-    v.combust
-      ? (hi ? `शुक्र सूर्य के निकट अस्त है — प्रेम में आपकी अपेक्षा और वास्तविकता के बीच अंतर रह सकता है, और आप अपनी भावनाएँ खुलकर नहीं कहते${S}` : `Venus is combust — burnt by proximity to the Sun. Affection is felt strongly but expressed sparingly, and what you want is not always what you say you want${S}`)
-      : (hi ? `शुक्र अस्त नहीं है — आप अपनी भावनाएँ स्पष्ट रूप से व्यक्त कर पाते हैं${S}` : `Venus is not combust, so affection here is expressed openly rather than swallowed${S}`),
+      ? `भावनात्मक तालमेल का मतलब यह नहीं है कि दोनों एक जैसा महसूस करें${S} इसका मतलब है कि दोनों को पता हो कि दूसरा कैसे महसूस करता है${S} अधिकांश ग़लतफ़हमियाँ अलग होने से नहीं, अलग होने की जानकारी न होने से आती हैं${S}`
+      : `Emotional compatibility does not mean two people feel the same way${S} It means each knows how the other feels things${S} Most misunderstandings come not from being different but from not knowing you are${S}`,
     hi
-      ? `${N(v.house)} भाव में शुक्र होने से आपका प्रेम ${P.houseArea(v.house)} से जुड़ा रहेगा${S}`
-      : `Venus in the ${N(v.house)} ties your affections to ${P.houseArea(v.house)}${S}`,
-  ), { data: { venus: v }, placements: f.placements.filter((x) => x.planet === "Venus") });
+      ? `आपके भीतर भावना ${p.attachment.style === "quick" || p.attachment.style === "intense" ? "तेज़ी से उठती है और साफ़ दिखती है" : p.attachment.style === "guarded" ? "धीरे उठती है और देर से दिखती है" : "स्थिर रहती है और कम दिखती है"}${S} ${p.attachment.needsReassurance ? `और उसे समय-समय पर पुष्टि चाहिए होती है${S}` : `और उसे लगातार पुष्टि की ज़रूरत नहीं पड़ती${S}`}`
+      : `Inside you, feeling ${p.attachment.style === "quick" || p.attachment.style === "intense" ? "rises fast and shows plainly" : p.attachment.style === "guarded" ? "rises slowly and shows late" : "stays level and shows little"}${S} ${p.attachment.needsReassurance ? `and it needs periodic confirmation${S}` : `and it does not need constant confirmation${S}`}`,
+    hi
+      ? `अकेलापन आपको रिश्ते के अंदर तब महसूस होता है जब ${p.attachment.needsSpace ? "आपकी जगह पर सवाल उठाया जाए" : p.attachment.opensSlowly ? "आपसे जल्दी खुलने की माँग हो" : "बातचीत रुक जाए"}${S} यह वह क्षण है जिसे पहचानना सीखना है — क्योंकि इसका असली कारण अक्सर वह नहीं होता जो उस वक़्त लगता है${S}`
+      : `Loneliness inside a relationship arrives for you when ${p.attachment.needsSpace ? "your need for room is treated as a problem" : p.attachment.opensSlowly ? "you are pushed to open faster than you can" : "the talking stops"}${S} That is the moment worth learning to recognise, because its real cause is usually not the one it appears to have at the time${S}`
+  ), { placements: [where("Moon")] });
 
-  // ── 6. Mars ────────────────────────────────────────────────────────────────
-  const mars = f.mars;
+  // ── 5. Communication ───────────────────────────────────────────────────────
+  const comm = V.communication(p.communication.style);
   add(5, P.block(
-    hi
-      ? `मंगल आवेग, इच्छा और टकराव का कारक है${S} आपका मंगल ${sg(mars.sign)} में ${N(mars.house)} भाव में, ${dg(mars.dignity)} है${S}`
-      : `Mars carries desire, drive and friction. Yours is in ${sg(mars.sign)} in the ${N(mars.house)} house, ${dg(mars.dignity)}${S}`,
-    [1, 2, 4, 7, 8, 12].includes(mars.house)
-      ? (hi ? `मंगल विवाह-संबंधी भाव में है — इसका विस्तृत परीक्षण अध्याय 15 में है${S}` : `Mars sits in one of the houses that bear on marriage; chapter 15 tests that properly${S}`)
-      : (hi ? `मंगल विवाह के संवेदनशील भावों से बाहर है — यह अपने आप में शुभ संकेत है${S}` : `Mars is clear of the houses that trouble marriage, which is a quiet blessing in itself${S}`),
-  ));
+    `${comm.label}${S}`,
+    comm.body,
+    p.communication.withdrawsInConflict
+      ? (hi
+          ? `बहस में आपका ढर्रा पीछे हटने का है${S} आपके लिए यह हालात को बिगड़ने से रोकना है${S} सामने वाले के लिए यह सज़ा जैसा लगता है — और यही अंतर अधिकांश झगड़ों को उनकी असली लंबाई से दोगुना कर देता है${S}`
+          : `In an argument your instinct is to step back${S} To you that is stopping things getting worse${S} To the other person it reads as punishment — and that single mismatch is what doubles the length of most arguments${S}`)
+      : (hi
+          ? `बहस में आप मैदान में बने रहते हैं${S} यह अच्छी बात है, बशर्ते बात मुद्दे पर रहे और ढंग पर न चली जाए${S}`
+          : `In an argument you stay in the room${S} That is a good thing, as long as it stays about the point and does not become about the delivery${S}`),
+    p.communication.thinksBeforeSpeaking
+      ? (hi
+          ? `आप बोलने से पहले सोचते हैं, इसलिए आपका जवाब देर से आता है${S} इंतज़ार को चुप्पी न समझा जाए, इसके लिए इतना कह देना काफ़ी है कि “मैं सोच रहा/रही हूँ”${S}`
+          : `You think before you speak, so your answer arrives late${S} Saying "I am thinking about it" is enough to stop the wait being mistaken for silence${S}`)
+      : ""
+  ), {
+    placements: [where("Mercury")].filter(Boolean),
+    bullets: [
+      hi ? "असहमति के समय: नतीजे पर तुरंत मत पहुँचिए" : "In a disagreement: do not jump to the conclusion",
+      hi ? "अनुमान की जगह सीधा सवाल पूछिए" : "Ask the specific question instead of assuming the answer",
+      hi ? "हर बहस में पुरानी बातें वापस मत लाइए" : "Do not bring old arguments into the current one",
+      hi ? "चुप्पी को अपने आप अस्वीकार मत समझिए" : "Do not read silence as rejection by default"
+    ]
+  });
 
-  // ── 7. Moon ────────────────────────────────────────────────────────────────
-  const mn = f.moon;
+  // ── 6. Attraction and chemistry ────────────────────────────────────────────
   add(6, P.block(
-    hi
-      ? `विवाह में मन का मेल शरीर के मेल से अधिक टिकाऊ होता है${S} आपका चंद्रमा ${sg(mn.sign)} में ${N(mn.house)} भाव में है — इससे पता चलता है कि आपको किस प्रकार का साथ चाहिए${S}`
-      : `In marriage the meeting of minds outlasts everything else. Your Moon is in ${sg(mn.sign)} in the ${N(mn.house)} house, and that is what tells us the kind of company you actually need${S}`,
-    hi
-      ? `आपका मन ${P.houseArea(mn.house)} में शांति खोजता है${S} जीवनसाथी से आप यही चाहेंगे कि वह इस क्षेत्र को समझे${S}`
-      : `Your mind looks for its peace in ${P.houseArea(mn.house)}. What you will ask of a partner, without ever saying it aloud, is that they understand this${S}`,
-  ));
+    V.chemistry(p.chemistry.level),
+    p.attraction.split
+      ? (hi
+          ? `यहाँ एक बात है जो ध्यान देने लायक़ है${S} पहली नज़र में आपको ${V.draw(p.attraction.first)} खींचता है, पर जिस चीज़ के साथ आप असल में जमते हैं वह ${V.draw(p.attraction.lasting)} है${S} शुक्र ${sg(p.attraction.venusSign)} में है और आपका सप्तम भाव ${sg(p.attraction.seventhSign)} का — दोनों अलग बात कह रहे हैं${S} यही वजह है कि जो लोग शुरू में सबसे रोमांचक लगते हैं, वे लंबे समय में सबसे मुश्किल साबित होते रहे होंगे${S}`
+          : `There is something here worth sitting with${S} What catches your eye first is ${V.draw(p.attraction.first)}, but what you actually settle with is ${V.draw(p.attraction.lasting)}${S} Venus is in ${sg(p.attraction.venusSign)} and your seventh house is ${sg(p.attraction.seventhSign)} — the two are saying different things${S} This is usually why the people who seemed most exciting at the start turned out to be the hardest to stay with${S}`)
+      : (hi
+          ? `आपके साथ यह सीधा है: जो आपको पहले खींचता है — ${V.draw(p.attraction.first)} — वही चीज़ लंबे समय तक चलती भी है${S} शुक्र और सप्तम भाव एक ही बात कह रहे हैं, जो उतना आम नहीं है जितना लगता है${S}`
+          : `With you this is unusually simple: what draws you first — ${V.draw(p.attraction.first)} — is also what lasts${S} Venus and the seventh house are saying the same thing, which is less common than it sounds${S}`),
+    p.chemistry.intensityRisk
+      ? (hi
+          ? `एक सावधानी${S} जिस रफ़्तार से यहाँ आकर्षण बनता है, वह भरोसे की रफ़्तार से तेज़ है${S} इसका मतलब यह नहीं कि यह ग़लत है — बस यह कि बाक़ी चीज़ों को पकड़ने का समय देना होगा${S}`
+          : `One caution${S} Attraction here moves faster than trust does${S} That does not make it wrong — it means the rest has to be given time to catch up${S}`)
+      : ""
+  ), { placements: [where("Venus"), where("Mars")].filter(Boolean) });
 
-  // ── 8. 5th house ───────────────────────────────────────────────────────────
-  const h5 = f.houses5;
+  // ── 7. Friction ────────────────────────────────────────────────────────────
+  const trigParas = p.triggers.map((t) => {
+    const x = V.trigger(t.key);
+    if (!x) return "";
+    const help = V.triggerHelp(t.key);
+    return hi
+      ? `${x.t}${S}\n${x.s}\n${help ? `क्या मदद करेगा: ${help}` : ""}`
+      : `${x.t}${S}\n${x.s}\n${help ? `What helps: ${help}` : ""}`;
+  }).filter(Boolean);
+
   add(7, P.block(
     hi
-      ? `पंचम भाव प्रेम, आकर्षण और प्रेम-संबंध का भाव है — विवाह से पहले की कहानी यहीं लिखी होती है${S} इसका स्वामी ${pl(h5.lord)} ${N(h5.lordHouse)} भाव में है${S}`
-      : `The 5th house is romance, attraction and the courtship that comes before any wedding. Its lord ${pl(h5.lord)} sits in the ${N(h5.lordHouse)} house${S}`,
-    `${P.l2.strength}: ${grade(h5.grade)}`,
-    h5.occupants.length ? (hi ? `पंचम भाव में ${P.planets(h5.occupants)}${S}` : `Occupying the 5th: ${P.planets(h5.occupants)}${S}`) : "",
-  ), { data: { house: 5, judgement: h5 } });
+      ? `हर रिश्ते में टकराव होता है${S} सवाल यह नहीं कि होगा या नहीं, सवाल यह है कि कहाँ से शुरू होगा — और यह कुंडली से पढ़ा जा सकता है${S} नीचे जो लिखा है वह आपकी अपनी प्रवृत्तियाँ हैं, किसी और का व्यवहार नहीं${S}`
+      : `Every relationship has friction${S} The question is not whether, it is where it starts — and that can be read from the chart${S} What follows are your own tendencies, not a forecast of anyone else's behaviour${S}`,
+    ...trigParas
+  ), {
+    advisory: hi
+      ? `इनमें से कोई भी अटल नहीं है${S} एक ढर्रे को नाम दे देना ही उसका आधा असर ख़त्म कर देता है, क्योंकि फिर वह “हम हमेशा लड़ते हैं” नहीं रहता, “यह वाली बात हमें छेड़ देती है” बन जाता है${S}`
+      : `None of these is fixed${S} Naming a pattern removes half its force, because it stops being "we always fight" and becomes "this particular thing sets us off"${S}`,
+    data: { triggers: p.triggers }
+  });
 
-  // ── 9. 2nd house ───────────────────────────────────────────────────────────
-  const h2 = f.houses2;
+  // ── 8. Strengths ───────────────────────────────────────────────────────────
   add(8, P.block(
     hi
-      ? `द्वितीय भाव विवाह के बाद के कुटुंब, संचित धन और वाणी का भाव है${S} विवाह टिकता है या नहीं, यह अक्सर द्वितीय भाव बताता है — क्योंकि यहीं से साथ रहने का दैनिक व्यवहार आता है${S}`
-      : `The 2nd house is the family you build after marriage, the money you keep and the words you use. Whether a marriage lasts is often written here, because this is where daily conduct lives${S}`,
-    `${pl(h2.lord)} — ${sg(h2.lordSign)}, ${N(h2.lordHouse)} ${P.l2.house}, ${dg(h2.lordDignity)}${S}`,
-    `${P.l2.strength}: ${grade(h2.grade)}`,
-  ), { data: { house: 2, judgement: h2 } });
+      ? `रिपोर्ट का यह हिस्सा उतना ही सच है जितना पिछला${S} जो कुंडली सिर्फ़ समस्याएँ गिनाए वह पढ़ने लायक़ नहीं होती, और सच भी नहीं होती${S}`
+      : `This part of the report is as true as the last one${S} A chart reading that only counts problems is neither worth reading nor accurate${S}`,
+    ...p.strengths.map((s) => V.strength(s.key)).filter(Boolean)
+  ), {
+    summary: hi
+      ? `जब कुछ मुश्किल चल रहा हो, यही वे चीज़ें हैं जिन पर वापस लौटा जा सकता है${S}`
+      : `When something is going wrong, these are the things there are to come back to${S}`
+  });
 
-  // ── 10. 8th house ──────────────────────────────────────────────────────────
-  const h8 = f.houses8;
+  // ── 9. Will it last ────────────────────────────────────────────────────────
   add(9, P.block(
     hi
-      ? `अष्टम भाव घनिष्ठता, जीवनसाथी का धन और बंधन की आयु देखता है${S} यह भाव कठिन माना जाता है, किंतु विवाह में यही गहराई भी देता है${S}`
-      : `The 8th house holds intimacy, the partner's resources, and how long the bond endures. It is a difficult house by nature, but in marriage it is also the one that gives depth${S}`,
-    `${pl(h8.lord)} — ${N(h8.lordHouse)} ${P.l2.house}, ${dg(h8.lordDignity)}${S}`,
-    h8.maleficOccupants.length
-      ? (hi ? `${P.planets(h8.maleficOccupants)} अष्टम भाव में — विवाह में धैर्य और खुलकर बात करने की आवश्यकता रहेगी${S}` : `${P.planets(h8.maleficOccupants)} in the 8th asks for patience and for saying things out loud rather than storing them${S}`)
-      : (hi ? `अष्टम भाव में कोई पाप ग्रह नहीं — घनिष्ठता सहज रहेगी${S}` : `No malefic occupies the 8th, so intimacy comes without struggle${S}`),
-  ), { data: { house: 8, judgement: h8 } });
+      ? `यह वह सवाल है जिसके लिए यह रिपोर्ट ख़रीदी जाती है, इसलिए इसका जवाब सीधा दिया जा रहा है${S} लंबी दौड़ में यह कुंडली ${p.longTerm.grade === "supportive" ? "सहयोगी दिखती है" : p.longTerm.grade === "workable" ? "निभने लायक़ दिखती है" : "देखभाल माँगती दिखती है"}${S}`
+      : `This is the question the report gets bought for, so here is the answer plainly${S} Over the long run this chart reads as ${p.longTerm.grade}${S}`,
+    hi
+      ? `यह निर्णय जन्म कुंडली के सप्तम भाव के साथ-साथ नवांश से भी निकला है${S} नवांश ही वह वर्ग है जिसे शास्त्र विवाह के लिए पढ़ता है — मज़बूत सप्तम और कमज़ोर नवांश उस रिश्ते की तस्वीर है जो अच्छा शुरू होकर बाद में खिंचता है, और उल्टा भी उतना ही सच है${S}`
+      : `That judgement comes from the navamsa as well as the seventh house of the birth chart${S} The navamsa is the divisional chart the classics read for marriage — a strong seventh with a weak navamsa is the picture of a relationship that starts well and strains later, and the reverse holds just as much${S}`,
+    p.longTerm.slowStart
+      ? (hi
+          ? `आपकी कुंडली में शनि विवाह भाव को छूता है${S} इसका शास्त्रीय अर्थ अकेलापन नहीं, देरी और भार है — शुरुआती साल ज़्यादा मेहनत माँगते हैं और बाद के साल ज़्यादा स्थिर होते हैं${S} शनि जो देता है देर से देता है, और फिर वापस नहीं लेता${S}`
+          : `Saturn touches the house of marriage in your chart${S} The classical meaning of that is not loneliness but delay and weight — the early years ask more work and the later years are steadier${S} What Saturn gives, it gives late and does not take back${S}`)
+      : "",
+    hi
+      ? `ध्यान रखिए कि यह निश्चितता नहीं है${S} कुंडली प्रवृत्ति बताती है${S} जो लोग इसे निभाते हैं वे वही होते हैं जिन्होंने वही किया जो अगले दो अध्यायों में लिखा है${S}`
+      : `Understand what this is not${S} A chart shows tendency${S} The people it works out for are the ones who did the things in the next two chapters${S}`
+  ), {
+    bullets: p.growth.map((g) => V.growth(g.key)).filter(Boolean),
+    data: { longTerm: p.longTerm }
+  });
 
-  // ── 11. 12th house ─────────────────────────────────────────────────────────
-  const h12 = f.houses12;
+  // ── 10. Love to partnership ────────────────────────────────────────────────
+  const lean = p.marriagePath.lean;
   add(10, P.block(
     hi
-      ? `द्वादश भाव शय्या-सुख, एकांत और निजी जीवन का भाव है${S} शास्त्र इसे विवाह-सुख का सूक्ष्म परीक्षण मानते हैं${S}`
-      : `The 12th house governs the bed, privacy and the life two people share when no one is watching. The classics treat it as the subtler test of marital happiness${S}`,
-    `${pl(h12.lord)} — ${N(h12.lordHouse)} ${P.l2.house}, ${dg(h12.lordDignity)}${S}`,
-    h12.occupants.includes("Venus")
-      ? (hi ? `शुक्र द्वादश भाव में — शास्त्रों में यह शय्या-सुख के लिए उत्तम कहा गया है${S}` : `Venus in the 12th is called excellent for this by the classics — it is one of the few places a "bad" house is a blessing${S}`)
+      ? `प्रेम और विवाह एक ही चीज़ नहीं हैं, और कुंडली दोनों को अलग-अलग पढ़ती है${S} पंचम भाव प्रेम का है, सप्तम भाव साथ निभाने का${S} जिनके ये दोनों जुड़े हों, उनके लिए प्यार ही शादी बन जाता है${S} जिनके अलग हों, उनके लिए ये दो अलग कहानियाँ रहती हैं${S}`
+      : `Love and marriage are not the same thing, and the chart reads them separately${S} The fifth house is romance; the seventh is partnership${S} Where the two are linked, love turns into marriage${S} Where they are not, they stay two different stories${S}`,
+    lean === "love"
+      ? (hi
+          ? `आपकी कुंडली में ये जुड़े हुए हैं${S} शास्त्रीय संकेत प्रेम विवाह की ओर झुकते हैं — यानी जिस व्यक्ति से आप ख़ुद जुड़ेंगे, उसी के साथ बात आगे बढ़ने की संभावना ज़्यादा है${S}`
+          : `In your chart they are linked${S} The classical markers lean towards a love marriage — the person you choose yourself is the more likely route${S}`)
+      : lean === "family-led"
+        ? (hi
+            ? `आपकी कुंडली में ये अपेक्षाकृत अलग हैं${S} संकेत परिवार के ज़रिए तय होने वाले रिश्ते की ओर झुकते हैं, या कम से कम ऐसे रिश्ते की ओर जिसमें परिवार की भूमिका बड़ी रहेगी${S}`
+            : `In your chart they sit relatively apart${S} The markers lean towards a match arrived at through family, or at least one in which family plays a large part${S}`)
+        : (hi
+            ? `आपकी कुंडली इस पर दोनों तरफ़ खुली है${S} न प्रेम विवाह के संकेत प्रबल हैं, न परिवार के ज़रिए तय होने के — व्यवहार में इसका मतलब यह है कि यह फ़ैसला परिस्थिति तय करेगी, कुंडली नहीं${S}`
+            : `Your chart is open both ways${S} Neither the love-marriage markers nor the family-led ones are strong — which in practice means circumstance will decide this, not the chart${S}`),
+    p.marriagePath.familyInvolved
+      ? (hi
+          ? `एक बात और${S} आपके द्वितीय और चतुर्थ भाव की स्थिति बताती है कि परिवार इस फ़ैसले में मौजूद रहेगा — विरोध के रूप में ज़रूरी नहीं, पर मौजूद${S} इसे पहले से मान लेना बाद की बहुत सारी बहस बचा देता है${S}`
+          : `One more thing${S} Your second and fourth houses say family will be present in this decision — not necessarily as opposition, but present${S} Accepting that in advance saves a great deal of argument later${S}`)
       : "",
-  ), { data: { house: 12, judgement: h12 } });
+    hi
+      ? `शादी के बाद का जीवन द्वितीय भाव से पढ़ा जाता है${S} आपके यहाँ यह ${f.houses2?.judgement?.grade === "strong" ? "मज़बूत है — घर और ससुराल सहारा बनने की ओर झुके हैं" : f.houses2?.judgement?.grade === "weak" ? "दबाव में है — घरेलू व्यवस्था और पैसा वे जगहें हैं जहाँ ध्यान देना होगा" : "मिला-जुला है — कुछ चीज़ें आसानी से बैठेंगी, कुछ पर काम करना होगा"}${S}`
+      : `Life after marriage is read from the second house${S} In your chart it is ${f.houses2?.judgement?.grade === "strong" ? "strong — household and in-laws lean towards being a support" : f.houses2?.judgement?.grade === "weak" ? "under pressure — household arrangements and money are where the attention will be needed" : "mixed — some of it will settle easily and some will need work"}${S}`
+  ), { data: { marriagePath: p.marriagePath } });
 
-  // ── 12. Navamsa ────────────────────────────────────────────────────────────
-  const d9 = f.navamsa;
+  // ── 11. Timing ─────────────────────────────────────────────────────────────
+  const windows = (f.timing?.windows || []).slice(0, 4);
+  const fmt = (iso) => {
+    const dt = new Date(iso);
+    return Number.isNaN(dt.getTime()) ? "" : `${dt.getFullYear()}`;
+  };
+  const WHY = {
+    en: { occupies7: "the period lord sits in your house of partnership",
+          lords7: "the period lord rules your house of partnership",
+          venusPeriod: "a Venus period, classically the one that ripens marriage",
+          aspects7: "the period lord aspects your house of partnership" },
+    hi: { occupies7: "इस दशा का स्वामी आपके सप्तम भाव में बैठा है",
+          lords7: "इस दशा का स्वामी आपके सप्तम भाव का स्वामी है",
+          venusPeriod: "शुक्र की दशा, जिसे शास्त्र विवाह पकाने वाली दशा मानता है",
+          aspects7: "इस दशा का स्वामी सप्तम भाव को देखता है" }
+  };
+
   add(11, P.block(
     hi
-      ? `नवांश (D9) विवाह की कुंडली है${S} जन्म कुंडली वादा करती है, नवांश बताता है कि वह वादा निभेगा या नहीं${S} आपका नवांश लग्न ${sg(d9.lagnaSign)} है${S}`
-      : `The navamsa is the chart of marriage. The birth chart makes the promise; the navamsa says whether it is kept. Your navamsa Lagna is ${sg(d9.lagnaSign)}${S}`,
-    P.ul((d9.placements || []).slice(0, 9).map((p) => `${pl(p.planet)} — ${sg(p.sign)}`)),
-  ), { data: { navamsa: d9 }, placements: d9.placements });
+      ? `यह अध्याय सबसे ज़्यादा माँगा जाता है और इसे सबसे ज़्यादा सावधानी से पढ़ना चाहिए${S} दशाएँ समय की गणना हैं — वे बताती हैं कि कौन-सा दौर किस विषय को आगे लाता है${S} वे तारीख़ नहीं बतातीं, और जो कोई तारीख़ बताए उससे सावधान रहिए${S}`
+      : `This is the most asked-for chapter and the one to read most carefully${S} Dasha periods are a computation of time — they say which stretch of life brings which subject forward${S} They do not name a date, and anyone who names one should be treated with suspicion${S}`,
+    ...windows.map((w) => {
+      const why = (WHY[L] || WHY.en)[w.why] || w.why;
+      return hi
+        ? `${pl(w.lord)} की दशा, ${fmt(w.start)}–${fmt(w.end)} — ${why}${S}`
+        : `${pl(w.lord)} period, ${fmt(w.start)}–${fmt(w.end)} — ${why}${S}`;
+    }),
+    hi
+      ? `इन दौरों में जो होता है वह “शादी हो जाना” नहीं है${S} जो होता है वह यह है कि विषय सामने आ जाता है — मुलाक़ात, बातचीत, फ़ैसला, या वह स्पष्टता जो पहले नहीं थी${S}`
+      : `What happens in these windows is not "marriage happens"${S} What happens is that the subject comes forward — a meeting, a conversation, a decision, or a clarity that was not there before${S}`
+  ), {
+    data: { windows },
+    advisory: hi
+      ? `किसी दशा को शुभ या अशुभ मानकर फ़ैसले टालिए मत${S} इनका उपयोग तैयारी के लिए है, इंतज़ार के लिए नहीं${S}`
+      : `Do not postpone decisions because a period looks unfavourable${S} These are for preparation, not for waiting${S}`
+  });
 
-  // ── 13. Venus in navamsa ───────────────────────────────────────────────────
-  const vD9 = (d9.placements || []).find((p) => p.planet === "Venus");
+  // ── 12. Practical guidance ─────────────────────────────────────────────────
+  const doList = [];
+  if (p.expression.withheld || p.expression.mode === "practical")
+    doList.push(hi ? "महीने में एक बार वह बात कह दीजिए जो आप आमतौर पर करके दिखाते हैं" : "Once a month, say the thing you would normally show by doing");
+  if (p.communication.withdrawsInConflict)
+    doList.push(hi ? "हटने से पहले यह कहिए कि आप लौटेंगे, और कब" : "Before withdrawing, say that you will come back, and when");
+  if (p.attachment.needsReassurance)
+    doList.push(hi ? "हफ़्ते में एक तय समय रखिए जब रिश्ते पर ही बात हो" : "Keep one fixed time a week to talk about the relationship itself");
+  if (p.attraction.split)
+    doList.push(hi ? "जिस व्यक्ति की ओर आप खिंच रहे हैं, उससे पूछिए कि क्या वह वही है जिसके साथ आप रहना चाहते हैं" : "Ask whether the person you are drawn to is the person you want to live with");
+  if (p.chemistry.level === "immediate")
+    doList.push(hi ? "बड़े फ़ैसले तीन महीने बाद कीजिए, तीन हफ़्ते बाद नहीं" : "Make the big decisions at three months, not at three weeks");
+  doList.push(hi ? "जो अपेक्षा कभी बोली नहीं गई, उसे इस हफ़्ते बोल दीजिए" : "Say the one expectation that has never been said out loud");
+
   add(12, P.block(
     hi
-      ? `नवांश में शुक्र ${sg(vD9?.sign)} में है${S} जन्म कुंडली में शुक्र ${sg(v.sign)} में था — दोनों को साथ पढ़ने से प्रेम का वास्तविक स्वरूप सामने आता है${S}`
-      : `In the navamsa your Venus falls in ${sg(vD9?.sign)}, where in the birth chart it stood in ${sg(v.sign)}. Read together, the two say what your affection is actually made of${S}`,
-    vD9 && vD9.sign === v.sign
-      ? (hi ? `दोनों कुंडलियों में एक ही राशि — इसे वर्गोत्तम कहते हैं और यह शुक्र को अत्यंत बलवान बनाता है${S}` : `The same sign in both charts is called vargottama, and it makes Venus unusually strong — what you feel and what you show are the same thing${S}`)
-      : (hi ? `दोनों भिन्न हैं — जो आप दिखाते हैं और जो भीतर अनुभव करते हैं, उनमें अंतर रहता है${S}` : `The two differ, so what you show in affection and what you feel underneath are not quite the same${S}`),
-  ));
+      ? `कुंडली बताती है कि क्या है${S} यह अध्याय बताता है कि उसके साथ करना क्या है${S} नीचे की बातें आपकी अपनी स्थितियों से निकली हैं, सामान्य सलाह नहीं हैं${S}`
+      : `The chart says what is${S} This chapter is what to do about it${S} What follows comes from your own placements, not from general advice${S}`
+  ), {
+    bullets: doList,
+    summary: hi
+      ? `प्रतिबद्धता से पहले पूछने लायक़ सवाल${S}`
+      : `Questions worth asking before committing${S}`,
+    advisory: (hi
+      ? [`हम भविष्य को किस समय-सीमा में देखते हैं?`,
+         `टकराव के समय हमें जगह चाहिए या बातचीत?`,
+         `परिवार की भागीदारी की हमारी सीमाएँ क्या हैं?`,
+         `पैसा और ज़िम्मेदारी कैसे सँभालेंगे?`,
+         `क्या हम एक-दूसरे के अपने लक्ष्यों का साथ देंगे?`]
+      : [`What timeline do we each picture for the future?`,
+         `In conflict, do we need space or conversation?`,
+         `What are our boundaries around family involvement?`,
+         `How will we handle money and responsibility?`,
+         `Will we support each other's separate goals?`]).join("\n")
+  });
 
-  // ── 14. 7th lord in navamsa ────────────────────────────────────────────────
-  const l7D9 = (d9.placements || []).find((p) => p.planet === h7.lord);
+  // ── 13. The letter ─────────────────────────────────────────────────────────
   add(13, P.block(
     hi
-      ? `सप्तमेश ${pl(h7.lord)} नवांश में ${sg(l7D9?.sign)} में है${S} यही स्थिति बताती है कि विवाह का वादा कितना टिकाऊ है${S}`
-      : `Your 7th lord ${pl(h7.lord)} falls in ${sg(l7D9?.sign)} in the navamsa. This placement, more than any other, says how durable the promise of marriage is${S}`,
-    l7D9 && l7D9.sign === h7.lordSign
-      ? (hi ? `सप्तमेश वर्गोत्तम है — विवाह का वादा दृढ़ है${S}` : `The 7th lord is vargottama: the promise holds${S}`)
-      : "",
+      ? `आपके लिए प्रेम सिर्फ़ आकर्षण नहीं है${S} ${p.attachment.needsReassurance ? "आपके लिए यह यह जानना भी है कि आप जिस ज़मीन पर खड़े हैं वह कल भी वहीं रहेगी" : p.attachment.opensSlowly ? "आपके लिए यह वह भरोसा है जो समय देकर कमाया जाता है" : "आपके लिए यह वह साथ है जो रोज़ के छोटे कामों में दिखता है"}${S}`
+      : `Love, for you, is not only attraction${S} ${p.attachment.needsReassurance ? "It is also knowing that the ground you are standing on will still be there tomorrow" : p.attachment.opensSlowly ? "It is the trust that gets earned by time" : "It is the companionship that shows up in the small daily things"}${S}`,
+    hi
+      ? `इसलिए किसी रिश्ते में आगे बढ़ने से पहले यह देखना ज़रूरी है कि सामने वाला सिर्फ़ आपकी ख़ुशी में नहीं, आपकी अनिश्चितता में भी आपके साथ खड़ा रहता है या नहीं${S} जो लोग अच्छे दिनों में साथ होते हैं वे बहुत मिलते हैं${S} फ़र्क़ बुरे हफ़्ते में पता चलता है${S}`
+      : `So before going further with anyone, the thing worth watching is whether they stay with you in your uncertainty and not only in your happiness${S} People who are present on the good days are common${S} The difference shows up in a bad week${S}`,
+    hi
+      ? `और एक बात जो कुंडली नहीं बता सकती, पर कहनी ज़रूरी है${S} यहाँ जो लिखा है वह प्रवृत्ति है, फ़ैसला नहीं${S} जिन लोगों की कुंडली में सब कुछ अनुकूल था और जिन्होंने ध्यान नहीं दिया, उनके रिश्ते टूटे हैं${S} और जिनकी कुंडली कठिन थी और जिन्होंने ईमानदारी से काम किया, उनके निभे हैं${S} कुंडली आपको वह जानकारी देती है जो दूसरों के पास नहीं होती${S} उसका क्या करना है, यह आपके हाथ में है${S}`
+      : `And one thing the chart cannot tell you, which needs saying anyway${S} What is written here is tendency, not verdict${S} Relationships have ended between people whose charts were entirely favourable and who did not pay attention${S} And they have lasted between people whose charts were difficult and who did the work honestly${S} A chart gives you information other people do not have${S} What you do with it is yours${S}`
   ));
 
-  // ── 15. Manglik ────────────────────────────────────────────────────────────
-  const mg = f.manglik;
-  const mgVerdict = !mg.detected ? P.l2.absent : mg.severity === "cancelled" ? P.l2.cancelled : P.l2.present;
+  // ── 14. The chart, as evidence ─────────────────────────────────────────────
+  const seventh = f.houses7?.judgement || {};
   add(14, P.block(
     hi
-      ? `मांगलिक दोष तब बनता है जब मंगल लग्न, चंद्र या शुक्र से 1, 2, 4, 7, 8 या 12वें भाव में हो${S} आपकी कुंडली में मंगल ${N(mg.houseFromLagna)} भाव में ${sg(mg.sign)} राशि में है${S}`
-      : `Manglik dosha is raised when Mars occupies the 1st, 2nd, 4th, 7th, 8th or 12th from the Lagna, the Moon or Venus. In your chart Mars is in the ${N(mg.houseFromLagna)} house in ${sg(mg.sign)}${S}`,
-    `${P.l2.verdict}: ${mgVerdict}${S}`,
-    mg.detected
-      ? (hi ? `किन-किन से बना: ${mg.from.map((x) => (x === "lagna" ? "लग्न" : x === "moon" ? "चंद्र" : "शुक्र")).join(", ")}${S}`
-        : `Raised from: ${mg.from.map((x) => (x === "lagna" ? "the Lagna" : x === "moon" ? "the Moon" : "Venus")).join(", ")}${S}`)
-      : (hi ? `किसी भी संदर्भ से यह दोष नहीं बनता — इस विषय की चिंता छोड़ दीजिए${S}` : `It is not raised from any of the three references. You may set this worry down${S}`),
-    // Only meaningful when the dosha was raised in the first place — listing
-    // cancellations under a "Not present" verdict reads as a contradiction.
-    mg.detected && mg.cancellations.length
-      ? (hi ? `भंग के कारण: ${mg.cancellations.length}${S} शास्त्र कहते हैं कि दो या अधिक भंग होने पर यह दोष प्रभावहीन हो जाता है${S}`
-        : `Cancellations found: ${mg.cancellations.length}. The classics hold that two or more cancellations render the dosha inoperative${S}`)
-      : "",
-  ), { data: { manglik: mg }, advisory: mg.detected && mg.severity !== "cancelled"
-    ? (hi ? `विवाह से पूर्व मंगल के सामान्य उपाय करें — अध्याय 23 देखें${S}` : `Take the ordinary Mars remedies before marriage — chapter 23 lists them${S}`)
-    : undefined });
-
-  // ── 16. Other doshas ───────────────────────────────────────────────────────
-  const otherIssues = [];
-  if (h7.maleficOccupants.length) otherIssues.push(hi ? `सप्तम भाव में ${P.planets(h7.maleficOccupants)}` : `${P.planets(h7.maleficOccupants)} in the 7th`);
-  if (h7.lordCombust) otherIssues.push(hi ? "सप्तमेश अस्त" : "the 7th lord combust");
-  if (v.combust) otherIssues.push(hi ? "शुक्र अस्त" : "Venus combust");
-  if (f.sadeSati?.active) otherIssues.push(hi ? "साढ़े साती चल रही है" : "Sade Sati running");
-  add(15, P.block(
+      ? `ऊपर की हर बात इन्हीं स्थितियों से निकली है${S} यह अध्याय पाठ नहीं है, प्रमाण है — ताकि आप या आपके ज्योतिषी हर निर्णय को जाँच सकें${S}`
+      : `Everything above was derived from these placements${S} This chapter is not the reading, it is the evidence — so that you, or your own astrologer, can check any judgement in it${S}`,
     hi
-      ? `मांगलिक के अतिरिक्त और कौन-सी स्थितियाँ विवाह को प्रभावित करती हैं, यह यहाँ देखा गया है${S}`
-      : `Beyond manglik, these are the conditions in your chart that bear on marriage${S}`,
-    otherIssues.length ? P.ul(otherIssues) : (hi ? `कोई अन्य दोष नहीं मिला${S}` : `Nothing else of concern was found${S}`),
-  ), { data: { issues: otherIssues.length } });
-
-  // ── 17. Timing ─────────────────────────────────────────────────────────────
-  const tm = f.timing;
-  add(16, P.block(
+      ? `सप्तम भाव ${sg(f.houses.find((h) => h.house === 7)?.sign)} का है, स्वामी ${pl(seventh.lord)} — ${seventh.occupants?.length ? `भाव में ${seventh.occupants.map(pl).join(", ")}` : "भाव रिक्त"}${seventh.aspects?.length ? `, दृष्टि ${seventh.aspects.map(pl).join(", ")}` : ""}${S}`
+      : `The seventh house is ${sg(f.houses.find((h) => h.house === 7)?.sign)}, its lord ${pl(seventh.lord)} — ${seventh.occupants?.length ? `occupied by ${seventh.occupants.map(pl).join(", ")}` : "unoccupied"}${seventh.aspects?.length ? `, aspected by ${seventh.aspects.map(pl).join(", ")}` : ""}${S}`,
     hi
-      ? `विवाह उस दशा में फलित होता है जो सप्तम भाव, सप्तमेश या शुक्र को सक्रिय करे${S} आपकी कुंडली में ये ग्रह हैं: ${P.planets(tm.activators)}${S}`
-      : `Marriage ripens in a period that activates the 7th house, its lord, or Venus. In your chart those are: ${P.planets(tm.activators)}${S}`,
-    tm.windows.length
-      ? P.ul(tm.windows.map((w) => `${pl(w.lord)} — ${P.fmtDate(w.start)} ${hi ? "से" : "to"} ${P.fmtDate(w.end)}`))
-      : (hi ? `उपलब्ध दशा-क्रम में इनमें से कोई अवधि नहीं मिली${S}` : `No such window falls inside the computed dasha sequence${S}`),
-    hi ? `वर्तमान दशा: ${pl(f.dasha.maha)}–${pl(f.dasha.antar)}${S}` : `Currently running: ${pl(f.dasha.maha)}–${pl(f.dasha.antar)}${S}`,
-  ), { data: { windows: tm.windows } });
-
-  // ── 18. Transits ───────────────────────────────────────────────────────────
-  add(17, P.block(
-    hi
-      ? `गोचर दशा का समर्थन करता है, उसे बदलता नहीं${S} इस समय आपके विवाह भावों पर ये ग्रह गोचर कर रहे हैं${S}`
-      : `Transits support what the dasha has already promised; they do not overrule it. These are the transits now touching your houses of marriage${S}`,
-    P.ul((f.transits || []).filter((t) => [7, 5, 2, 8].includes(t.house)).slice(0, 6)
-      .map((t) => `${pl(t.planet)} — ${sg(t.sign)}, ${N(t.house)} ${P.l2.house}`)),
-    f.sadeSati?.active
-      ? (hi ? `साढ़े साती चल रही है — निर्णय धीरे और सोच-समझकर लें${S}` : `Sade Sati is running: take decisions slowly, and take advice${S}`)
-      : "",
-  ));
-
-  // ── 19. Partner ────────────────────────────────────────────────────────────
-  add(18, P.block(
-    hi
-      ? `सप्तम भाव में स्थित ग्रह, अथवा उसका अभाव होने पर सप्तमेश, जीवनसाथी का स्वरूप बताता है${S} आपके लिए यह ${pl(f.partnerPlanet)} है — अर्थात् ${P.partnerBy(f.partnerPlanet)}${S}`
-      : `The planet in the 7th — or, when it is empty, its lord — describes the partner. For you that is ${pl(f.partnerPlanet)}: ${P.partnerBy(f.partnerPlanet)}${S}`,
-    hi
-      ? `दिशा: ${P.direction(f.partnerPlanet)} — शास्त्र कहते हैं कि जीवनसाथी इसी दिशा से आता है${S}`
-      : `Direction: ${P.direction(f.partnerPlanet)}. The classics hold that the partner comes from this direction relative to your birthplace${S}`,
-  ), { data: { partnerPlanet: f.partnerPlanet } });
-
-  // ── 20. Love or arranged ───────────────────────────────────────────────────
-  const loveSignals = [
-    h5.occupants.includes("Venus"), [5, 7, 11].includes(v.house),
-    (f.chart.aspectsOnHouse[7] || []).includes("Venus"),
-    h5.lordHouse === 7 || h7.lordHouse === 5,
-  ].filter(Boolean).length;
-  add(19, P.block(
-    hi
-      ? `पंचम (प्रेम) और सप्तम (विवाह) भावों के बीच संबंध जितना गहरा हो, प्रेम-विवाह की संभावना उतनी अधिक${S}`
-      : `The closer the link between the 5th house (love) and the 7th (marriage), the more the chart leans towards a love match${S}`,
-    loveSignals >= 2
-      ? (hi ? `आपकी कुंडली में ${loveSignals} ऐसे संकेत मिले — प्रेम-विवाह का योग स्पष्ट है${S}` : `Your chart shows ${loveSignals} such links, so a love match is clearly indicated${S}`)
-      : loveSignals === 1
-        ? (hi ? `एक संकेत मिला — दोनों संभव हैं, परिचय किसी परिचित के माध्यम से हो सकता है${S}` : `One such link is present: either route is open, and an introduction through someone known is likely${S}`)
-        : (hi ? `कोई सीधा संकेत नहीं — परिवार द्वारा तय विवाह की ओर झुकाव है${S}` : `No direct link is present, so the chart leans towards an arranged match${S}`),
-  ), { data: { loveSignals } });
-
-  // ── 21. Strengths ──────────────────────────────────────────────────────────
-  const strengths = [];
-  if (h7.grade === "strong") strengths.push(hi ? "सप्तम भाव बलवान है" : "the 7th house itself is strong");
-  if (!v.combust) strengths.push(hi ? "शुक्र अस्त नहीं है" : "Venus is unburnt and free to give");
-  if (h7.goodAspects.length) strengths.push(hi ? `सप्तम भाव पर ${P.planets(h7.goodAspects)} की शुभ दृष्टि` : `${P.planets(h7.goodAspects)} watches over the 7th`);
-  if (!mg.detected || mg.severity === "cancelled") strengths.push(hi ? "मांगलिक दोष प्रभावी नहीं" : "manglik is not operative");
-  if (h2.grade !== "weak") strengths.push(hi ? "कुटुंब भाव स्थिर है" : "the family house is steady");
-  add(20, P.block(
-    hi ? `हर कुंडली में कुछ ऐसा होता है जिस पर विवाह टिकता है${S} आपकी कुंडली में ये हैं${S}` : `Every chart has something the marriage can rest on. In yours, these${S}`,
-  ), { bullets: strengths.length ? strengths : [hi ? "सप्तमेश अपना कार्य कर रहा है" : "the 7th lord is doing its work"] });
-
-  // ── 22. Friction ───────────────────────────────────────────────────────────
-  const frictions = [];
-  if (h7.maleficOccupants.length) frictions.push(hi ? `सप्तम भाव में ${P.planets(h7.maleficOccupants)} — मतभेद खुलकर सामने आएँगे` : `${P.planets(h7.maleficOccupants)} in the 7th: disagreements will be out in the open, not hidden`);
-  if (v.combust) frictions.push(hi ? "शुक्र अस्त — भावनाएँ कही नहीं जातीं" : "Venus combust: affection gets felt but not said");
-  if (h7.lordDignity === "debilitated") frictions.push(hi ? "सप्तमेश नीच का — अपेक्षाएँ पूरी होने में देर" : "the 7th lord is debilitated: expectations take longer to be met");
-  if (mg.detected && mg.severity === "strong") frictions.push(hi ? "मांगलिक दोष प्रबल — क्रोध पर संयम आवश्यक" : "manglik is strongly raised: temper needs managing");
-  if (h8.maleficOccupants.length) frictions.push(hi ? "अष्टम भाव में पाप ग्रह — घनिष्ठता में धैर्य चाहिए" : "malefics in the 8th: intimacy needs patience");
-  add(21, P.block(
-    hi ? `जिस बात को पहले से जान लिया जाए, वह आधी सुलझ जाती है${S}` : `A difficulty seen in advance is half resolved. These are yours${S}`,
-  ), { bullets: frictions.length ? frictions : [hi ? "कोई बड़ा टकराव-बिंदु नहीं मिला" : "no major point of friction was found"] });
-
-  // ── 23. Remedies ───────────────────────────────────────────────────────────
-  const remedyPlanet = mg.detected && mg.severity !== "cancelled" ? "Mars" : v.combust ? "Venus" : h7.lord;
-  const R = P.remedy(remedyPlanet);
-  add(22, P.block(
-    hi
-      ? `उपाय उसी ग्रह का किया जाता है जो सुधार चाहता है${S} आपकी कुंडली में वह ${pl(remedyPlanet)} है${S}`
-      : `A remedy is done for the graha that needs help, not for all nine. In your chart that is ${pl(remedyPlanet)}${S}`,
-    R ? P.ul([R.act, R.day && `${P.head("day") || "Day"}: ${R.day}`, R.donate].filter(Boolean)) : "",
-    hi
-      ? `साथ ही: गुरुवार को पीली वस्तु का दान और शुक्रवार को श्वेत वस्तु का दान विवाह-सुख के सामान्य उपाय हैं${S}`
-      : `Alongside: a yellow offering on Thursday and a white one on Friday are the ordinary remedies for marital happiness${S}`,
-  ), { data: { remedyPlanet } });
-
-  // ── 24. How to use ─────────────────────────────────────────────────────────
-  add(23, P.block(
-    hi
-      ? `यह रिपोर्ट भविष्यवाणी नहीं, दिशा है${S} अध्याय 15 और 16 के निर्णय अंतिम हैं — उन्हें दोबारा किसी से पूछने की आवश्यकता नहीं${S}`
-      : `This report is a direction, not a prophecy. The verdicts in chapters 15 and 16 are settled — you do not need to have them checked again${S}`,
-    hi
-      ? `अध्याय 17 की अवधियों को ध्यान में रखें, अध्याय 22 की बातों पर पहले से काम करें, और अध्याय 23 का उपाय कम से कम 43 दिन तक निभाएँ${S}`
-      : `Keep the windows in chapter 17 in mind, work on chapter 22 before it becomes a problem, and hold the remedy in chapter 23 for at least forty-three days${S}`,
-    hi
-      ? `किसी भी बात पर संदेह हो तो हमें WhatsApp पर लिखें — आचार्य आपकी कुंडली देखकर उत्तर देंगे${S}`
-      : `If anything here is unclear, message us on WhatsApp and an acharya will answer with your chart in front of them${S}`,
-  ));
+      ? `नवांश लग्न ${sg(f.navamsa?.lagnaSign)}${(f.navamsa?.vargottama || []).length ? `, वर्गोत्तम: ${(f.navamsa.vargottama).map(pl).join(", ")}` : ""}${S}`
+      : `Navamsa ascendant ${sg(f.navamsa?.lagnaSign)}${(f.navamsa?.vargottama || []).length ? `, vargottama: ${(f.navamsa.vargottama).map(pl).join(", ")}` : ""}${S}`,
+    f.manglik?.detected
+      ? (hi
+          ? `मंगल दोष: उपस्थित (${f.manglik.from.join(", ")} से, ${f.manglik.severity})${(f.manglik.cancellations || []).length ? `, परिहार: ${f.manglik.cancellations.join(", ")}` : ", कोई शास्त्रीय परिहार नहीं"}${S}`
+          : `Manglik dosha: present (from ${f.manglik.from.join(", ")}, ${f.manglik.severity})${(f.manglik.cancellations || []).length ? `, cancellation: ${f.manglik.cancellations.join(", ")}` : ", no classical cancellation"}${S}`)
+      : (hi ? `मंगल दोष: अनुपस्थित${S}` : `Manglik dosha: absent${S}`)
+  ), {
+    placements: ["Venus", "Mars", "Moon", "Mercury", "Jupiter", "Saturn"].map(where).filter(Boolean),
+    bullets: [
+      hi ? `पंचम भाव: ${f.houses5?.judgement?.grade || "—"}` : `Fifth house: ${f.houses5?.judgement?.grade || "—"}`,
+      hi ? `सप्तम भाव: ${seventh.grade || "—"}` : `Seventh house: ${seventh.grade || "—"}`,
+      hi ? `द्वितीय भाव: ${f.houses2?.judgement?.grade || "—"}` : `Second house: ${f.houses2?.judgement?.grade || "—"}`,
+      hi ? `अष्टम भाव: ${f.houses8?.judgement?.grade || "—"}` : `Eighth house: ${f.houses8?.judgement?.grade || "—"}`,
+      hi ? `द्वादश भाव: ${f.houses12?.judgement?.grade || "—"}` : `Twelfth house: ${f.houses12?.judgement?.grade || "—"}`
+    ]
+  });
 
   return sec;
 }
