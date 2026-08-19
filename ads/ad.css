@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap');
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#7a7a7a}
+.ad{
+  position:relative;overflow:hidden;color:#F5F1E8;
+  background:#0E0C0A;
+  font-family:'Noto Sans Devanagari',Inter,sans-serif;
+  display:flex;flex-direction:column;
+}
+/* warm light from the top-left, like a lamp on a desk */
+.ad::before{content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(900px 620px at 8% -8%, rgba(201,162,39,.30), transparent 62%),
+    radial-gradient(700px 520px at 108% 6%, rgba(155,34,38,.20), transparent 60%);}
+.ad>*{position:relative}
+
+.brand{display:flex;align-items:baseline;gap:.5rem}
+.brand .en{font-family:Fraunces,serif;font-weight:700;color:#fff;letter-spacing:-.01em}
+.brand .hi{color:#E8CE92}
+
+.eyebrow{display:inline-flex;align-items:center;gap:.5rem;
+  border:1px solid rgba(232,206,146,.45);color:#E8CE92;
+  border-radius:999px;font-weight:700;letter-spacing:.02em}
+.eyebrow .dot{width:.42em;height:.42em;border-radius:99px;background:#E8CE92}
+
+h1{font-weight:700;line-height:1.1;letter-spacing:-.015em;color:#fff}
+h1 em{font-style:normal;color:#E8CE92}
+.sub{color:#C6BEAE;line-height:1.5}
+
+.covers{display:flex;justify-content:center;align-items:flex-end}
+.covers img{
+  border-radius:6px;display:block;
+  box-shadow:0 28px 60px -20px rgba(0,0,0,.85), 0 0 0 1px rgba(255,255,255,.10);
+  background:#fff;
+}
+.covers img.side{opacity:.92}
+
+.facts{display:flex;gap:0}
+.fact{flex:1;text-align:center}
+.fact b{display:block;font-family:Fraunces,serif;color:#E8CE92;line-height:1}
+.fact span{display:block;color:#A79E8C}
+.sep{width:1px;background:rgba(255,255,255,.14)}
+
+.cta{display:flex;align-items:center;gap:.75rem;background:#E8CE92;color:#14100A;
+  border-radius:999px;font-weight:700;width:fit-content}
+.code{background:#14100A;color:#E8CE92;border-radius:999px;font-weight:700;letter-spacing:.14em}
+
+.foot{color:#8A8272;line-height:1.45}

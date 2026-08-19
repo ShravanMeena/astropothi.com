@@ -1,0 +1,55 @@
+{
+  "name": "pothi-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Pothi \u2014 white-label astrology reports for pandits. API + report engine.",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "nodemon bin/www.js",
+    "start": "node bin/www.js",
+    "render": "node scripts/render_local.js",
+    "verify:engine": "node scripts/verify_engine.js",
+    "test:credits": "bash scripts/test_credits.sh",
+    "test:content": "node scripts/test_content_integrity.js",
+    "test:layout": "node scripts/test_layout_clearance.js",
+    "test": "npm run test:layout && npm run test:content && npm run test:credits && npm run test:pilot && npm run test:shop && npm run test:payments && npm run test:whatsapp && npm run audit:reports && npm run test:admin && node scripts/audit_astro_sanity.js && node scripts/audit_report_text.js --budget && node scripts/audit_data_driven.js --budget",
+    "audit:data": "node scripts/audit_data_driven.js",
+    "test:pilot": "bash scripts/test_pilot.sh",
+    "audit:text": "node scripts/audit_report_text.js",
+    "audit:astro": "node scripts/audit_astro_sanity.js",
+    "test:loop": "bash scripts/loop_check.sh 8",
+    "test:shop": "bash scripts/test_shop.sh",
+    "migrate": "node scripts/ensure_consumer_reports.js",
+    "test:payments": "node scripts/test_payments.js",
+    "test:admin": "node scripts/test_admin.js",
+    "covers": "node scripts/build_web_covers.js",
+    "audit:reports": "node scripts/audit_kundli_dosh.js",
+    "test:whatsapp": "MSG91_AUTH_KEY= node scripts/test_whatsapp.js",
+    "whatsapp:test-send": "node scripts/send_test_whatsapp.js"
+  },
+  "dependencies": {
+    "astronomy-engine": "^2.1.19",
+    "await-to-js": "^3.0.0",
+    "axios": "^1.15.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "^4.21.2",
+    "helmet": "^7.0.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "pdfkit": "^0.19.1",
+    "pg": "^8.11.3",
+    "pg-hstore": "^2.3.4",
+    "razorpay": "^2.9.2",
+    "sequelize": "^6.37.8",
+    "tz-lookup": "^6.1.25",
+    "uuid": "^14.0.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.11"
+  }
+}

@@ -1,0 +1,443 @@
+// The detail screens: who bought, what was made, what broke.
+//
+// Everything here is read-only except four deliberate writes — suspend a user,
+// suspend a pandit, grant/revoke a pilot seat, and retry a failed order — and
+// each of those is narrow on purpose. In particular there is no "mark as paid":
+// payment state belongs to the webhook, and a button that forged it would make
+// every revenue figure in metrics.service a guess.
+
+import { Op } from "sequelize";
+import db from "../../database/index.js";
+import config from "../../config.js";
+import { REPORT_TYPES, CONSUMER_PRICES, PACKS } from "../catalog/catalog.js";
+import * as Shop from "../shop/shop.service.js";
+import * as Pilot from "../pilot/pilot.service.js";
+import { PAID_STATES } from "./metrics.service.js";
+
+const Q = db.Sequelize.QueryTypes.SELECT;
+const sql = (text, replacements = {}) => db.sequelize.query(text, { replacements, type: Q });
+const clamp = (n, d, max = 200) => Math.max(1, Math.min(max, Number(n) || d));
+const typeName = (code) => REPORT_TYPES.find((t) => t.code === code)?.name_en || code;
+
+// A free-text box that searches phone, name, email and id at once. `q` is always
+// bound as a replacement — never interpolated — so a search for "'" is a search,
+// not a syntax error or an injection.
+const like = (q) => `%${String(q || "").trim()}%`;
+
+// ── Orders ───────────────────────────────────────────────────────────────────
+
+export async function listOrders({ status, q, limit = 50, offset = 0 } = {}) {
+  const where = { };
+  if (status && status !== "all") where.status = status;
+  if (String(q || "").trim()) {
+    const term = like(q);
+    where[Op.or] = [
+      { public_id:   { [Op.iLike]: term } },
+      { buyer_phone: { [Op.iLike]: term } },
+      { buyer_name:  { [Op.iLike]: term } },
+      { buyer_email: { [Op.iLike]: term } },
+      { invoice_no:  { [Op.iLike]: term } }
+    ];
+  }
+  const { rows, count } = await db.Order.findAndCountAll({
+    where,
+    order: [["createdAt", "DESC"]],
+    limit: clamp(limit, 50), offset: Math.max(0, Number(offset) || 0)
+  });
+  return { total: count, orders: rows.map(orderRow) };
+}
+
+function orderRow(o) {
+  return {
+    public_id: o.public_id,
+    status: o.status,
+    // Whether the money arrived, stated once here so no screen has to re-derive
+    // it from the status enum and get `failed` wrong.
+    paid: PAID_STATES.includes(o.status) || o.status === "refunded",
+    report_type: o.report_type, report_name: typeName(o.report_type),
+    design: o.design, palette: o.palette, language: o.language,
+    amount_paise: o.amount_paise, gst_paise: o.gst_paise,
+    buyer_name: o.buyer_name, buyer_phone: o.buyer_phone, buyer_email: o.buyer_email,
+    state: o.state,
+    subject_name: o.birth?.name || null,
+    user_id: o.user_id ? String(o.user_id) : null,
+    report_id: o.report_id ? String(o.report_id) : null,
+    invoice_no: o.invoice_no,
+    razorpay_link_id: o.razorpay_link_id,
+    razorpay_link_url: o.razorpay_link_url,
+    razorpay_payment_id: o.razorpay_payment_id,
+    error: o.error,
+    created_at: o.createdAt, updated_at: o.updatedAt
+  };
+}
+
+export async function getOrder(publicId) {
+  const o = await db.Order.findOne({ where: { public_id: publicId } });
+  if (!o) return null;
+  const report = o.report_id ? await db.Report.findByPk(o.report_id, { attributes: { exclude: ["report_json"] } }) : null;
+  const user = o.user_id ? await db.User.findByPk(o.user_id) : null;
+  // Reports linked by order_id but never linked back onto the order — the
+  // signature of a generate that produced a book and then failed to file it.
+  const orphans = await db.Report.findAll({
+    where: { order_id: o.id, ...(o.report_id ? { id: { [Op.ne]: o.report_id } } : {}) },
+    attributes: ["id", "status", "pdf_url", "page_count", "createdAt"]
+  });
+  return {
+    ...orderRow(o),
+    birth: o.birth || null,
+    report: report && {
+      id: String(report.id), status: report.status, pdf_url: report.pdf_url,
+      page_count: report.page_count, generated_ms: report.generated_ms,
+      rashi: report.rashi, nakshatra: report.nakshatra, lagna: report.lagna
+    },
+    orphan_reports: orphans.map((r) => ({
+      id: String(r.id), status: r.status, pdf_url: r.pdf_url,
+      page_count: r.page_count, created_at: r.createdAt
+    })),
+    user: user && { id: String(user.id), phone: user.phone, name: user.name, status: user.status }
+  };
+}
+
+/**
+ * Re-run generation for an order whose payment landed but whose book did not.
+ *
+ * Two hard rules:
+ *   - Only `failed`. An unpaid order has no money behind it and retrying one
+ *     would hand out a ₹699 report for free.
+ *   - The retry goes through Shop.settleAndGenerate, the same idempotent path
+ *     the webhook uses. Admin does not get its own generation code, because a
+ *     second implementation is a second set of bugs and only one of them would
+ *     be under test.
+ *
+ * If a previous attempt already produced a finished report and only the linking
+ * failed, that report is adopted rather than re-rendered — re-rendering would
+ * leave a paid customer with two books and us with two S3 objects.
+ */
+export async function retryOrder(publicId) {
+  const o = await db.Order.findOne({ where: { public_id: publicId } });
+  if (!o) throw Object.assign(new Error("ORDER_NOT_FOUND"), { code: 404 });
+  if (o.status !== "failed")
+    throw Object.assign(new Error(`Only a failed order can be retried — this one is "${o.status}"`), { code: 409 });
+
+  const salvage = await db.Report.findOne({
+    where: { order_id: o.id, status: "ready", pdf_url: { [Op.ne]: null } },
+    order: [["id", "DESC"]]
+  });
+  if (salvage) {
+    await o.update({ status: "ready", report_id: salvage.id, error: null });
+    return { public_id: o.public_id, status: o.status, adopted_report_id: String(salvage.id), rerendered: false };
+  }
+
+  // Clear the stale error first: if this attempt also fails, settleAndGenerate
+  // writes the new reason and nobody is left reading last week's.
+  await o.update({ error: null });
+  const out = await Shop.settleAndGenerate({ publicId: o.public_id, paymentId: o.razorpay_payment_id || null });
+  return { public_id: out.public_id, status: out.status, report_id: out.report_id ? String(out.report_id) : null, rerendered: true };
+}
+
+// ── Consumer users ───────────────────────────────────────────────────────────
+
+/**
+ * Lifetime value is computed in the same SQL as the list, not per row in JS.
+ * A per-row query here is the classic N+1 that makes a 500-user page take a
+ * minute. Note the paranoid filter on BOTH tables in the join.
+ */
+export async function listUsers({ q, limit = 50, offset = 0 } = {}) {
+  const term = String(q || "").trim();
+  const filter = term
+    ? `AND (u.phone ILIKE :term OR COALESCE(u.name,'') ILIKE :term OR COALESCE(u.email,'') ILIKE :term)`
+    : "";
+  const paid = PAID_STATES.map((s) => `'${s}'`).join(",");
+  const rows = await sql(
+    `SELECT u.id, u.phone, u.name, u.email, u.status, u.verified_at, u.last_seen_at, u."createdAt",
+            COUNT(o.id) FILTER (WHERE o."deletedAt" IS NULL)::int AS orders,
+            COUNT(o.id) FILTER (WHERE o."deletedAt" IS NULL AND o.status IN (${paid}))::int AS paid_orders,
+            COALESCE(SUM(o.amount_paise) FILTER (WHERE o."deletedAt" IS NULL AND o.status IN (${paid})),0)::bigint AS ltv_paise
+       FROM users u
+       LEFT JOIN orders o ON o.user_id = u.id
+      WHERE u."deletedAt" IS NULL ${filter}
+      GROUP BY u.id
+      ORDER BY ltv_paise DESC, u.id DESC
+      LIMIT :limit OFFSET :offset`,
+    { term: like(term), limit: clamp(limit, 50), offset: Math.max(0, Number(offset) || 0) }
+  );
+  const [{ count }] = await sql(
+    `SELECT COUNT(*)::int AS count FROM users u WHERE u."deletedAt" IS NULL ${filter}`,
+    { term: like(term) }
+  );
+  return {
+    total: count,
+    users: rows.map((r) => ({
+      id: String(r.id), phone: r.phone, name: r.name || "", email: r.email || "",
+      status: r.status, verified: Boolean(r.verified_at),
+      orders: r.orders, paid_orders: r.paid_orders, ltv_paise: Number(r.ltv_paise),
+      last_seen_at: r.last_seen_at, created_at: r.createdAt
+    }))
+  };
+}
+
+export async function getUser(id) {
+  const u = await db.User.findByPk(id);
+  if (!u) return null;
+  const orders = await db.Order.findAll({ where: { user_id: u.id }, order: [["createdAt", "DESC"]], limit: 200 });
+  // Orders placed on this number before the account existed, never adopted.
+  const loose = await db.Order.findAll({
+    where: { buyer_phone: u.phone, user_id: null }, order: [["createdAt", "DESC"]], limit: 50
+  });
+  const ltv = orders.filter((o) => PAID_STATES.includes(o.status)).reduce((n, o) => n + o.amount_paise, 0);
+  return {
+    id: String(u.id), phone: u.phone, isd_code: u.isd_code,
+    name: u.name || "", email: u.email || "",
+    status: u.status,
+    // Null verified_at means every session this account ever had came from
+    // checkout auto-login — it has never proved it owns the number.
+    verified: Boolean(u.verified_at), verified_at: u.verified_at,
+    birth: u.birth || null,
+    profile: u.profile || {},
+    last_seen_at: u.last_seen_at, created_at: u.createdAt,
+    ltv_paise: ltv,
+    orders: orders.map(orderRow),
+    unclaimed_orders: loose.map(orderRow)
+  };
+}
+
+export async function setUserStatus(id, status) {
+  if (!["active", "suspended"].includes(status))
+    throw Object.assign(new Error("Status must be active or suspended"), { code: 400 });
+  const u = await db.User.findByPk(id);
+  if (!u) throw Object.assign(new Error("USER_NOT_FOUND"), { code: 404 });
+  await u.update({ status });
+  // authenticateUser re-reads status on every request, so this takes effect on
+  // the buyer's very next call — their existing token stops working at once.
+  return { id: String(u.id), status: u.status };
+}
+
+// ── Reports ──────────────────────────────────────────────────────────────────
+
+export async function listReports({ source, status, report_type, q, limit = 50, offset = 0 } = {}) {
+  const where = {};
+  if (source && source !== "all") where.source = source;
+  if (status && status !== "all") where.status = status;
+  if (report_type && report_type !== "all") where.report_type = report_type;
+  if (String(q || "").trim()) {
+    const term = like(q);
+    where[Op.or] = [{ rashi: { [Op.iLike]: term } }, { nakshatra: { [Op.iLike]: term } },
+                    { lagna: { [Op.iLike]: term } }, { share_token: { [Op.iLike]: term } }];
+  }
+  const { rows, count } = await db.Report.findAndCountAll({
+    where,
+    // report_json is the whole computed book — hundreds of KB a row. Excluding
+    // it is the difference between a 40KB list response and a 20MB one.
+    attributes: { exclude: ["report_json"] },
+    order: [["id", "DESC"]],
+    limit: clamp(limit, 50), offset: Math.max(0, Number(offset) || 0)
+  });
+
+  // Resolve owners in two batched queries rather than one per row.
+  const panditIds = [...new Set(rows.map((r) => r.pandit_id).filter(Boolean).map(String))];
+  const orderIds  = [...new Set(rows.map((r) => r.order_id).filter(Boolean).map(String))];
+  const pandits = panditIds.length ? await db.Pandit.findAll({ where: { id: panditIds }, attributes: ["id", "phone", "name"] }) : [];
+  const orders  = orderIds.length  ? await db.Order.findAll({ where: { id: orderIds }, attributes: ["id", "public_id", "buyer_name", "buyer_phone"] }) : [];
+  const byPandit = new Map(pandits.map((p) => [String(p.id), p]));
+  const byOrder  = new Map(orders.map((o) => [String(o.id), o]));
+
+  return {
+    total: count,
+    reports: rows.map((r) => {
+      const p = r.pandit_id ? byPandit.get(String(r.pandit_id)) : null;
+      const o = r.order_id ? byOrder.get(String(r.order_id)) : null;
+      return {
+        id: String(r.id), source: r.source, status: r.status,
+        report_type: r.report_type, report_name: typeName(r.report_type),
+        design: r.design, palette: r.palette, language: r.language,
+        page_count: r.page_count, generated_ms: r.generated_ms,
+        credits_charged: r.credits_charged, pdf_url: r.pdf_url,
+        rashi: r.rashi, nakshatra: r.nakshatra, lagna: r.lagna,
+        subject_name: r.birth_meta?.name || null,
+        error: r.error, created_at: r.createdAt,
+        owner: p ? { kind: "pandit", id: String(p.id), label: p.name || p.phone }
+             : o ? { kind: "order", id: o.public_id, label: o.buyer_name || o.buyer_phone || o.public_id }
+             : null
+      };
+    })
+  };
+}
+
+// ── Pandits ──────────────────────────────────────────────────────────────────
+
+export async function listPandits() {
+  const paid = "'paid'";
+  const rows = await sql(
+    `SELECT p.id, p.phone, p.name, p.email, p.city, p.state, p.business_name, p.gstin,
+            p.status, p.pilot_seat, p.invite_code, p.is_admin, p.trial_granted_at,
+            p.last_seen_at, p."createdAt",
+            COALESCE((SELECT SUM(delta) FROM credit_ledger l WHERE l.pandit_id = p.id),0)::int AS balance,
+            COALESCE((SELECT COUNT(*) FROM reports r
+                       WHERE r.pandit_id = p.id AND r.status = 'ready' AND r."deletedAt" IS NULL),0)::int AS reports_ready,
+            COALESCE((SELECT SUM(amount_paise) FROM credit_purchases c
+                       WHERE c.pandit_id = p.id AND c.status = ${paid} AND c."deletedAt" IS NULL),0)::bigint AS spent_paise
+       FROM pandits p
+      WHERE p."deletedAt" IS NULL
+      ORDER BY p.pilot_seat NULLS LAST, p.id`
+  );
+  return rows.map((p) => ({
+    id: String(p.id), phone: p.phone, name: p.name || "", email: p.email || "",
+    city: p.city || "", state: p.state || "", business_name: p.business_name || "", gstin: p.gstin || "",
+    status: p.status, pilot_seat: p.pilot_seat, invite_code: p.invite_code, is_admin: p.is_admin,
+    balance: p.balance, reports_ready: p.reports_ready,
+    // What this pandit paid US. Never mixed with what he charges his own
+    // clients — that number is his, is an estimate, and is not our revenue.
+    spent_paise: Number(p.spent_paise),
+    trial_granted_at: p.trial_granted_at, last_seen_at: p.last_seen_at, created_at: p.createdAt
+  }));
+}
+
+export async function getPandit(id) {
+  const p = await db.Pandit.findByPk(id);
+  if (!p) return null;
+  const [branding, ledger, purchases, prices, reports] = await Promise.all([
+    db.BrandingProfile.findOne({ where: { pandit_id: p.id } }),
+    db.CreditLedger.findAll({ where: { pandit_id: p.id }, order: [["id", "DESC"]], limit: 100 }),
+    db.CreditPurchase.findAll({ where: { pandit_id: p.id }, order: [["id", "DESC"]], limit: 50 }),
+    db.PanditPrice.findAll({ where: { pandit_id: p.id } }),
+    db.Report.findAll({
+      where: { pandit_id: p.id }, attributes: { exclude: ["report_json"] },
+      order: [["id", "DESC"]], limit: 50
+    })
+  ]);
+  const balance = ledger.length
+    ? (await sql(`SELECT COALESCE(SUM(delta),0)::int AS b FROM credit_ledger WHERE pandit_id = :pid`, { pid: p.id }))[0].b
+    : 0;
+
+  return {
+    id: String(p.id), phone: p.phone, name: p.name || "", email: p.email || "",
+    city: p.city || "", state: p.state || "", business_name: p.business_name || "", gstin: p.gstin || "",
+    status: p.status, is_admin: p.is_admin, pilot_seat: p.pilot_seat, invite_code: p.invite_code,
+    trial_granted_at: p.trial_granted_at, last_seen_at: p.last_seen_at, created_at: p.createdAt,
+    balance,
+    branding: branding && {
+      honorific: branding.honorific, display_name: branding.display_name, shop_name: branding.shop_name,
+      phone: branding.phone, whatsapp: branding.whatsapp, email: branding.email, address: branding.address,
+      tagline: branding.tagline, logo_url: branding.logo_url, photo_url: branding.photo_url,
+      signature_url: branding.signature_url, chart_style: branding.chart_style,
+      default_language: branding.default_language, default_design: branding.default_design,
+      default_palette: branding.default_palette,
+      // The anti-arbitrage counter: a reseller has to keep changing identity.
+      changes_this_quarter: branding.changes_this_quarter, quarter_started_at: branding.quarter_started_at
+    },
+    ledger: ledger.map((l) => ({
+      id: String(l.id), delta: l.delta, reason: l.reason,
+      ref_type: l.ref_type, ref_id: l.ref_id ? String(l.ref_id) : null,
+      note: l.note, created_at: l.createdAt
+    })),
+    purchases: purchases.map((c) => ({
+      id: String(c.id), status: c.status, amount_paise: c.amount_paise, gst_paise: c.gst_paise,
+      credits: c.credits, invoice_no: c.invoice_no, razorpay_order_id: c.razorpay_order_id,
+      razorpay_payment_id: c.razorpay_payment_id, expires_at: c.expires_at, created_at: c.createdAt
+    })),
+    prices: REPORT_TYPES.map((t) => ({
+      report_type: t.code, name_en: t.name_en,
+      sale_price_paise: prices.find((x) => x.report_type === t.code)?.sale_price_paise ?? null
+    })),
+    reports: reports.map((r) => ({
+      id: String(r.id), status: r.status, report_type: r.report_type, report_name: typeName(r.report_type),
+      design: r.design, palette: r.palette, language: r.language,
+      page_count: r.page_count, generated_ms: r.generated_ms, credits_charged: r.credits_charged,
+      pdf_url: r.pdf_url, subject_name: r.birth_meta?.name || null, created_at: r.createdAt
+    }))
+  };
+}
+
+export async function setPanditStatus(id, status) {
+  if (!["active", "suspended"].includes(status))
+    throw Object.assign(new Error("Status must be active or suspended"), { code: 400 });
+  const p = await db.Pandit.findByPk(id);
+  if (!p) throw Object.assign(new Error("PANDIT_NOT_FOUND"), { code: 404 });
+  // Suspending the last admin would lock everyone out of this panel with no way
+  // back except a shell. Refuse, and say why.
+  if (p.is_admin && status === "suspended") {
+    const others = await db.Pandit.count({ where: { is_admin: true, status: "active", id: { [Op.ne]: p.id } } });
+    if (!others) throw Object.assign(new Error("This is the last active administrator — suspending it would lock everyone out"), { code: 409 });
+  }
+  await p.update({ status });
+  return { id: String(p.id), status: p.status };
+}
+
+/**
+ * Pilot seats. Granting reuses Pilot.claimSeat so the transactional
+ * last-seat-wins logic is not reimplemented here; revoking clears the seat and
+ * is deliberately NOT reversible on the credits already granted, because those
+ * reports may already have been generated.
+ */
+export async function setPilotSeat(id, grant) {
+  const p = await db.Pandit.findByPk(id);
+  if (!p) throw Object.assign(new Error("PANDIT_NOT_FOUND"), { code: 404 });
+  if (!Pilot.isOn()) throw Object.assign(new Error("The pilot is not running"), { code: 409 });
+
+  if (!grant) {
+    await p.update({ pilot_seat: null });
+    return { id: String(p.id), pilot_seat: null, ...(await Pilot.status()) };
+  }
+  if (p.pilot_seat) return { id: String(p.id), pilot_seat: p.pilot_seat, ...(await Pilot.status()) };
+  // Admin grants bypass the invite code — that is the whole point of a manual
+  // grant — but not the seat cap, which claimSeat still enforces under lock.
+  await Pilot.claimSeat(p, config.pilot.inviteCode);
+  await p.reload();
+  const granted = await Pilot.grantFreeReports(p);
+  return { id: String(p.id), pilot_seat: p.pilot_seat, credits_granted: granted, ...(await Pilot.status()) };
+}
+
+// ── Operations ───────────────────────────────────────────────────────────────
+
+/**
+ * Payment links and their state. There is no webhook_deliveries table in this
+ * schema, so "webhook failures" cannot be listed — what CAN be shown is the
+ * observable consequence: a link that exists with no payment recorded against
+ * it, which is either an unpaid link or a webhook that never landed. Labelled
+ * as exactly that, rather than presented as a delivery log we do not have.
+ */
+export async function paymentLinks({ limit = 100 } = {}) {
+  const rows = await db.Order.findAll({
+    where: { razorpay_link_id: { [Op.ne]: null } },
+    order: [["createdAt", "DESC"]], limit: clamp(limit, 100)
+  });
+  return rows.map((o) => ({
+    public_id: o.public_id, link_id: o.razorpay_link_id, link_url: o.razorpay_link_url,
+    payment_id: o.razorpay_payment_id, status: o.status,
+    settled: Boolean(o.razorpay_payment_id),
+    amount_paise: o.amount_paise, buyer_phone: o.buyer_phone,
+    created_at: o.createdAt, updated_at: o.updatedAt
+  }));
+}
+
+/** The catalogue, as configured — prices live in code, not in DB rows. */
+export async function catalogue() {
+  return {
+    source: "code (server/catalog/catalog.js) — changes with a deploy, not at runtime",
+    gst_rate_pct: 18,
+    reports: REPORT_TYPES.map((t) => ({
+      code: t.code, name_en: t.name_en, name_hi: t.name_hi, chapters: t.chapters,
+      credits: t.credits, ready: t.ready,
+      consumer_price_paise: CONSUMER_PRICES[t.code] ?? null,
+      // What the pilot actually charges, which is 1 for everything.
+      pilot_credits: Pilot.creditCost(t.code, t.credits)
+    })),
+    packs: PACKS,
+    pilot: await Pilot.status()
+  };
+}
+
+/** Config the panel needs to explain itself. Never secrets. */
+export function environment() {
+  return {
+    env: config.env,
+    pilot: config.pilot,
+    // Both of these change what the numbers mean, so the panel says them out loud.
+    otp_bypass_enabled: Boolean(config.otpBypass),
+    auto_login_on_order: config.autoLoginOnOrder,
+    razorpay_configured: Boolean(config.razorpay.key && config.razorpay.secret),
+    webhook_secret_configured: Boolean(config.razorpay.webhookSecret),
+    consumer_brand: config.brand.name,
+    web_origin: config.webOrigin
+  };
+}

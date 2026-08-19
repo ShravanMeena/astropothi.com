@@ -1,0 +1,96 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Theme ───────────────────────────────────────────────────────────────────
+   Two palettes, one set of semantic tokens. Light is paper-and-ink; dark is a
+   lamplit manuscript rather than a generic slate — the product is a book. */
+:root {
+  --surface: 252 251 248;  --raised: 255 255 255;  --sunken: 246 243 237;
+  --line: 226 219 206;     --fg: 23 21 15;         --muted: 91 83 71;
+  --faint: 158 148 132;    --brass: 169 134 46;    --brass-soft: 243 233 206;
+  --ember: 194 65 12;      --shadow: 12 11 9;
+  color-scheme: light;
+}
+.dark {
+  --surface: 16 14 12;     --raised: 26 23 19;     --sunken: 11 10 8;
+  --line: 56 49 40;        --fg: 240 235 226;      --muted: 176 166 150;
+  --faint: 124 114 100;    --brass: 208 173 92;    --brass-soft: 51 42 24;
+  --ember: 226 122 74;     --shadow: 0 0 0;
+  color-scheme: dark;
+}
+
+html { scroll-behavior: smooth; }
+/* `overflow-x: hidden` here makes html/body a scroll container, which silently
+   kills every `position: sticky` on the page — that is what stopped the book
+   hero from pinning. `clip` contains overflow without creating that container. */
+html, body { overflow-x: clip; max-width: 100%; }
+body { @apply bg-surface text-fg font-sans antialiased; transition: background-color .4s ease, color .4s ease; }
+.deva { font-family: 'Noto Sans Devanagari', Inter, sans-serif; }
+::selection { @apply bg-brassSoft; }
+:focus-visible { @apply outline-none ring-2 ring-brass ring-offset-2; ring-offset-color: rgb(var(--surface)); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
+
+@layer components {
+  .shell { @apply w-full max-w-shell mx-auto px-5 sm:px-8; }
+
+  .display { @apply font-serif font-medium tracking-tightest; }
+  .eyebrow { @apply text-[11px] font-semibold uppercase tracking-[.18em] text-faint; }
+  .lede    { @apply text-[17px] sm:text-[19px] leading-relaxed text-muted; }
+
+  .btn { @apply inline-flex items-center justify-center gap-2 rounded-full px-7 h-12
+                text-[15px] font-medium transition-all duration-200 active:scale-[.98]
+                disabled:opacity-40 disabled:pointer-events-none select-none whitespace-nowrap; }
+  .btn-dark  { @apply btn bg-fg text-surface hover:opacity-90; }
+  .btn-brass { @apply btn bg-brass text-surface hover:opacity-90; }
+  .btn-line  { @apply btn border border-line text-fg hover:border-faint bg-transparent; }
+  .btn-quiet { @apply btn text-muted hover:text-fg hover:bg-sunken; }
+  .btn-sm    { @apply h-10 px-5 text-[14px]; }
+
+  .field { @apply w-full h-12 px-4 rounded-xl border border-line bg-raised text-fg text-[15px]
+                  placeholder:text-faint outline-none transition
+                  focus:border-brass focus:ring-4 focus:ring-brass/10; }
+  .label { @apply block text-[12.5px] font-medium text-muted mb-1.5; }
+
+  .card       { @apply bg-raised rounded-2xl border border-line shadow-soft; }
+  .card-quiet { @apply bg-raised/70 rounded-2xl border border-line; }
+  .rule       { @apply h-px bg-line; }
+  .chip       { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold; }
+  .tile       { @apply relative text-left rounded-2xl border bg-raised p-4 transition-all duration-150
+                       hover:shadow-lift hover:-translate-y-px; }
+  .tile-off   { @apply border-line; }
+  .tile-on    { @apply border-fg ring-1 ring-fg shadow-lift; }
+
+  /* ── Surface craft ─────────────────────────────────────────────────────────
+     Flat rectangles are what made this look like a template. These three give
+     the page paper grain, warm lamplight, and real metal on the gold. */
+
+  /* Fine tooth, so large dark areas are not dead flat. SVG turbulence keeps it
+     to one gzipped line instead of a texture file. */
+  .grain::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+    opacity: .5; mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='.32'/%3E%3C/svg%3E");
+  }
+
+  /* A lamp above and left of the type, falling off into the page. */
+  .lamp { background:
+    radial-gradient(120% 80% at 18% -10%, rgb(var(--brass) / .16), transparent 62%),
+    radial-gradient(90% 70% at 92% 8%, rgb(var(--brass) / .09), transparent 58%); }
+
+  /* Gold leaf catches light unevenly — a flat brass fill reads as beige. */
+  .foil {
+    background-image: linear-gradient(100deg,
+      rgb(var(--brass) / .72) 0%, rgb(var(--brass)) 26%,
+      color-mix(in srgb, rgb(var(--brass)) 55%, white) 43%,
+      rgb(var(--brass)) 60%, rgb(var(--brass) / .78) 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+
+  .hair  { @apply h-px w-full bg-gradient-to-r from-transparent via-line to-transparent; }
+  .caps  { @apply text-[10.5px] font-semibold uppercase tracking-[.24em]; }
+}
