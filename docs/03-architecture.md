@@ -19,12 +19,14 @@ deploys is a bad trade.
 /Users/shravanmeena/Desktop/DevP/pothi/
 ├── docs/               ← these documents
 ├── pothi-api/          Node 24 · Express 4 · ESM · Postgres · Sequelize
-└── pothi-web/          Vite · React 18 · TypeScript · Tailwind
+└── pothi-app/          Vite · React 18 · TypeScript · Tailwind
 ```
 
-Two separate git repos (matching the `devpunya-<role>` sibling convention, renamed
-`pothi-<role>`). A React Native app comes later — the web app must be a proper mobile-first
-PWA from day one, because ~all traffic is Android phones.
+> **As built:** the plan called for a separate `pothi-web` for consumers. That was tried and
+> reverted — two sites meant two headers, two theme systems and two deploys for one brand.
+> `pothi-app` is a single application serving the storefront, the astrologer console and the
+> admin panel, routed by path. A React Native app comes later; the web app is mobile-first
+> because ~all traffic is Android phones.
 
 ### pothi-api
 
@@ -135,74 +137,115 @@ cannot ship those.
 
 ## Database schema (Postgres, `pothi`)
 
-Naming per house style: `snake_case`, `id` BIGINT autoincrement, timestamps, `paranoid`.
+`snake_case`, `id` BIGINT autoincrement, `timestamps: true`, **`paranoid: true` on every
+model** — so raw SQL must always add `AND "deletedAt" IS NULL`. A real bug shipped from
+exactly that: raw SQL counted soft-deleted rows while the ORM did not, and pilot seats leaked.
+
+Twelve tables, as built:
 
 | Table | Key columns |
 |---|---|
-| `pandits` | `id, phone` unique, `isd_code, name, email, city, state` (**mandatory — GST place-of-supply**), `gstin, business_name, status, referred_by, last_seen_at` |
-| `otp_sessions` | UUID pk, `isd_code, phone, otp, channel, attempts, status` |
-| `branding_profiles` | `pandit_id, display_name, honorific, shop_name, phone, whatsapp, email, address, logo_url, photo_url, signature_url, tagline, chart_style, default_language, default_theme_id` |
-| `branding_change_log` | `pandit_id, changed_fields JSONB, before JSONB, after JSONB, ip, ua` ← **arbitrage detection** |
-| `credit_packs` | `id, code, name, price_paise, credits, validity_days, active` |
-| `credit_purchases` | `pandit_id, pack_id, amount_paise, gst_paise, credits, razorpay_order_id, razorpay_payment_id, status, invoice_no, invoice_url, expires_at` |
-| `credit_ledger` | `pandit_id, delta` (+/−), `balance_after, reason` (`purchase\|generate\|refund\|bonus\|expiry`), `ref_type, ref_id`. **Append-only. Balance is always `SUM(delta)`, never a mutable column.** |
-| `report_types` | `id, code, name_en, name_hi, chapters, credits, engine_key, active` |
-| `themes` | `id, code, name_en, name_hi, preview_url, active, min_tier` |
+| `pandits` | `phone` unique, `isd_code, name, email, city, state` (GST place-of-supply), `gstin, business_name, status, referred_by, trial_granted_at, invite_code, pilot_seat, is_admin, last_seen_at` |
+| `users` | **consumers.** `phone` unique, `isd_code, name, email, birth JSONB, profile JSONB, verified_at, status, last_seen_at` |
+| `otp_sessions` | UUID pk, `isd_code, phone, otp, channel, attempts, status, expires_at` — shared by both audiences |
+| `branding_profiles` | `pandit_id, honorific, display_name, shop_name, phone, whatsapp, email, address, logo_url, photo_url, signature_url, tagline, chart_style, default_language, default_design, default_palette, ui_language, changes_this_quarter` |
+| `branding_change_log` | `pandit_id, changed_fields, before, after, ip, ua` ← arbitrage detection |
+| `credit_packs` | `code, name_en, name_hi, price_paise, credits, validity_days, sort_order, highlight, active` |
+| `credit_purchases` | `pandit_id, pack_id, amount_paise, gst_paise, credits, razorpay_order_id, razorpay_payment_id, status, invoice_no, expires_at` |
+| `credit_ledger` | `pandit_id, delta` (+/−), `reason, ref_type, ref_id, note`. **Append-only; balance is always `SUM(delta)`.** |
 | `clients` | `pandit_id, name, gender, dob, tob, tob_unknown, pob, lat, lon, tzone, phone, notes` ← the vahi |
-| `reports` | `pandit_id, client_id, report_type_id, theme_id, language, status, pdf_url, page_count, credits_charged, report_json JSONB, birth_meta JSONB, share_token, shared_at, sale_price_paise, expires_at` |
-| `report_jobs` | `report_id, status, attempts, error, started_at, finished_at` |
-| `pandit_prices` | `pandit_id, report_type_id, sale_price_paise` ← powers the earnings dashboard |
-| `referrals` / `agents` | phase 5 |
+| `reports` | `pandit_id, order_id, source` (`pandit\|consumer`), `client_id, report_type, design, palette, language, status, pdf_url, page_count, credits_charged, report_json, birth_meta, rashi, nakshatra, lagna, share_token, sale_price_paise, error, generated_ms` |
+| `orders` | **consumer purchases.** `public_id` unique, `report_type, design, palette, language, user_id, buyer_name, buyer_phone, buyer_email, state, birth JSONB, amount_paise, gst_paise, razorpay_order_id, razorpay_payment_id, razorpay_link_id, razorpay_link_url, status, report_id, invoice_no, whatsapp_sent_at, whatsapp_error, error` |
+| `pandit_prices` | `pandit_id, report_type, sale_price_paise` ← powers the earnings dashboard |
 
-Indexes: `reports(pandit_id, created_at)`, `reports(share_token)` unique,
-`credit_ledger(pandit_id, id)`, `clients(pandit_id, phone)`, `pandits(phone)` unique.
+> **Diverged from the plan:** `report_types` and `themes` are **code, not rows** — see
+> `server/catalog/catalog.js`. They change with a deploy, not at runtime, and a DB table
+> would only add a join and a way for the two to disagree. `report_jobs` was never built
+> because generation is synchronous (see below).
+
+**Revenue is two separate numbers.** The astrologer console shows "estimated earnings" =
+`pandit_prices × reports generated`. That is *the pandit's* revenue and an estimate. Pothi's
+revenue is paid `orders.amount_paise` + paid `credit_purchases.amount_paise`. Never sum them.
+`amount_paise` is gross and GST-inclusive; `gst_paise` is the tax already inside it.
 
 ---
 
 ## API surface (v1)
 
-Auth `/api/v1/*` · public `/noauth-api/v1/*`.
+Four namespaces. All four JWTs are signed with the **same secret** and separated by a `kind`
+claim, so a token minted for one audience is rejected with 403 by the others — without that
+flag a pandit's token would satisfy a buyer route and read somebody else's orders.
 
-**noauth** — `POST /auth/otp/send`, `POST /auth/otp/verify`, `GET /catalog/report-types`,
-`GET /catalog/themes`, `GET /catalog/packs`, `GET /samples?type=&theme=`,
-`GET /location/autocomplete`, `GET /location/geocode` (Google Places, server-side key —
-copy `devpunya .../server/location/location.controller.js`),
-`GET /r/:token` (client-facing share page), `POST /webhook/razorpay`.
+| Namespace | Guard | Populates |
+|---|---|---|
+| `/noauth-api/v1` | none | — |
+| `/api/v1` | `authenticate` | `req.pandit` |
+| `/user-api/v1` | `authenticateUser` | `req.user` |
+| `/admin-api/v1` | staff guard, re-reads `is_admin` per request | staff |
 
-**auth** — `GET/PUT /branding`, `POST /branding/asset` (multer memory, 5 MB),
-`GET /credits/balance`, `GET /credits/ledger`, `POST /credits/purchase` → razorpay order,
-`GET /credits/invoices/:id`, `POST /reports/generate`, `GET /reports/:id/status`,
-`GET /reports`, `GET /reports/:id/download`, `POST /reports/:id/share`,
-`POST /reports/:id/regenerate` (different theme, 1 credit),
-`GET/POST/PUT /clients`, `GET /clients/birthdays`, `GET/PUT /prices`,
-`GET /earnings/summary`, `GET /earnings/timeseries`.
+**noauth** — `auth/otp/{send,verify}` (pandits), `user/otp/{send,verify}` (buyers),
+`catalog/{report-types,designs,palettes,packs}`, `location/{autocomplete,geocode}`,
+`pilot/status`, `webhook/razorpay`, and the storefront:
+`shop/catalogue`, `shop/report/:code`, `shop/thumb/:code`, `shop/order`,
+`shop/confirm-link`, `shop/confirm`, `shop/order/:publicId`, `shop/order/:publicId/pages`.
 
-### Generation flow (webhook-authoritative, credit-safe)
+**pandit** — `me`, `branding` GET/PUT, `credits/{balance,ledger,packs,purchase,confirm}`,
+`reports` GET + `reports/generate`, `clients` GET/POST, `clients/birthdays`,
+`earnings/{summary,prices}`.
+
+**buyer** — `me` GET/PUT, `orders`.
+
+> Every namespace must also be listed in `pothi-app/vite.config.ts`. A missing proxy entry
+> returns `index.html` with a **200**, and the app breaks silently — this is exactly how the
+> astrologer console rendered blank for a while.
+
+### Generation flow — synchronous, webhook-authoritative
+
+> **Diverged from the plan.** The plan specified a job table and polling. Generation
+> actually takes 0.4–3.4 s, not 15–25 s, so a queue would have added a worker, a table and a
+> polling endpoint to hide latency that is not there. It is synchronous inside
+> `settleAndGenerate`, and that function is idempotent.
+
+**Consumer.** `POST /shop/order` resolves the birth place server-side (an unresolvable place
+must fail *before* money is taken), creates the order, and asks Razorpay for a **Payment
+Link** — not the checkout SDK. A link is one URL that can also be sent over WhatsApp,
+survives the buyer changing device, and keeps cards entirely on Razorpay's page.
+`options.checkout.prefill` carries the number they already gave us, which removes an entire
+screen; the `customer` field does not do this — it only drives Razorpay's own reminders.
 
 ```
-POST /reports/generate
-  ├─ validate birth input (zod — reuse engine/validators/generate-kundli.js)
-  ├─ SELECT balance FOR UPDATE ─ insufficient? → 402 with the recharge CTA
-  ├─ INSERT reports(status=queued) + credit_ledger(delta=−N, reason=generate, ref=report)
-  │     ↑ single transaction. The debit and the report row commit together or not at all.
-  └─ enqueue report_jobs
+buyer pays on Razorpay
+  ├─ webhook  payment_link.paid  ← the ONLY authority
+  │     verify HMAC over req.rawBody → 200 immediately → then work
+  └─ browser returns to /order/<public_id> with a signed query string
+        re-verified server-side; exists only so a buyer who beats the webhook home
+        is not told they still owe money
 
-worker: buildCalculatedKundliData → sections → theme render (pdfkit) → S3 → status=ready
-        on terminal failure → INSERT credit_ledger(delta=+N, reason=refund) and tell him
+settleAndGenerate (idempotent)
+  render → reports row → PDF to disk/S3 → order.status = ready
+  then, OUTSIDE the try: WhatsApp "your report is ready"
 ```
 
-Sync generation is tempting (15–25 s) but a job table is required anyway for bulk CSV in
-phase 5, and a 25-second HTTP request on rural 4G will time out. Poll `/status`.
+The notify call sits outside the try on purpose: inside it, a messaging failure would mark a
+paid, generated report as `failed`. `orders.whatsapp_sent_at` stops a webhook retry from
+messaging the same buyer twice.
 
-Payment: `POST /credits/purchase` creates the Razorpay order; **the webhook credits the
-ledger** (HMAC-verified against `req.rawBody`, captured in `index.js` via
-`express.json({ verify })` — copy `devpunya .../server/payment/razorpay.js`
-`validateWebhook`/`verifySignature`). The client-side confirm is a UX accelerator only, and
-must be idempotent against the webhook by `razorpay_order_id`.
+**Pandit.** `POST /reports/generate` debits the ledger and inserts the report row in one
+transaction — the debit and the report commit together or not at all.
+
+Deciding a payment path by the **order id**, not by whether keys happen to be configured,
+matters: a dev order can only ever settle on the dev path (never in production), and a real
+order always requires a real signature. Getting this backwards broke credit top-up the day
+live keys were added.
 
 ---
 
 ## Storage & infra
+
+> **Not done yet.** Dev writes PDFs to `pothi-api/out/` and `utilities/storage.js` returns a
+> `/files/...` path. `server/shop/reader.service.js` deliberately refuses any `pdf_url` that
+> is not local, so the in-browser reader breaks the moment S3 is switched on until that is
+> handled. `WEB_ORIGIN` is still `localhost`.
 
 S3 `pothi-content` @ `ap-south-1` behind CloudFront. Prefixes `reports/<pandit_id>/<report_id>.pdf`,
 `branding/<pandit_id>/`, `samples/`. **Get the IAM prefix right at bucket-creation time** —

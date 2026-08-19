@@ -1,83 +1,114 @@
 # pothi-api
 
-Node 24 · Express · ESM · Postgres · Sequelize. Own DB, own auth, own everything —
-**no runtime dependency on Devpunya.** The astrology engine is vendored (see `engine/index.js`).
+Node 24 · Express 4 · ESM · Postgres · Sequelize. Own DB, own auth, own everything —
+**no runtime dependency on Devpunya.** The astrology engine is vendored (`engine/`).
 
 ## Run
 
 ```bash
 createdb pothi          # once
-cp .env.example .env    # once
+cp .env.example .env    # once, then fill in the keys below
 npm install
-npm start               # :4050, syncs schema in dev
-./scripts/smoke.sh      # end-to-end: login → branding → credits → generate → earnings
+npm run dev             # :4050, syncs the schema in dev
 ```
 
-Other scripts:
-```bash
-node scripts/verify_all.js          # 7 types × 3 designs × 7 palettes × en/hi → out/matrix/
-node scripts/verify_all.js --quick  # 21 combos (all designs, one palette), fast
-npm test                            # layout + content + credits
-npm run test:layout                 # header/footer must never touch the page frame
-npm run audit:data                  # % of each report that is static across 8 different charts
-npm run audit:astro                 # chart invariants — nodes, dashas, houses, bindus
-npm run audit:text                  # depth, duplicate sentences, placeholder leaks
-npm run test:credits                # the money path — 8 assertions
-npm run test:pilot                  # invite gate, seat cap, 10 free reports
-npm run test:content                # PDF text vs source sections — catches silent truncation
-npm run render -- --type kundli --lang hi
-```
+### Environment
 
-## Status
-
-**Working end to end.** A pandit can log in, set up his white-label profile, receive trial
-credits, generate a real 66-page branded PDF in ~1.9 s, and see his estimated earnings.
-
-| Area | State |
+| Key | Why |
 |---|---|
-| Engine port | ✅ 5 npm deps, zero Devpunya imports |
-| **All 7 report types** | ✅ 7 types × 3 designs × 7 palettes × en/hi |
-| **Designs × Palettes** | ✅ **3 designs** (structure) × **7 palettes** (colour), independent axes |
-| **Sample preview** | ✅ real rendered pages before he spends a credit |
-| Auth (phone + OTP + JWT) | ✅ dev OTP inline; WhatsApp dispatch is a TODO |
-| Branding / white label | ✅ **0 brand leaks**; no fallback logo at all |
-| Credits (append-only ledger) | ✅ 8/8 money tests incl. concurrent replay |
-| Report generation | ✅ synchronous, 0.4–3.4 s |
-| Client book (vahi) | ✅ dedupes on name+dob+tob, inside the transaction |
-| Earnings dashboard | ✅ estimate from prices he sets himself |
-| Credit packs + custom top-up | ✅ **dummy** gateway; real plumbing behind it |
-| Guna Milan | ❌ not started (phase 3) |
-| S3 | ⚠️ code path exists, dev writes to `out/` |
+| `WEB_ORIGIN` | Where Razorpay returns a buyer after payment. **Still `localhost` — must be the real domain before go-live.** |
+| `RAZORPAY_ID` / `RAZORPAY_SECRET` | Live (test-mode) keys. Without them checkout falls back to a clearly-labelled dev path. |
+| `RAZORPAY_WEBHOOK_SECRET` | Must match what is entered in the Razorpay dashboard. |
+| `MSG91_AUTH_KEY` / `MSG91_WHATSAPP_NUMBER` / `MSG91_NAMESPACE` | WhatsApp delivery. Empty auth key = dry-run: the payload is logged, nothing is sent. |
+| `AUTO_LOGIN_ON_ORDER` | Default `true`. Checkout signs the buyer in on the phone number alone — see the note in `config.js` for what that trades away. |
+| `PILOT_MODE` / `PILOT_INVITE_CODE` | Invite-only free pilot for astrologers. |
+| `OTP_BYPASS` | Dev only; `config.js` nulls it in production. |
 
-See [../OPEN-ITEMS.md](../OPEN-ITEMS.md) — 4 items found during the port.
+## Tests
+
+```bash
+npm test                  # everything below, in order
+```
+
+| Script | Proves |
+|---|---|
+| `test:layout` | header/footer never touch the page frame |
+| `test:content` | every source chapter survives into the PDF — catches silent truncation |
+| `test:credits` | the pandit money path, including 5 concurrent replays |
+| `test:pilot` | invite gate, seat cap, free reports |
+| `test:shop` | consumer purchase end to end, settled the way production settles it |
+| `test:payments` | payment links + webhook: forged signatures, duplicate delivery, unknown ids, redirect verification |
+| `test:whatsapp` | delivery rules. Runs with the auth key blanked — **a unit suite must never send a real message** |
+| `test:admin` | staff auth is unreachable with a buyer or pandit token |
+| `audit:reports` | Kundali + Dosh prose cross-checked against the chart, **English and Hindi** |
+| `audit:astro` | 480 chart invariants across 8 charts |
+| `audit:text` · `audit:data` | depth, duplicate sentences, how much of a report is static |
+
+Other tools:
+
+```bash
+npm run covers                      # rebuild pothi-app/public/covers/*.png from the live renderer
+npm run render -- --type kundli --lang hi
+node scripts/verify_all.js          # 7 types × 3 designs × 7 palettes × en/hi → out/matrix/
+node scripts/emit_webhook.js <plink_id>     # a correctly-signed payment_link.paid, for local settling
+npm run whatsapp:test-send 9660801827       # ONE real WhatsApp. Costs money.
+node scripts/ensure_admin.js                # seed a staff account
+```
 
 ## Layout
 
 ```
-engine/            vendored astrology engine — pure functions, no DB/network
-  astrology/       chart computation (astronomy-engine)
-  mapping/         chapter builders
-  i18n/            en/hi string packs
-  reporting/       pdfkit renderers
-    designs/       3 structural designs (classic / editorial / heritage)
-    palettes/      7 colour palettes — pair with any design
-    style.js       design × palette → one style object
-    doc-model.js   normalises all 7 report shapes into one model
-    render-report.js  THE renderer — every report goes through it
-  reports/         the 7 report generators
-server/<domain>/   <domain>.route.js + .service.js, exports userRoute()/noAuth()
-platform/auth.js   JWT sign + authenticate middleware
-database/          Sequelize loader + models/schema/*.js
+engine/                vendored astrology engine — pure functions, no DB/network
+  astrology/           chart computation (astronomy-engine, Lahiri)
+    varga.js           divisional charts, classical Parashari rules
+  mapping/             chapter builders — one per report, this is a report's identity
+  i18n/                en/hi string packs
+  reporting/           pdfkit renderers
+    designs/           3 structural designs (classic / editorial / heritage)
+    palettes/          7 colour palettes — pair with any design
+    doc-model.js       normalises all 7 report shapes into one model
+    render-report.js   THE renderer — every report goes through it
+  reports/             the 7 report generators
+server/<domain>/       <domain>.route.js + .service.js
+  messaging/           MSG91 transport + what we tell a buyer, and when
+  shop/                consumer orders, the reader, sample outlines
+  user/                buyer accounts and profiles
+  admin/               staff metrics
+platform/auth.js       JWT signing + the four guards
+database/              Sequelize loader + models/schema/*.js
 ```
 
-## API
+## API surface
 
-Public `/noauth-api/v1` — `auth/otp/send`, `auth/otp/verify`, `catalog/{report-types,designs,palettes,packs}`
+| Namespace | Guard | Populates |
+|---|---|---|
+| `/noauth-api/v1` | none | catalogue, shop, OTP send/verify, **webhook** |
+| `/api/v1` | `authenticate` | `req.pandit` |
+| `/user-api/v1` | `authenticateUser` | `req.user` |
+| `/admin-api/v1` | staff guard | staff |
 
-Authed `/api/v1` (Bearer) — `me`, `branding` GET/PUT, `credits/{balance,ledger,packs}`,
-`reports` GET + `reports/generate` POST, `reports/:id`, `clients` GET/POST,
-`clients/birthdays`, `earnings/summary`, `earnings/prices` GET/PUT,
-`credits/purchase` + `credits/confirm` (dummy gateway)
+All four JWTs are signed with the same secret and separated by a `kind` claim, so a token
+from one audience is rejected with 403 by the others.
 
-Preview: `GET /noauth-api/v1/catalog/preview?type=&design=&palette=&lang=` — renders the real engine
-output, rasterises the first 4 pages with `pdftoppm`, caches to disk. ~6 s cold, ~10 ms warm.
+## Status
+
+Working end to end **locally**. A consumer can buy a report through a real Razorpay payment
+link, have it generated by a signed webhook, and read it in the browser as a book. An
+astrologer can log in, brand it, and generate the same books on credits.
+
+| Area | State |
+|---|---|
+| Engine · 7 report types × 3 designs × 7 palettes × en/hi | ✅ |
+| Divisional charts | ✅ classical Parashari; the old uniform formula was wrong for D3/D4/D10/D12/D24/D40/D45/D60 |
+| Branding / white label | ✅ 0 brand leaks, no fallback logo |
+| Credits, ledger, pilot | ✅ |
+| Consumer checkout — Razorpay **Payment Links** | ✅ real links against the test account |
+| Webhook settlement | ✅ signed, idempotent, tested — ⚠️ **not registered**, cannot reach localhost |
+| Buyer accounts + profile | ✅ |
+| In-browser book reader | ✅ local disk only — refuses an S3 URL by design |
+| WhatsApp on delivery | ⚠️ built and tested in dry-run; **sender has no MSG91 subscription** |
+| **OTP delivery** | ❌ logged to the console only — **nobody can log in in production** |
+| S3 | ⚠️ code path exists, dev writes to `out/` |
+| Guna Milan | ❌ not started |
+
+See [../OPEN-ITEMS.md](../OPEN-ITEMS.md) before shipping.

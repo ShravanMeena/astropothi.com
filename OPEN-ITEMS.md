@@ -1,5 +1,108 @@
 # Open items
 
+## BLOCKS LAUNCH — read this section first
+
+Everything below works locally. These are the things that stop it working for a
+real customer, in the order they will hurt.
+
+1. **Nobody can log in in production.** `auth.route.js` and `user.route.js` generate an
+   OTP, `console.log` it, and return it in the response **only when `env !== production`**.
+   There is no SMS or WhatsApp dispatch — the `// TODO` is still in both files. In
+   production a user requests an OTP and it goes nowhere. MSG91 is now integrated, so this
+   is an OTP template plus one call to `server/messaging/msg91.js`.
+2. **Nothing is deployed.** `WEB_ORIGIN` is `http://localhost:5190`. That is the address
+   Razorpay sends a buyer back to after they pay, and it is baked into the approved
+   WhatsApp template's button — so pick the real domain before submitting either.
+3. **The Razorpay webhook is not registered**, because Razorpay cannot reach localhost.
+   Orders settle only through the browser redirect today. **A buyer who pays and closes the
+   tab is charged and never gets a report.** The webhook itself is built, signed, idempotent
+   and covered by 21 tests; it needs a public URL and a dashboard entry.
+4. **PDFs are written to local disk.** S3 is unconfigured, so reports die with the machine.
+   `reader.service.js` deliberately refuses any `pdf_url` that is not a local `/files/`
+   path, so turning S3 on silently breaks "Read it here" until that is handled.
+5. **WhatsApp cannot send.** The integration is finished and its payload is byte-identical
+   to MSG91's own cURL, but the sender number has no active WhatsApp subscription on the
+   account. Account action, not a code change.
+
+### Not blocking, but expensive to leave
+
+6. **Love and Health are thin** — 44 and 56 words per chapter against Kundali's 246, with
+   40–49% of their text identical on every chart. Both sell at ₹299. Their mappers are 336
+   and 301 lines against Dosh's 1,054. Deepening them is worth more than an eighth report.
+7. **Test data pollution.** ~50 orders and a pilot account showing thousands of free
+   reports. Clear it before any demo.
+8. **Auto-login by phone is a deliberate risk.** Anyone who types a number into checkout
+   gets that account's order history and saved birth details, without paying — the session
+   is issued at order creation. Chosen for frictionless checkout, gated by
+   `AUTO_LOGIN_ON_ORDER`, and `users.verified_at` records who actually proved ownership,
+   so it can be tightened without a migration.
+
+---
+
+## FIXED — 31. The divisional charts were wrong
+
+Found while cross-checking the two reports we are about to advertise.
+
+The engine computed **every** varga with one uniform formula,
+`(signIndex × divisor + part) % 12`. Each varga has its own classical *starting sign*, and
+that formula only reproduces it by coincidence — correct for D7, D9, D16, D20 and D27,
+wrong for the rest:
+
+| chart | wrong divisions | example |
+|---|---|---|
+| D3 | 32 / 36 | Aries part 2 → printed Taurus, classical Leo |
+| D4 | 42 / 48 | Aries part 2 → Taurus, classical Cancer |
+| D10 | 90 / 120 | Taurus part 1 → Aquarius, classical Capricorn |
+| D12 | 132 / 144 | Taurus part 1 → Aries, classical Taurus |
+| **D24** | **288 / 288** | every division |
+| D40 / D45 / D60 | 400 / 495 / 660 | — |
+
+D12 always counted from Aries because `12 × signIndex` is a multiple of 12 and vanishes
+from the modulo. **D9 Navamsa was correct**, which matters — Love & Marriage rests on it.
+
+Fixed in `engine/astrology/varga.js`, rules written out one by one including D30's five
+unequal Trimsamsa spans. Matches classical on **3,324 of 3,324 divisions**. There were
+**three copies** of the wrong formula (chapter text, chart data, chart drawing); all three
+now call the one implementation, so the prose cannot disagree with the diagram.
+
+Also fixed while in there:
+- The cover printed `2001-01-09` — a database format, on page one of a book somebody paid
+  for. Now "09 January 2001" / "09 जनवरी 2001".
+- The Birth Chart page was half blank; it now carries the twelve houses with sign, lord and
+  occupants. That surfaced a Hindi bug: `doc-model` localised house *signs* but not their
+  *lords*, so a Hindi report would have printed "वृषभ … Jupiter".
+- Item 5 below (English sign names inside Hindi reports) is now **closed** — verified zero
+  English sign or planet names in the Hindi Kundali.
+
+New `npm run audit:reports`, in the suite: 24 checks that re-derive the facts independently
+and compare them with what the PDF prints, in both languages. Hindi is checked on its
+numbers, not its glyphs — `pdftotext` reorders Devanagari matras on extraction, so a glyph
+comparison fails on a perfectly good PDF.
+
+## SHIPPED — 32. Real payments, buyer accounts, WhatsApp
+
+- **Razorpay Payment Links**, not the checkout SDK: one URL that can also be sent over
+  WhatsApp, survives the buyer changing device, and keeps cards entirely on Razorpay.
+  Checkout prefills the contact through `options.checkout.prefill`, which removes the
+  "enter your mobile number" screen the buyer had already answered on our form. The
+  `customer` field does *not* do this — it only drives MSG91's reminders.
+- **The webhook is the only authority on payment.** Verify the HMAC over the raw body
+  before reading anything; answer 200 immediately then work; every handler idempotent.
+- **Accounts are created by buying.** The number entered at checkout becomes the login, and
+  orders placed before signing in are adopted by phone on first sign-in.
+- **WhatsApp on delivery** — `server/messaging/`, hooked in *outside* the try block in
+  `settleAndGenerate` so a messaging outage can never mark a paid, generated report failed.
+  `orders.whatsapp_sent_at` stops a webhook retry from messaging the same buyer twice.
+
+Two traps worth remembering:
+- Enabling the Razorpay keys **broke pandit credit top-up**, because purchase still minted a
+  dev order id while confirm started demanding a real signature. The branch is now decided
+  by the id, not by global config.
+- MSG91 auth keys are IP-whitelisted, and a machine with both stacks reaches them over
+  **IPv6** — where the whitelisted IPv4 means nothing and every call returns a bare 401.
+  The client now prefers A records.
+
+
 ## SHIPPED — 30. Premium rebuild: theming, motion, the book that opens
 
 - **Dark and light**, following the device by default (`prefers-color-scheme`) with an
