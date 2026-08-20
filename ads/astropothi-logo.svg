@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <radialGradient id="bg" cx="38%" cy="30%" r="85%">
+      <stop offset="0%" stop-color="#1c1813"/>
+      <stop offset="55%" stop-color="#0f0d0a"/>
+      <stop offset="100%" stop-color="#080706"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%"  stop-color="#8a6a2b"/>
+      <stop offset="26%" stop-color="#c7a44a"/>
+      <stop offset="45%" stop-color="#f0dca0"/>
+      <stop offset="62%" stop-color="#c7a44a"/>
+      <stop offset="100%" stop-color="#9a7a34"/>
+    </linearGradient>
+    <linearGradient id="goldsoft" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#d8b866"/>
+      <stop offset="100%" stop-color="#9a7a34"/>
+    </linearGradient>
+  </defs>
+
+  <!-- round base for FB profile -->
+  <circle cx="512" cy="512" r="512" fill="url(#bg)"/>
+  <circle cx="512" cy="512" r="486" fill="none" stroke="url(#gold)" stroke-width="6" opacity="0.9"/>
+  <circle cx="512" cy="512" r="470" fill="none" stroke="url(#gold)" stroke-width="1.5" opacity="0.4"/>
+
+  <!-- twelve-house ring of ticks, like a kundli chakra -->
+  <g stroke="url(#goldsoft)" stroke-width="3" opacity="0.55">
+    <g transform="rotate(0 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(30 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(60 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(90 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(120 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(150 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(180 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(210 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(240 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(270 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(300 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+    <g transform="rotate(330 512 512)"><line x1="512" y1="60" x2="512" y2="92"/></g>
+  </g>
+
+  <!-- the North-Indian kundli diamond, faint, as a halo behind the letter -->
+  <g stroke="url(#goldsoft)" stroke-width="2.5" fill="none" opacity="0.28">
+    <rect x="322" y="322" width="380" height="380"/>
+    <line x1="322" y1="322" x2="702" y2="702"/>
+    <line x1="702" y1="322" x2="322" y2="702"/>
+    <path d="M512 322 L322 512 L512 702 L702 512 Z"/>
+  </g>
+
+  <!-- the P mark, matching the favicon, in gold leaf -->
+  <text x="512" y="600" font-family="Georgia, 'Times New Roman', serif" font-size="400"
+        font-weight="600" fill="url(#gold)" text-anchor="middle">P</text>
+
+  <!-- wordmark -->
+  <text x="512" y="742" font-family="Georgia, serif" font-size="78" letter-spacing="12"
+        fill="url(#gold)" text-anchor="middle">ASTROPOTHI</text>
+  <text x="512" y="800" font-family="'Noto Sans Devanagari', sans-serif" font-size="42"
+        fill="#c7a44a" text-anchor="middle" opacity="0.85">पोथी</text>
+</svg>
