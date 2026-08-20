@@ -245,7 +245,9 @@ comment in `bin/www.js` about the 402 duplicate unique indexes.
 
 ```bash
 docker run -d --name pothi-api --restart unless-stopped \
-  --network host --env-file .env pothi-api
+  --network host --env-file .env \
+  -v pothi-out:/app/out \
+  pothi-api
 
 docker logs -f pothi-api        # expect: [pothi-api] :4050 (production)
 curl -s localhost:4050/health
@@ -359,7 +361,8 @@ cd ~/pothi && git pull
 cd pothi-api
 docker build -t pothi-api . \
   && docker rm -f pothi-api \
-  && docker run -d --name pothi-api --restart unless-stopped --network host --env-file .env pothi-api
+  && docker run -d --name pothi-api --restart unless-stopped --network host --env-file .env \
+       -v pothi-out:/app/out pothi-api
 ```
 
 **`docker restart` is not enough after editing `.env`.** `--env-file` is read once, when the
