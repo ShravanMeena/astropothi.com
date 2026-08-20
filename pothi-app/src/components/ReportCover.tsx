@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 
 /**
- * One colourway per report, so seven books do not look like seven copies of
- * one book on a shelf.
+ * One colourway per report, so nine books do not look like nine copies of one
+ * on a shelf.
  *
- * These are real palettes a buyer can pick — this only decides which one each
- * report is *shown* in by default, the way a publisher gives each title in a
- * series its own spine colour.
+ * The server owns this now — it is in the catalogue payload as `cover_palette`,
+ * because the boot warmer has to pre-render exactly the variant the storefront
+ * will ask for, and two copies of the map meant it could warm one the shop
+ * never requested. This stays as the fallback for a caller that has no
+ * catalogue row to hand.
  */
 export const COVER_PALETTE: Record<string, string> = {
   kundli:     "gold",

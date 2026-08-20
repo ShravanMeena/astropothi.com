@@ -1,6 +1,7 @@
 import Reveal from "../components/Reveal";
 import ReportCover from "../components/ReportCover";
 import { rupees, type ReportItem } from "../lib/api";
+import ReportCard from "../components/ReportCard";
 
 const BLURB: Record<string, string> = {
   kundli:     "The complete reading. Every house, every planet, dashas with dates, divisional charts, strengths and remedies.",
@@ -66,37 +67,7 @@ export default function Reports({ items, onPick, onAll, onAskGuide }: {
       )}
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
-        {rest.map((r) => (
-          <button key={r.code} onClick={() => onPick(r.code)}
-            className="group card p-4 sm:p-6 text-left flex gap-4 sm:flex-col sm:h-full
-                       hover:shadow-lift hover:-translate-y-0.5 hover:border-faint transition-all">
-            {/* 84px on a phone, not 104. The cover is 1:1.414, so every pixel of
-                width costs 1.4 of height — and when the cover was taller than
-                the words beside it the card ended in a block of nothing. */}
-            <ReportCover code={r.code} className="w-[84px] shrink-0 sm:w-[124px] sm:mb-5" />
-            <span className="flex flex-col min-w-0 flex-1">
-              <h3 className="display text-[19px] sm:text-[20px] leading-snug">{r.name_en}</h3>
-              {/* The blurb takes the slack, so three cards of unequal copy end
-                  with their price and link on the same line instead of leaving
-                  a hole in the middle of the shorter ones. */}
-              <p className="text-[13px] sm:text-[14px] text-muted mt-1 leading-snug sm:leading-relaxed
-                            line-clamp-2 sm:line-clamp-none sm:flex-1">{BLURB[r.code]}</p>
-              {/* mt-auto on a phone: the price sits on the cover's bottom edge
-                  instead of floating in the middle with a hole underneath. */}
-              <span className="flex items-baseline gap-3 mt-auto pt-2 sm:mt-4 sm:pt-4 sm:border-t sm:border-line">
-                <span className="display text-[18px] sm:text-[20px]">{rupees(r.price_paise)}</span>
-                <span className="text-[12.5px] text-faint">{r.chapters} chapters</span>
-              </span>
-              {/* Desktop keeps the link; on a phone the whole card is the tap
-                  target and the row read as a button that was not one. */}
-              <span className="hidden sm:inline-flex mt-3 items-center gap-1.5 text-[13.5px] font-medium text-fg
-                               group-hover:gap-2.5 transition-all">
-                See what's inside
-                <span aria-hidden className="text-brass">→</span>
-              </span>
-            </span>
-          </button>
-        ))}
+        {rest.map((r) => <ReportCard key={r.code} item={r} onPick={onPick} />)}
       </div>
 
       <div className="mt-12 flex flex-wrap items-center gap-3">

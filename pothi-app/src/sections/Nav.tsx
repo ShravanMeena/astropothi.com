@@ -3,8 +3,8 @@ import ThemeToggle from "../components/ThemeToggle";
 import type { Theme } from "../lib/theme";
 import Logo from "../components/Logo";
 
-export default function Nav({ onBuy, onAstrologers, onGo, signedIn, onSignIn, onProfile, theme, setTheme }: {
-  onBuy: () => void; onAstrologers: () => void; onGo: (path: string) => void;
+export default function Nav({ onAstrologers, onGo, signedIn, onSignIn, onProfile, theme, setTheme }: {
+  onAstrologers: () => void; onGo: (path: string) => void;
   signedIn: boolean; onSignIn: () => void; onProfile: () => void;
   theme: Theme; setTheme: (t: Theme) => void;
 }) {
@@ -63,12 +63,12 @@ export default function Nav({ onBuy, onAstrologers, onGo, signedIn, onSignIn, on
                     : <><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h16" /></>}
             </svg>
           </button>
-          {/* Desktop only. On a phone the header had a burger, an account
-              circle and a CTA in 390px, and the CTA is duplicated by the one in
-              the hero and the one pinned to the bottom of every report page. */}
-          <button className="btn-dark btn-sm hidden md:inline-flex" onClick={onBuy}>
-            Get your report
-          </button>
+          {/* No CTA in the header.
+              Every page that sells already carries one: the hero button, the
+              card grid, and the bar pinned to the bottom of a report page. A
+              fourth in the chrome competed with all of them and was the least
+              contextual of the four — it did not know which report the reader
+              was looking at. */}
         </div>
       </div>
 

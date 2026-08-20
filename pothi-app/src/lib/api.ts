@@ -16,6 +16,9 @@ export type ReportItem = {
   code: string; name_en: string; name_hi: string; chapters: number; price_paise: number;
   /** "person" wants birth details; "property" wants a facing and a room layout. */
   subject?: "person" | "property";
+  /** The colourway the shop shows this report in. Server-owned so the boot
+   *  warmer pre-renders exactly the cover the storefront will request. */
+  cover_palette?: string;
 };
 export type Design = {
   id: string; name: { en: string; hi: string }; tagline: { en: string; hi: string };

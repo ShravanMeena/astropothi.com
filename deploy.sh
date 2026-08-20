@@ -88,6 +88,24 @@ restart_api() {
      && sleep 8 && sudo docker logs --tail 3 pothi-api"
 }
 
+# Production never syncs on boot, so a new model or column reaches the server as
+# code and stays absent from the database. The gap only shows up when a request
+# touches it and returns 500 — which is how both `report_status` and `utm_source`
+# were found: from the outside, after shipping. Ask the database directly instead.
+schema_check() {
+  say "Schema check"
+  if ! ssh_ "cd ~/pothi/pothi-api && sudo docker run --rm --network host --env-file .env pothi-api node scripts/schema_check.js"; then
+    printf '\n\033[1;31m   Deploy is live but the schema is behind. Write scripts/ensure_*.js, then:\033[0m\n'
+    printf '   ./deploy.sh migrate\n'
+    return 1
+  fi
+}
+
+migrate() {
+  say "Running migrations"
+  ssh_ "cd ~/pothi/pothi-api && sudo docker run --rm --network host --env-file .env pothi-api npm run migrate"
+}
+
 status() {
   say "Live check"
   printf 'health     %s\n' "$(curl -s -m 25 "$DOMAIN/health")"
@@ -99,13 +117,15 @@ status() {
 }
 
 case "${1:-all}" in
-  all)    build_web; ship_api; ship_web; status ;;
-  api)    ship_api; status ;;
-  web)    build_web; ship_web; status ;;
-  env)    restart_api; status ;;
-  status) status ;;
-  logs)   ssh_ "sudo docker logs -f --tail 80 pothi-api" ;;
-  *)      echo "usage: ./deploy.sh [all|api|web|env|status|logs]"; exit 1 ;;
+  all)     build_web; ship_api; ship_web; schema_check; status ;;
+  api)     ship_api; schema_check; status ;;
+  web)     build_web; ship_web; status ;;
+  env)     restart_api; status ;;
+  migrate) migrate; schema_check; status ;;
+  schema)  schema_check ;;
+  status)  status ;;
+  logs)    ssh_ "sudo docker logs -f --tail 80 pothi-api" ;;
+  *)       echo "usage: ./deploy.sh [all|api|web|env|migrate|schema|status|logs]"; exit 1 ;;
 esac
 
 say "Done"

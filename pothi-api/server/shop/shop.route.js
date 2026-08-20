@@ -55,7 +55,11 @@ export function noAuth() {
     return ok(res, {
       code: type.code, name_en: type.name_en, name_hi: type.name_hi,
       chapters: type.chapters, price_paise: await Pricing.priceOf(type.code),
-      approx_pages: o.approx_pages, outline: o.chapters,
+      // The preview is the real book in the design the reader is looking at, so
+      // its page count is the true one. The outline's is a floor: it renders
+      // without the AI expansion, which is what makes it fast.
+      approx_pages: preview?.total_pages ?? o.approx_pages,
+      outline: o.chapters,
       sample: preview ? { pages: preview.total_pages, images: preview.images, pdf: preview.pdf } : null
     });
   }));

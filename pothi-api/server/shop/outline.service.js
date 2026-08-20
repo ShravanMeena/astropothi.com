@@ -23,10 +23,18 @@ export async function outline(reportType, lang = "en") {
   const job = (async () => {
     const { model, pages } = await renderReport({
       reportType, input: SPECIMEN, designId: "classic", paletteId: "saffron",
-      branding: {}, language: lang
+      branding: {}, language: lang,
+      // Titles only. The AI expansion appends paragraphs inside chapters and
+      // can neither rename one nor add one, so paying ten seconds and a model
+      // call for it here bought nothing — and it was paid by whichever visitor
+      // opened a report page first after a deploy.
+      enrich: false
     });
     const out = {
       chapters: model.sections.map((s) => ({ n: s.n, title: s.title, subtitle: s.subtitle || "" })),
+      // Unenriched, so it under-counts a report whose chapters get expanded.
+      // The shop prefers the warmed preview's real page count and falls back to
+      // this; see shop.route.js.
       approx_pages: pages
     };
     cache.set(key, out);

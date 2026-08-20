@@ -17,6 +17,23 @@ export const REPORT_TYPES = [
   { code: "vastu",      name_en: "Vastu Wheel Report",    name_hi: "वास्तु चक्र रिपोर्ट",  chapters: 25, credits: 3, engine: "vastu",      ready: true, subject: "property" }
 ];
 
+/**
+ * The colourway each report is *shown* in, so nine books do not look like nine
+ * copies of one on a shelf.
+ *
+ * Server-side because two things need it and they must agree: the storefront
+ * asks for this palette when it fetches a cover, and the boot warmer renders
+ * that exact variant ahead of time. Kept in the client as well until now, which
+ * meant the warmer could warm a variant nobody would ever request.
+ */
+export const COVER_PALETTE = {
+  kundli: "gold", dosh: "slate", love: "saffron", health: "emerald",
+  horoscope: "indigo", laalkitab: "crimson", varshaphal: "parchment",
+  vastu: "emerald", career: "slate"
+};
+/** What the storefront shows a cover in, unless the reader picks otherwise. */
+export const SHOP_DESIGN = "heritage";
+
 // `ready: true` = renderer under review, see OPEN-ITEMS.md #1. Not sellable yet.
 export const SELLABLE = REPORT_TYPES.filter((r) => r.ready);
 
@@ -78,7 +95,9 @@ export const consumerCatalogue = () =>
     chapters: r.chapters, price_paise: CONSUMER_PRICES[r.code] ?? 29900,
     // "person" (birth details) or "property" (facing + room layout). The
     // checkout form branches on this — a Vastu report has no birth moment.
-    subject: r.subject || "person"
+    subject: r.subject || "person",
+    // So the client never has to keep its own copy of this map.
+    cover_palette: COVER_PALETTE[r.code] || "gold"
   }));
 
 export const consumerPrice = (code) => CONSUMER_PRICES[code] ?? null;

@@ -1,19 +1,8 @@
 import { motion } from "framer-motion";
-import { rupees, type ReportItem } from "../lib/api";
+import { type ReportItem } from "../lib/api";
+import ReportCard from "../components/ReportCard";
 import ChartMark from "../components/ChartMark";
-import ReportCover from "../components/ReportCover";
 
-const BLURB: Record<string, { deva: string; text: string; for: string }> = {
-  kundli:     { deva: "कुंडली",   text: "Every house read in turn, every planet, the dasha timeline with dates, ten divisional charts, strengths by bindu, and remedies drawn from your weakest placements.", for: "The whole picture" },
-  dosh:       { deva: "दोष",      text: "Fourteen classical doshas tested against your chart — what forms, what is cancelled, how severe it actually is, and what to do about it.", for: "Something feels blocked" },
-  love:       { deva: "विवाह",    text: "The 7th house and its lord, Venus and Mars, the navamsa that decides whether the promise holds, and the dasha windows when marriage ripens.", for: "Marriage and partnership" },
-  health:     { deva: "आरोग्य",   text: "Lagna and its lord, the 6th house, the Moon, your tatva and prakriti — and the areas of the body your chart asks you to look after.", for: "Constitution and energy" },
-  horoscope:  { deva: "राशिफल",   text: "Not a sun-sign column. Every transit placed against your own natal houses, the dates that matter, and what each one touches.", for: "The month ahead" },
-  laalkitab:  { deva: "लाल किताब", text: "A distinct tradition with its own logic and its own remedies — practical, inexpensive, and drawn from the placements that need help.", for: "Practical remedies" },
-  vastu:      { deva: "वास्तु चक्र", text: "Nine directions, and what the classics assign to each. Your entrance, kitchen, bedroom, pooja space, toilets and water checked against the mandala — every dosh named with the rule behind it, and remedies that need no demolition.", for: "Your home" },
-  varshaphal: { deva: "वर्षफल",   text: "The annual chart cast for your solar return: Muntha, Panchavargeeya bala, the Mudda dasha and the themes month by month.", for: "The year ahead" },
-  career:     { deva: "कर्म",     text: "The 10th house and its lord, the grahas that signify work, the Dashamsha read for career alone, your Amatyakaraka, and the periods in which a career turns. Job or business, answered from the signals actually in your chart.", for: "Work and livelihood" }
-};
 
 export default function ReportsPage({ items, onPick, onAskGuide }: {
   items: ReportItem[]; onPick: (code: string) => void; onAskGuide: () => void;
@@ -46,38 +35,14 @@ export default function ReportsPage({ items, onPick, onAskGuide }: {
       </section>
 
       <section className="shell py-11 sm:py-24">
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-14">
-          {items.map((r, i) => {
-            const b = BLURB[r.code];
-            return (
-              <motion.button key={r.code} onClick={() => onPick(r.code)}
-                initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: .5, delay: Math.min(i, 6) * .06, ease: [0.22, 0.7, 0.2, 1] }}
-                className="group text-left flex gap-5 sm:block">
-                <ReportCover code={r.code} className="w-[112px] shrink-0 sm:w-auto" />
-                <span className="block min-w-0 flex-1">
-                  <span className="caps text-brass block sm:mt-6">{b?.for}</span>
-                  <span className="flex items-baseline gap-2.5 mt-1.5 sm:mt-2 flex-wrap">
-                    <span className="display text-[20px] sm:text-[23px]">{r.name_en}</span>
-                    <span className="deva text-[14px] sm:text-[15px] text-brass">{b?.deva}</span>
-                  </span>
-                  <span className="block text-[13.5px] sm:text-[14px] text-muted mt-2 leading-relaxed
-                                   line-clamp-3 sm:line-clamp-none">{b?.text}</span>
-                  <span className="flex items-baseline gap-3 sm:justify-between mt-3 sm:mt-4
-                                   sm:pt-4 sm:border-t sm:border-line">
-                    <span className="display text-[18px] sm:text-[20px] foil sm:order-2">
-                      {rupees(r.price_paise)}
-                    </span>
-                    <span className="text-[12.5px] text-faint sm:order-1">{r.chapters} chapters</span>
-                  </span>
-                  <span className="mt-2.5 sm:mt-3 inline-flex items-center gap-1.5 text-[13.5px] font-medium
-                                   group-hover:gap-2.5 transition-all">
-                    See what's inside <span aria-hidden className="text-brass">→</span>
-                  </span>
-                </span>
-              </motion.button>
-            );
-          })}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          {items.map((r, i) => (
+            <motion.div key={r.code}
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: .45, delay: Math.min(i, 6) * .05, ease: [0.22, 0.7, 0.2, 1] }}>
+              <ReportCard item={r} onPick={onPick} featured={r.code === "kundli"} />
+            </motion.div>
+          ))}
         </div>
       </section>
     </>

@@ -22,7 +22,7 @@ const GENERATORS = {
 
 export const REPORT_CODES = Object.keys(GENERATORS);
 
-export async function renderReport({ reportType, input, designId, paletteId, branding, language, reference }) {
+export async function renderReport({ reportType, input, designId, paletteId, branding, language, reference, enrich = true }) {
   const g = GENERATORS[reportType];
   if (!g) throw new Error(`unknown report type: ${reportType}`);
   const lang = language === "hi" ? "hi" : "en";
@@ -42,7 +42,14 @@ export async function renderReport({ reportType, input, designId, paletteId, bra
   // sentences are untouched and stay first; anything the model tries to add
   // that names a sign or a date the chapter never mentioned is rejected. If the
   // model is unreachable this is a no-op and the report ships as templates.
-  const enrichment = await enrichSections(model, { lang, reportType });
+  // `enrich: false` is for callers that need the STRUCTURE and not the prose —
+  // the shop's table of contents, for instance, which reads chapter titles and
+  // nothing else. Expansion only appends paragraphs to a chapter; it cannot
+  // rename one or change how many there are. Rendering it anyway cost ten
+  // seconds and a Bedrock call per report, on the page an advertisement lands.
+  const enrichment = enrich
+    ? await enrichSections(model, { lang, reportType })
+    : { expanded: 0, rejected: 0, skipped: "not requested" };
 
   const { buffer, pages } = await renderReportPdf({
     doc: model, designId, paletteId, branding

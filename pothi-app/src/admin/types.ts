@@ -18,6 +18,10 @@ export type Funnel = {
 
 export type ConsumerRevenue = {
   orders: number; gross_paise: number; gst_paise: number; net_paise: number;
+  /** Paid AND delivered — the part of gross we are entitled to keep. */
+  delivered_orders: number; delivered_paise: number;
+  /** Paid for a report that never arrived. A debt to that buyer, not revenue. */
+  owed_orders: number; owed_paise: number;
   refunded_orders: number; refunded_paise: number; net_of_refunds_paise: number;
   aov_paise: number;
 };

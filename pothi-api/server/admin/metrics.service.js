@@ -109,9 +109,32 @@ export async function consumerRevenue(window) {
        FROM orders
       WHERE status = '${REFUNDED_STATE}' AND "deletedAt" IS NULL ${since(window)}`
   );
+  /**
+     * Money taken for a report the buyer never received.
+     *
+     * `failed` is inside PAID_STATES because the payment genuinely succeeded —
+     * the money is with the gateway. But bundling it into one headline "gross"
+     * says we earned it, when what we actually have is a debt: that buyer is
+     * owed a report or a refund. It is reported separately so the top number
+     * can be read as "collected" and the difference is visible rather than
+     * discovered later.
+     */
+  const owed = await one(
+    `SELECT COUNT(*)::int                      AS orders,
+            COALESCE(SUM(amount_paise),0)::bigint AS gross_paise
+       FROM orders
+      WHERE status = 'failed' AND "deletedAt" IS NULL ${since(window)}`
+  );
+
   const gross = Number(r.gross_paise), gst = Number(r.gst_paise);
+  const owedPaise = Number(owed.gross_paise);
   return {
     orders: r.orders,
+    // Paid AND delivered — the part of gross we are entitled to keep.
+    delivered_orders: r.orders - owed.orders,
+    delivered_paise: gross - owedPaise,
+    owed_orders: owed.orders,
+    owed_paise: owedPaise,
     gross_paise: gross,
     gst_paise: gst,
     net_paise: gross - gst,

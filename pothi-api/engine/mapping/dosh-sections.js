@@ -141,9 +141,23 @@ export function buildSections(ctx, chapters, cancellations, minorPatterns) {
           `चार गौण योगों की भी जाँच हुई — ${joinList(minorPatterns.map((m) => m.name), lang)} — जिनमें से ${minorPatterns.filter((m) => m.detected).length} उपस्थित हैं। इनका अलग अध्याय नहीं है क्योंकि ये स्वयं किसी निर्णय को नहीं बदलते।`)
         : t(lang, "No secondary patterns were available to check for this chart.", "इस कुंडली के लिए किसी गौण योग की जाँच उपलब्ध नहीं थी।"),
     ],
-    bullets: chapters.map((c) =>
-      t(lang, `${c.name} — ${c.detected ? `present, ${c.severity_label} (${c.severity}/100)` : "absent"} · ${c.affects}`,
-        `${c.name} — ${c.detected ? `उपस्थित, ${sevL(c.severity_label, lang)} (${c.severity}/100)` : "अनुपस्थित"} · ${c.affects}`)),
+    /**
+     * A scannable column, not fourteen sentences.
+     *
+     * As bullets this page was fourteen identical lines with the one word that
+     * matters — present or absent — buried in the middle of each. It is the
+     * first page a buyer turns to and the last one they could read at a glance.
+     * The renderer draws each row with its severity colour, a filled marker for
+     * a dosh that formed and a ring for one that did not, and a score bar only
+     * where something was actually measured.
+     */
+    checklist: chapters.map((c) => ({
+      label: c.name,
+      domain: c.affects,
+      kind: c.detected ? "present" : "absent",
+      severity: c.detected ? String(c.severity_label || "").toLowerCase() : "none",
+      score: c.detected ? c.severity : 0
+    })),
     summary: t(lang, `${detected.length} of ${chapters.length} doshas present; ${absent.length} tested and absent.`,
       `${chapters.length} में से ${detected.length} दोष उपस्थित; ${absent.length} जाँचे गए और अनुपस्थित पाए गए।`),
     dosh_ids: chapters.map((c) => c.id),

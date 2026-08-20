@@ -91,7 +91,7 @@ export default function App() {
 
   return (
     <>
-      <Nav onBuy={() => go("/reports")} onAstrologers={() => go("/astrologers")} onGo={nav}
+      <Nav onAstrologers={() => go("/astrologers")} onGo={nav}
            signedIn={signedIn} onSignIn={() => { track("signin_opened", { from: route.name }); setSignIn(true); }} onProfile={() => go("/profile")}
            theme={theme} setTheme={setTheme} />
       <main>

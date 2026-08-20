@@ -43,8 +43,14 @@ export default function Overview({ window: w, setWindow }: { window: Window; set
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="card relative overflow-hidden lamp">
           <div className="relative z-10 p-5">
-            <Metric foil value={rupees(c.gross_paise)} label="Consumers · gross"
-                    hint="Retail sales to buyers. Kept separate from astrologer revenue — they are different products bought by different people, so one combined total would answer no question." />
+            {/* Delivered, not gross.
+                Gross counts `failed` orders — payments that succeeded for a
+                report the buyer never received. That money is real but it is
+                owed, not earned, and one headline containing both said we had
+                revenue after every report had been deleted. The debt gets its
+                own line below. */}
+            <Metric foil value={rupees(c.delivered_paise)} label="Consumers · delivered"
+                    hint="Paid AND delivered — the part we are entitled to keep. Money taken for a report that never arrived is shown separately below, because it is a debt to that buyer rather than revenue." />
             <div className="mt-5 grid grid-cols-3 gap-3">
               <Mini label="Net" value={rupees(c.net_paise)} />
               <Mini label="GST 18%" value={rupees(c.gst_paise)} />
@@ -55,7 +61,12 @@ export default function Overview({ window: w, setWindow }: { window: Window; set
             <Spark values={by_day.map((d) => d.consumer_gross_paise)} />
           </div>
           <div className="relative z-10 flex items-center justify-between px-5 py-2.5 border-t border-line text-[11.5px]">
-            <span className="text-muted">{num(c.orders)} paid orders</span>
+            <span className="text-muted">
+              {num(c.delivered_orders)} delivered
+              {c.owed_orders > 0 && (
+                <span className="text-ember"> · {rupees(c.owed_paise)} taken, not delivered</span>
+              )}
+            </span>
             {c.refunded_paise > 0
               ? <span className="text-ember">{rupees(c.refunded_paise)} refunded</span>
               : <span className="text-faint">no refunds</span>}

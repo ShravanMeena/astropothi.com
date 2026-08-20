@@ -53,7 +53,15 @@ function normalizeSection(raw, index) {
     // The verdict as data, so the renderer can colour it instead of the reader
     // having to parse severity out of grey type. Only the dosh mapper sets it.
     status: raw.status && typeof raw.status === "object" ? raw.status : null,
-    table: Array.isArray(raw.table) ? raw.table : null
+    table: Array.isArray(raw.table) ? raw.table : null,
+    /**
+     * A list of verdicts, drawn as a scannable list rather than prose bullets.
+     * `[{ label, domain, kind, severity, score }]` — the dosh summary's
+     * fourteen rows were fourteen identical sentences with "present" buried in
+     * the middle of each, which is unreadable at a glance and is the one page
+     * a buyer looks at first.
+     */
+    checklist: Array.isArray(raw.checklist) ? raw.checklist : null
   };
 }
 

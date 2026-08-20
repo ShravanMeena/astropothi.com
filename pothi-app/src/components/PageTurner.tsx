@@ -16,6 +16,16 @@ function useSpreadMode(force?: boolean) {
   return force ? false : wide;
 }
 
+/**
+ * How long a page takes to turn.
+ *
+ * 780ms was chosen to look like a real page and read as a stall — three turns
+ * and the reader is waiting on the animation rather than the book. A real page
+ * turn is around a third of a second, and at this speed the illusion survives
+ * while the wait does not.
+ */
+const FLIP_MS = 420;
+
 const chunk = <T,>(xs: T[], n: number) =>
   Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
 
@@ -62,12 +72,32 @@ export default function PageTurner({
     setFlip({ dir, from: i });
   }, [i, spreads.length, reduce]);
 
-  const done = () => {
-    if (!flip) return;
-    setI(flip.from + flip.dir);
-    setFlip(null);
+  const done = useCallback(() => {
+    setFlip((f) => {
+      if (f) setI(f.from + f.dir);
+      return null;
+    });
     busy.current = false;
-  };
+  }, []);
+
+  /**
+   * The watchdog that stops the book jamming.
+   *
+   * Turning is gated on `busy`, which is cleared by the flip animation's
+   * completion callback. If that callback never arrives the book is stuck for
+   * good — and it does not always arrive: an interrupted animation, a
+   * re-render that swaps the element, or a backgrounded tab can all swallow it.
+   * The symptom is exactly what it was reported as, a reader that turns a few
+   * pages and then stops responding.
+   *
+   * So the callback is no longer the only way out. This finishes the turn
+   * slightly after the animation should have, whether or not it reported back.
+   */
+  useEffect(() => {
+    if (!flip) return;
+    const t = setTimeout(done, FLIP_MS + 120);
+    return () => clearTimeout(t);
+  }, [flip, done]);
 
   useEffect(() => {
     if (!keyboard) return;
@@ -110,6 +140,25 @@ export default function PageTurner({
     go(dx < 0 ? 1 : -1);
   };
 
+  /**
+   * Fetch the spreads either side of this one, quietly.
+   *
+   * Every turn was hitting the network for an image the reader was about to
+   * look at, so the page appeared blank for the length of a round trip and the
+   * turn felt slow even though each file is only ~34 KB. Warming the immediate
+   * neighbours means the common case — turning one page — is instant, and it
+   * costs two requests rather than pre-loading a whole book nobody may read.
+   */
+  useEffect(() => {
+    for (const n of [i + 1, i - 1, i + 2]) {
+      for (const s of spreads[n] || []) {
+        const img = new Image();
+        img.decoding = "async";
+        img.src = s.url;
+      }
+    }
+  }, [i, spreads]);
+
   if (!spreads.length) {
     return <div className={`w-full ${single ? "aspect-[1/1.414]" : "aspect-[1.414/1]"}
                             rounded-[2px] bg-sunken border border-line animate-pulse`} />;
@@ -126,7 +175,8 @@ export default function PageTurner({
   const Page = ({ s, className = "" }: { s?: Shot; className?: string }) => (
     <span className={`relative block bg-raised overflow-hidden ${className}`}>
       {s
-        ? <img src={s.url} alt={`Page ${s.page}`} className="w-full h-full object-contain block" />
+        ? <img src={s.url} alt={`Page ${s.page}`} decoding="async"
+               className="w-full h-full object-contain block" />
         : <span className="block w-full h-full bg-sunken" />}
     </span>
   );
@@ -171,7 +221,11 @@ export default function PageTurner({
               }}
               initial={{ rotateY: 0 }}
               animate={{ rotateY: forward ? -180 : 180 }}
-              transition={{ duration: .78, ease: [0.42, 0, 0.24, 1] }}
+              // Keyed, so every turn mounts a fresh element. Without it two
+              // turns in the same direction reuse the node, framer sees no
+              // change in `animate`, and the completion callback never fires.
+              key={`${flip.from}-${flip.dir}`}
+              transition={{ duration: FLIP_MS / 1000, ease: [0.42, 0, 0.24, 1] }}
               onAnimationComplete={done}>
               <div className="absolute inset-0" style={{ backfaceVisibility: "hidden" }}>
                 <Page s={leafFront ?? undefined} className="w-full h-full" />
@@ -183,7 +237,7 @@ export default function PageTurner({
               {/* light rolls across the sheet as it lifts */}
               <motion.div aria-hidden className="absolute inset-0 pointer-events-none"
                 initial={{ opacity: 0 }} animate={{ opacity: [0, .45, 0] }}
-                transition={{ duration: .78, times: [0, .5, 1] }}
+                transition={{ duration: FLIP_MS / 1000, times: [0, .5, 1] }}
                 style={{ background: forward
                   ? "linear-gradient(270deg, rgb(0 0 0 / .55), transparent 62%)"
                   : "linear-gradient(90deg, rgb(0 0 0 / .55), transparent 62%)" }} />

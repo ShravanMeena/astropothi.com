@@ -896,6 +896,73 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       y += h + D.gapPara;
     }
 
+    /**
+     * A column of verdicts a reader can scan without reading.
+     *
+     * Present rows carry the severity colour and a filled score bar; absent
+     * rows are a hairline tick in green and set in the muted ink, so the eye
+     * finds the four that matter among the fourteen that were checked. The
+     * colours are the same fixed STATUS set the chips use — a status colour
+     * that changed with the chosen palette would not be a status colour.
+     */
+    function checklist(rows) {
+      const w = textW();
+      const nameW = w * 0.42, barW = 58;
+      y += 4;
+      for (const r of rows) {
+        const look = statusOf(r) || STATUS.absent;
+        const on = r.kind === "present";
+        need(26);
+
+        // The marker: a filled dot for a dosh that formed, a ring for one that
+        // did not. Shape as well as colour, so the page survives being printed
+        // in black and white — which is how a great many of these are read.
+        const cy = y + 7.5;
+        if (on) pdf.circle(textX() + 4, cy, 4).fill(look.fill);
+        else pdf.circle(textX() + 4, cy, 3.6).lineWidth(1).strokeColor(look.fill).stroke();
+
+        pdf.font(FT(r.label, on)).fontSize(FS(D.body - 0.4))
+           .fillColor(on ? P.ink : P.inkSoft)
+           .text(r.label, textX() + 15, y + 1.5, { width: nameW, lineBreak: false });
+
+        if (r.domain) {
+          // Truncated by measurement rather than trusted to lineBreak:false —
+          // "Match-making & Household Harmony" wrapped anyway and printed its
+          // second line on top of the row below.
+          const domW = w - nameW - 15 - barW - 46;
+          pdf.font(FT(r.domain, false)).fontSize(S(7.6));
+          let d = r.domain;
+          if (pdf.widthOfString(d) > domW) {
+            while (d.length > 4 && pdf.widthOfString(`${d}…`) > domW) d = d.slice(0, -1);
+            d = `${d.trimEnd()}…`;
+          }
+          pdf.fillColor(P.rule).text(d, textX() + 15 + nameW, y + 3.5,
+                                     { width: domW, lineBreak: false, height: 11 });
+        }
+
+        // Score, only where there is one to give. An absent dosh gets the word,
+        // not a zero — a bar at zero reads as a measurement, and nothing was
+        // measured.
+        const rx = textX() + w - barW - 34;
+        if (on && r.score > 0) {
+          pdf.font(F(0)).fontSize(S(7.8)).fillColor(look.fill)
+             .text(String(r.score), rx + barW + 6, y + 3.5, { width: 28, lineBreak: false });
+          pdf.fillOpacity(0.16).roundedRect(rx, cy - 3, barW, 6, 3).fill(look.fill).fillOpacity(1);
+          pdf.roundedRect(rx, cy - 3, Math.max(4, barW * (r.score / 100)), 6, 3).fill(look.fill);
+        } else {
+          const word = look.label[hi ? "hi" : "en"];
+          pdf.font(FT(word, false)).fontSize(S(7.2)).fillColor(P.rule)
+             .text(word, rx, y + 3.5, { width: barW + 34, align: "right",
+                                        characterSpacing: tr(word, 0.8), lineBreak: false });
+        }
+
+        y += 19;
+        pdf.lineWidth(0.35).strokeColor(P.rule).moveTo(textX(), y - 4.5)
+           .lineTo(textX() + w, y - 4.5).stroke();
+      }
+      y += D.gapPara;
+    }
+
     function bullets(items) {
       // Only WinAnsi glyphs survive the built-in Times/Helvetica encodings —
       // U+25C6 rendered as literal "%A" garbage in the serif designs.
@@ -1172,6 +1239,7 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
         else if (opener === "head") sectionHead(s);
         if (s.summary) summary(s.summary);
         s.paras.forEach((p, pi) => para(p, { dropCap: pi === 0 }));
+        if (s.checklist) checklist(s.checklist);
         if (s.bullets.length) bullets(s.bullets);
         if (s.advisory) (spec.advisoryStyle === "note" ? note : summary)(s.advisory);
       });

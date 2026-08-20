@@ -396,3 +396,38 @@ Admin → Behaviour:
 
 `scripts/test_attribution.js` covers both records, the write-once rule, the length caps, an
 order with no campaign at all, and the staff-only guard.
+
+
+---
+
+## Why the shop was slow, and what fixed it
+
+Report detail pages measured **17.6 seconds**. Every one of the four causes was
+the same mistake in a different place: a full report render, including the AI
+expansion, to obtain something the expansion cannot affect.
+
+| Cause | Cost | Fix |
+|---|---|---|
+| `outline()` rendered the whole book to read chapter *titles* | ~10s per report, per process | `enrich: false` — expansion appends paragraphs inside chapters; it cannot rename one or add one |
+| `getThumb()` rendered the whole book to return page *one* | ~10s, three at once from the edition picker | its own render with `enrich: false` and its own cache entry |
+| Nothing was rendered until a visitor asked | first visitor after every deploy paid it | `warmPreviews()` on boot, in the background, after the port opens |
+| `sweepStale` deleted the previous build's samples immediately | no fallback during the warm window | sweep deferred until warming finishes; `getPreview` serves the previous rev meanwhile |
+
+Measured on a stable server afterwards: **0.12–0.73s** for every report detail
+page, and 1ms once a page has been served. Card thumbnails went from 17s to
+1ms.
+
+**Two details worth keeping.**
+
+`getPreview` checks for a previous-rev sample *before* joining an in-flight
+render, not after. The warmer works through the same reports a visitor browses,
+so joining its promise is the case they are most likely to hit — and it costs
+the full ten seconds. The previous build's sample is a picture of the same
+report; only the renderer changed.
+
+`sweepStale` matches with `includes`, not `endsWith`. Cover thumbnails are keyed
+`<key>__<rev>__cover`, so an `endsWith` test called every one of them stale and
+deleted the lot on each warm, to be re-rendered on the next request for ever.
+
+`WARM_PREVIEWS=0` skips warming — useful when iterating on the renderer, where
+every restart would otherwise re-render everything the change invalidated.

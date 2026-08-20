@@ -47,13 +47,44 @@ async function renderRev() {
   return RENDER_REV;
 }
 
-/** Drop preview directories built by an older renderer. */
+/**
+ * Drop preview directories built by an older renderer.
+ *
+ * Deferred until the warmer has finished, not run on first use.
+ *
+ * Sweeping eagerly threw away the one thing that covers the gap after a deploy:
+ * for the two minutes it takes to re-render every sample, the PREVIOUS build's
+ * sample is still a perfectly good picture of the same report — only the
+ * renderer changed. Deleting it first meant the first visitor to each report
+ * waited for a full enriched render, which is the seventeen seconds this was
+ * all about. Now the old files stay until the new ones exist.
+ */
 async function sweepStale(rev) {
   try {
     for (const d of await readdir(ROOT)) {
-      if (!d.endsWith(`__${rev}`)) await rm(path.join(ROOT, d), { recursive: true, force: true });
+      // `includes`, not `endsWith`: a cover thumbnail is stored as
+      // `<key>__<rev>__cover`, so an endsWith test called every one of them
+      // stale and deleted the lot on each warm — they were then re-rendered on
+      // the next request, for ever.
+      if (!d.includes(`__${rev}`)) await rm(path.join(ROOT, d), { recursive: true, force: true });
     }
   } catch { /* nothing cached yet */ }
+}
+
+/**
+ * A sample from an older renderer for the same report, design and palette.
+ * Used only while the current one is still being built.
+ */
+async function previousRev(type, design, palette, lang, brand) {
+  const prefix = `${type}_${design}_${palette}_${lang}_${brand}__`;
+  try {
+    const dirs = (await readdir(ROOT)).filter((d) => d.startsWith(prefix));
+    for (const d of dirs) {
+      const m = path.join(ROOT, d, "manifest.json");
+      if (await exists(m)) return JSON.parse(await readFile(m, "utf8"));
+    }
+  } catch { /* nothing cached yet */ }
+  return null;
 }
 let swept = null;
 
@@ -108,13 +139,22 @@ function key(type, design, palette, lang, brand, rev) { return `${type}_${design
 /** Returns [{ page, file }] for a (type, theme, language). Cached after first build. */
 export async function getPreview(type, design, palette, lang = "en", brand = "pandit") {
   const rev = await renderRev();
-  swept ??= sweepStale(rev);
-  await swept;
   const k = key(type, design, palette, lang, brand, rev);
   const dir = path.join(ROOT, k);
   const manifest = path.join(dir, "manifest.json");
 
   if (await exists(manifest)) return JSON.parse(await readFile(manifest, "utf8"));
+
+  // Checked BEFORE the inflight promise, not after.
+  //
+  // If the warmer happens to be rendering this exact variant, joining its
+  // promise means waiting the full ten seconds — which is the case a visitor is
+  // most likely to hit, because the warmer works through the same reports they
+  // browse. The previous build's sample is on disk and is a picture of the same
+  // report; serve it and let the render finish in the background.
+  const stale = await previousRev(type, design, palette, lang, brand);
+  if (stale) return stale;
+
   if (inflight.has(k)) return inflight.get(k);
 
   const job = (async () => {
@@ -156,7 +196,129 @@ export async function getPreview(type, design, palette, lang = "en", brand = "pa
 }
 
 /** Cover-only thumbnail for a picker tile. */
+/**
+ * The cover, and only the cover.
+ *
+ * This used to ask getPreview for the whole sample, which renders the entire
+ * book — including the AI expansion — to hand back one image of page one. The
+ * edition picker asks for three designs at once, so opening a report page fired
+ * three full renders and measured seventeen seconds each.
+ *
+ * A cover cannot depend on the expansion: it is the title page, and expansion
+ * only ever appends paragraphs inside chapters. So the thumbnail gets its own
+ * render with `enrich: false` and its own cache entry, and costs about a third
+ * of a second cold instead of seventeen seconds.
+ *
+ * When the full preview happens to be cached already, that is reused instead —
+ * same image, no second render.
+ */
 export async function getThumb(design, palette, lang = "en", type = "kundli", brand = "pandit") {
-  const p = await getPreview(type, design, palette, lang, brand);
-  return p.images[0]?.url || null;
+  const rev = await renderRev();
+
+  // A warmed full preview is the same page one. Prefer it.
+  const fullKey = key(type, design, palette, lang, brand, rev);
+  const fullManifest = path.join(ROOT, fullKey, "manifest.json");
+  if (await exists(fullManifest)) {
+    const p = JSON.parse(await readFile(fullManifest, "utf8"));
+    if (p.images?.[0]?.url) return p.images[0].url;
+  }
+
+  const k = `${fullKey}__cover`;
+  const dir = path.join(ROOT, k);
+  const done = path.join(dir, "cover.json");
+  if (await exists(done)) return JSON.parse(await readFile(done, "utf8")).url;
+  if (inflight.has(k)) return inflight.get(k);
+
+  const job = (async () => {
+    await mkdir(dir, { recursive: true });
+    const { buffer } = await renderReport({
+      reportType: type, input: demoFor(type), designId: design, paletteId: palette,
+      branding: BRANDINGS[brand] || BRANDINGS.pandit, language: lang,
+      enrich: false
+    });
+    const pdfPath = path.join(dir, "cover.pdf");
+    await writeFile(pdfPath, buffer);
+    await run("pdftoppm", ["-png", "-r", "72", "-f", "1", "-l", "1", pdfPath, path.join(dir, "c")]);
+    const file = (await readdir(dir)).find((f) => /^c-\d+\.png$/.test(f));
+    if (!file) throw new Error("cover page did not rasterise");
+    const url = `/files/previews/${k}/${file}`;
+    await writeFile(done, JSON.stringify({ url }));
+    return url;
+  })().finally(() => inflight.delete(k));
+
+  inflight.set(k, job);
+  return job;
+}
+
+
+/**
+ * Render the storefront's samples before anyone asks for them.
+ *
+ * A preview is a full report render, and a report render includes the AI
+ * expansion — 10 seconds a report, against 0.3 without it. Cached, that cost is
+ * paid once per variant per deploy; uncached, it is paid by whichever visitor
+ * happens to be first, on the page an advertisement lands on. Measured at 17
+ * seconds for one report detail page. Nobody waits that long.
+ *
+ * So the cost moves to boot. Sequential on purpose: nine concurrent renders
+ * would each be slower than nine in a row and would starve the requests of
+ * anyone already on the site. Failures are logged and skipped — a warm cache is
+ * an optimisation, and the request path still renders on demand.
+ *
+ * The variants warmed are exactly the ones the storefront asks for: the cover
+ * thumbnail per report in its own colourway, and the detail page's sample.
+ */
+export async function warmPreviews({ langs = ["en"] } = {}) {
+  const { SELLABLE, COVER_PALETTE, SHOP_DESIGN } = await import("./catalog.js");
+
+  const jobs = [];
+  for (const lang of langs) {
+    for (const r of SELLABLE) {
+      // The cover the cards show.
+      jobs.push([r.code, SHOP_DESIGN, COVER_PALETTE[r.code] || "gold", lang]);
+      // The detail page's default, when it differs from the cover's.
+      if ((COVER_PALETTE[r.code] || "gold") !== "gold")
+        jobs.push([r.code, SHOP_DESIGN, "gold", lang]);
+    }
+  }
+
+  // The table of contents is a separate render and a separate in-process cache,
+  // so a restart drops it even when every preview is still on disk. It is cheap
+  // now that it skips the AI expansion — warm it too, so the first visitor
+  // after a deploy waits for nothing at all.
+  const { outline } = await import("../shop/outline.service.js");
+
+  let made = 0, already = 0, failed = 0;
+  const t0 = Date.now();
+  for (const lang of langs) {
+    for (const r of SELLABLE) {
+      try { await outline(r.code, lang); }
+      catch (e) { console.warn(`[warm] outline ${r.code}/${lang}: ${e.message}`); }
+    }
+  }
+  // A breath between renders. Each one is CPU-bound for several seconds, and
+  // back to back they starve whoever is already on the site — measured at 16s
+  // for a request that takes half a second on an idle server. Warming is a
+  // background chore; it must lose to a real visitor, not race them.
+  const breathe = () => new Promise((r) => setTimeout(r, 400));
+
+  for (const [type, design, palette, lang] of jobs) {
+    await breathe();
+    const rev = await renderRev();
+    const cached = await exists(path.join(ROOT, key(type, design, palette, lang, "house", rev), "manifest.json"));
+    if (cached) { already++; continue; }
+    try { await getPreview(type, design, palette, lang, "house"); made++; }
+    catch (e) { failed++; console.warn(`[warm] ${type}/${design}/${palette}/${lang}: ${e.message}`); }
+  }
+
+  // Only now is it safe to delete what the previous build left behind.
+  swept ??= sweepStale(await renderRev());
+  await swept;
+
+  const secs = ((Date.now() - t0) / 1000).toFixed(0);
+  if (made || failed)
+    console.log(`[warm] previews ready — ${made} rendered, ${already} cached, ${failed} failed, ${secs}s`);
+  else
+    console.log(`[warm] previews already cached (${already})`);
+  return { made, already, failed };
 }
