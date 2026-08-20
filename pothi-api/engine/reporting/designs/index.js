@@ -42,6 +42,49 @@ export const DESIGNS = {
     }
   },
 
+  // A book you work through a day at a time, not a reference you consult. The
+  // one thing that makes it work is chapterOpen: "newpage" — every chapter gets
+  // its own leaf however short it is, which the other three designs refuse to
+  // do because a forty-word chapter on its own page is wasted paper.
+  //
+  // Here that waste IS the format. If today's question shares a spread with the
+  // next three days, there is no "today" — the reader's eye has already answered
+  // Thursday's question on Monday, and a thirty-day ritual becomes a leaflet.
+  keepsake: {
+    id: "keepsake",
+    name: { en: "Keepsake", hi: "यादगार" },
+    tagline: { en: "One page a day, with room to write",
+               hi: "रोज़ एक पन्ना, लिखने की जगह के साथ" },
+    spec: {
+      cover: "editorial",         // typographic — the two names are the hero
+      // No chart, no birth details: there is nothing to tabulate before the
+      // contents, and a profile grid of empty cells looks like a bug.
+      frontMatter: ["toc"],
+      chapterOpen: "newpage",     // every chapter its own leaf, however short
+      // The page already says "Day 7 of 30". A chapter number beside it says
+      // nine, because the gift page, the welcome and two check-ins are chapters
+      // too — two numbers that disagree, on the one line the reader trusts.
+      chapterNumbers: false,
+      columns: 1,                 // one column: a question should not be a news item
+      dropCap: false,
+      header: "minimal",
+      footer: "minimal",
+      border: "none",
+      ornament: "none",
+      divider: "space",
+      density: "airy",
+      summaryStyle: "lede",
+      advisoryStyle: "rule",
+      bodyFace: "serif",
+      headingFace: "serif",
+      align: "left",
+      measure: 1,
+      margin: 64,
+      typeScale: 1.06,
+      backMatter: ["disclaimer"]
+    }
+  },
+
   editorial: {
     id: "editorial",
     name: { en: "Editorial", hi: "आधुनिक" },

@@ -1,5 +1,7 @@
 import { useState } from "react";
 import ThemeToggle from "../components/ThemeToggle";
+import { useLang, type Lang } from "../lib/lang";
+import { ui } from "../lib/reportStrings";
 import type { Theme } from "../lib/theme";
 import Logo from "../components/Logo";
 import Link from "../components/Link";
@@ -12,6 +14,8 @@ export default function Nav({ onAstrologers, signedIn, onSignIn, onProfile, them
   // Reports and Questions are their own pages now, so they must navigate rather
   // than jump to an anchor that only exists on the home page.
   const [menu, setMenu] = useState(false);
+  const [lang, setLang] = useLang();
+  const t = ui(lang);
   // A real <a href>, so the header is a crawl path and cmd-click works.
   const link = (path: string, label: string) => (
     <Link to={path} className="hover:text-fg transition">{label}</Link>
@@ -25,21 +29,34 @@ export default function Nav({ onAstrologers, signedIn, onSignIn, onProfile, them
         </Link>
 
         <nav className="hidden md:flex items-center gap-8 text-[14.5px] text-muted">
-          {link("/reports", "Reports")}
-          {link("/methodology", "How it works")}
-          {link("/learn", "Doshas")}
-          {link("/faq", "Questions")}
+          {link("/reports", t.navReports)}
+          {link("/methodology", t.navHow)}
+          {link("/learn", t.navDoshas)}
+          {link("/faq", t.navFaq)}
         </nav>
 
         <div className="flex items-center gap-2 sm:gap-3">
           {/* On a phone the header had a three-way theme switch, an account
               circle and a CTA fighting for 390px. The theme switch is a setting,
               not a top-level action — it moves to the menu below. */}
+          {/* In the header, not buried in a menu: a visitor who skipped the
+              welcome sheet has no other way to say they read Hindi, and the one
+              page this changes — the report detail page — is the page ads land
+              on. EN/हिन्दी rather than a globe, because the label IS the choice. */}
+          <div className="inline-flex rounded-[5px] border border-line p-0.5" role="group" aria-label="Language">
+            {(["en", "hi"] as Lang[]).map((l) => (
+              <button key={l} onClick={() => setLang(l, "header")} aria-pressed={lang === l}
+                      className={`px-2.5 h-7 rounded-[3px] text-[12px] font-medium transition
+                                  ${lang === l ? "bg-fg text-surface" : "text-muted hover:text-fg"}`}>
+                {l === "en" ? "EN" : "हिन्दी"}
+              </button>
+            ))}
+          </div>
           <div className="hidden sm:block"><ThemeToggle theme={theme} setTheme={setTheme} /></div>
           {/* Deliberately quiet. Astrologers arrive through our team, not this link. */}
           <button onClick={onAstrologers}
                   className="hidden md:inline text-[13.5px] text-faint hover:text-fg transition">
-            For astrologers
+            {t.navAstrologers}
           </button>
           {signedIn ? (
             <button onClick={onProfile} aria-label="Your account"
@@ -52,7 +69,7 @@ export default function Nav({ onAstrologers, signedIn, onSignIn, onProfile, them
           ) : (
             <button onClick={onSignIn}
                     className="hidden sm:inline text-[13.5px] text-muted hover:text-fg transition">
-              Sign in
+              {t.navSignIn}
             </button>
           )}
           {/* The menu carries everything that does not fit: the nav links, the
@@ -78,7 +95,7 @@ export default function Nav({ onAstrologers, signedIn, onSignIn, onProfile, them
       {menu && (
         <div className="md:hidden border-t border-line bg-surface">
           <div className="shell py-3 flex flex-col">
-            {[["/reports", "Reports"], ["/methodology", "How it works"], ["/learn", "Doshas"], ["/faq", "Questions"], ["/about", "About"]].map(([to, label]) => (
+            {[["/reports", t.navReports], ["/methodology", t.navHow], ["/learn", t.navDoshas], ["/faq", t.navFaq], ["/about", t.navAbout]].map(([to, label]) => (
               <Link key={to} to={to} onClick={() => setMenu(false)}
                     className="py-3 text-left text-[15px] text-fg border-b border-line">
                 {label}
@@ -87,12 +104,12 @@ export default function Nav({ onAstrologers, signedIn, onSignIn, onProfile, them
             {!signedIn && (
               <button onClick={() => { setMenu(false); onSignIn(); }}
                       className="py-3 text-left text-[15px] text-fg border-b border-line">
-                Sign in
+                {t.navSignIn}
               </button>
             )}
             <button onClick={() => { setMenu(false); onAstrologers(); }}
                     className="py-3 text-left text-[15px] text-muted">
-              For astrologers
+              {t.navAstrologers}
             </button>
             <div className="pt-3 pb-1"><ThemeToggle theme={theme} setTheme={setTheme} /></div>
           </div>

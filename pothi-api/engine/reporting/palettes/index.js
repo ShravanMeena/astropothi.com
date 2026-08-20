@@ -38,7 +38,18 @@ export const PALETTES = {
   slate: { id: "slate", name: { en: "Slate", hi: "श्वेत" }, colors: P({
     ink: "#111827", inkSoft: "#6B7280", accent: "#334155", accentSoft: "#F1F5F9",
     rule: "#D8DEE7", tableHead: "#F1F5F9", tableAlt: "#FAFBFC", chartLine: "#475569",
-    coverBg: "#FFFFFF", coverInk: "#0F172A", coverAccent: "#334155" }) }
+    coverBg: "#FFFFFF", coverInk: "#0F172A", coverAccent: "#334155" }) },
+
+  // Named for the kalava — the red thread tied at a wedding, and the reason
+  // this is a rose rather than another crimson. Crimson (विवाह लाल) was the
+  // obvious choice for a couples book and is already the Laal Kitaab's, and two
+  // red spines on a seven-book shelf is how a shelf stops reading as a shelf.
+  // Lighter ground than every other palette here: this one is a gift, and a
+  // gift should not open like a reference volume.
+  kalava: { id: "kalava", name: { en: "Kalava", hi: "कलावा" }, colors: P({
+    ink: "#2B1620", inkSoft: "#7A5566", accent: "#C2456A", accentSoft: "#FBEDF1",
+    rule: "#E3B7C4", tableHead: "#F7DEE6", tableAlt: "#FDF6F8", chartLine: "#C2456A",
+    paper: "#FFFCFD", coverBg: "#F4DCE3", coverInk: "#2B1620", coverAccent: "#A8325A" }) }
 };
 
 export const PALETTE_IDS = Object.keys(PALETTES);

@@ -1,4 +1,6 @@
 import { useRef, useState } from "react";
+import { useLang } from "../lib/lang";
+import { homeUi } from "../lib/homeStrings";
 import { rupees, type ReportItem } from "../lib/api";
 
 /**
@@ -18,7 +20,7 @@ import { rupees, type ReportItem } from "../lib/api";
  */
 
 type Banner = {
-  deva: string; question: string; sub: string;
+  deva: string;
   /** Two stops and an ink, per report. Kept as raw values rather than theme
    *  tokens: these are the product's own colours and must not flip with the
    *  light/dark switch, the way a printed cover does not. */
@@ -26,33 +28,15 @@ type Banner = {
 };
 
 const B: Record<string, Banner> = {
-  kundli:     { deva: "कुंडली",      question: "Your whole chart, read properly",
-                sub: "64 chapters · every house, every planet, every dasha",
-                from: "#3B2A0E", to: "#171008", ink: "#E9C877" },
-  dosh:       { deva: "दोष",         question: "Is something actually blocked?",
-                sub: "14 doshas tested — what forms, what is cancelled",
-                from: "#3A1712", to: "#170B09", ink: "#F0A98C" },
-  love:       { deva: "विवाह",       question: "Will this one last?",
-                sub: "How you love, where the friction is, and the timing",
-                from: "#3A1526", to: "#170A11", ink: "#F2A6C6" },
-  health:     { deva: "आरोग्य",      question: "What your body asks of you",
-                sub: "Constitution, the 6th house, and what to look after",
-                from: "#0E3327", to: "#081712", ink: "#8FE0BC" },
-  horoscope:  { deva: "राशिफल",      question: "This month, against your chart",
-                sub: "Not a sun-sign column — your transits, with dates",
-                from: "#141F3E", to: "#0A0E1B", ink: "#A8BEF5" },
-  laalkitab:  { deva: "लाल किताब",   question: "The remedies nobody else gives",
-                sub: "A different tradition, with its own practical upaay",
-                from: "#3D1414", to: "#180909", ink: "#F0A0A0" },
-  varshaphal: { deva: "वर्षफल",      question: "What this year holds",
-                sub: "Your solar return, Muntha, and month-by-month themes",
-                from: "#33290E", to: "#161207", ink: "#EBD08A" },
-  vastu:      { deva: "वास्तु",      question: "Why the house feels wrong",
-                sub: "Nine directions checked — with remedies, no demolition",
-                from: "#123028", to: "#081512", ink: "#9BDCC4" },
-  career:     { deva: "कर्म",        question: "Job, or your own thing?",
-                sub: "The 10th house, the Dashamsha, and when work turns",
-                from: "#1D2733", to: "#0B0F14", ink: "#AFC6DC" }
+  kundli:     { deva: "कुंडली",      from: "#3B2A0E", to: "#171008", ink: "#E9C877" },
+  dosh:       { deva: "दोष",         from: "#3A1712", to: "#170B09", ink: "#F0A98C" },
+  love:       { deva: "विवाह",       from: "#3A1526", to: "#170A11", ink: "#F2A6C6" },
+  health:     { deva: "आरोग्य",      from: "#0E3327", to: "#081712", ink: "#8FE0BC" },
+  horoscope:  { deva: "राशिफल",      from: "#141F3E", to: "#0A0E1B", ink: "#A8BEF5" },
+  laalkitab:  { deva: "लाल किताब",   from: "#3D1414", to: "#180909", ink: "#F0A0A0" },
+  varshaphal: { deva: "वर्षफल",      from: "#33290E", to: "#161207", ink: "#EBD08A" },
+  vastu:      { deva: "वास्तु",      from: "#123028", to: "#081512", ink: "#9BDCC4" },
+  career:     { deva: "कर्म",        from: "#1D2733", to: "#0B0F14", ink: "#AFC6DC" }
 };
 
 /** The chart diamond, flat, as the banner's own graphic. */
@@ -68,6 +52,8 @@ const Diamond = ({ ink }: { ink: string }) => (
 export default function ReportBanners({ items, onPick }: {
   items: ReportItem[]; onPick: (code: string) => void;
 }) {
+  const [lang] = useLang();
+  const h = homeUi(lang);
   const rail = useRef<HTMLDivElement>(null);
   const [at, setAt] = useState(0);
 
@@ -93,6 +79,9 @@ export default function ReportBanners({ items, onPick }: {
                       [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((r) => {
           const b = B[r.code] ?? B.kundli;
+          // Colours come from the map above; the words come from the copy file,
+          // so a new language never has to be threaded through a palette.
+          const copy = h.banners[r.code] ?? h.banners.kundli;
           return (
             <button key={r.code} onClick={() => onPick(r.code)}
               aria-label={`${r.name_en} — ${rupees(r.price_paise)}`}
@@ -109,15 +98,15 @@ export default function ReportBanners({ items, onPick }: {
                   </span>
                   <span className="text-[10px] uppercase tracking-[.16em] px-2 py-1 rounded-full
                                    bg-white/10 text-white/70 whitespace-nowrap">
-                    {r.chapters} ch
+                    {r.chapters} {h.chShort}
                   </span>
                 </div>
 
                 <h3 className="display text-[19px] leading-[1.18] text-white mt-3 pr-2">
-                  {b.question}
+                  {copy.q}
                 </h3>
                 <p className="text-[12px] leading-snug text-white/55 mt-1.5 pr-4 line-clamp-2">
-                  {b.sub}
+                  {copy.s}
                 </p>
 
                 {/* mt-auto: the button sits on the bottom edge of every banner,
@@ -127,12 +116,12 @@ export default function ReportBanners({ items, onPick }: {
                     <div className="display text-[19px] leading-none" style={{ color: b.ink }}>
                       {rupees(r.price_paise)}
                     </div>
-                    <div className="text-[10.5px] text-white/40 mt-1">one-time</div>
+                    <div className="text-[10.5px] text-white/40 mt-1">{h.oneTime}</div>
                   </div>
                   <span className="inline-flex items-center gap-1.5 h-9 pl-4 pr-3.5 rounded-full
                                    text-[13px] font-medium text-black"
                         style={{ background: b.ink }}>
-                    Book now
+                    {h.bookNow}
                     <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
                          strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                       <path d="M5 12h13M13 6l6 6-6 6" />

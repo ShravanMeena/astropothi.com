@@ -1,4 +1,6 @@
 import Reveal from "../components/Reveal";
+import { useLang } from "../lib/lang";
+import { homeUi } from "../lib/homeStrings";
 import ReportCover from "../components/ReportCover";
 import { rupees, type ReportItem } from "../lib/api";
 import ReportCard from "../components/ReportCard";
@@ -10,6 +12,7 @@ const BLURB: Record<string, string> = {
   health:     "Constitution, the 6th house, and the areas of the body your chart asks you to care for.",
   horoscope:  "This month against your own chart — transits, key dates, and the areas they touch.",
   laalkitab:  "The Laal Kitaab reading with its own distinctive remedies, drawn from your weakest placements.",
+  couples:    "Thirty evenings, thirty questions, one book with both your names on it. A question a day and one small thing to do — plus room to write, four weekly check-ins, and a certificate at the end.",
   vastu:      "Nine directions, and what belongs in each. Every dosh named with the rule behind it, and remedies that need no demolition.",
   varshaphal: "The year ahead. Muntha, the annual chart, Mudda dasha and month-by-month themes.",
   career:     "The 10th house, the Dashamsha, your Amatyakaraka, and when a career turns. Job or business, answered from your own chart."
@@ -18,24 +21,24 @@ const BLURB: Record<string, string> = {
 export default function Reports({ items, onPick, onAll, onAskGuide }: {
   items: ReportItem[]; onPick: (c: string) => void; onAll: () => void; onAskGuide: () => void;
 }) {
+  const [lang] = useLang();
+  const h = homeUi(lang);
   const hero = items.find((i) => i.code === "kundli");
   // The home page shows the shape of the range; /reports shows all of it.
   const rest = items.filter((i) => i.code !== "kundli").slice(0, 3);
-  // Spelled from the catalogue, not typed into the heading — this said "Seven"
-  // for a while after the eighth report shipped.
-  const COUNT = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven",
-                 "Eight", "Nine", "Ten", "Eleven", "Twelve"];
-  const howMany = COUNT[items.length] || String(items.length);
+  // Spelled in the reader's language, from the catalogue rather than typed into
+  // the heading — this said "Seven" for a while after the eighth report shipped.
+  const howMany = h.numberWords[items.length] || String(items.length);
 
   return (
     <section id="reports" className="shell py-12 sm:py-28">
       <Reveal>
-        <p className="eyebrow">The reports</p>
+        <p className="eyebrow">{h.reportsEyebrow}</p>
         <h2 className="display text-[25px] sm:text-[44px] mt-3 max-w-prose2 leading-[1.08]">
-          {howMany} readings. One engine.
+          {h.reportsTitle(String(howMany))}
         </h2>
         <p className="lede mt-4 max-w-prose2">
-          Each one is computed, then written out in full — no summaries, no filler.
+          {h.reportsLede}
         </p>
       </Reveal>
 
@@ -47,21 +50,21 @@ export default function Reports({ items, onPick, onAll, onAskGuide }: {
           <ReportCover code={hero.code} className="w-[92px] shrink-0 sm:w-[152px]" />
           <div className="min-w-0 flex-1">
             <span className="inline-block text-[11px] font-semibold uppercase tracking-[.14em]
-                             bg-brassSoft text-brass rounded-full px-3 py-1">Most complete</span>
-            <h3 className="display text-[21px] sm:text-[30px] mt-2.5 sm:mt-3">{hero.name_en}</h3>
+                             bg-brassSoft text-brass rounded-full px-3 py-1">{h.reportsMostComplete}</span>
+            <h3 className="display text-[21px] sm:text-[30px] mt-2.5 sm:mt-3">{lang === "hi" ? hero.name_hi : hero.name_en}</h3>
             <p className="text-[13.5px] sm:text-[15px] text-muted mt-2 max-w-prose2 leading-relaxed
-                          line-clamp-3 sm:line-clamp-none">{BLURB[hero.code]}</p>
+                          line-clamp-3 sm:line-clamp-none">{h.cards[hero.code]?.t ?? BLURB[hero.code]}</p>
             <div className="flex items-baseline gap-3 mt-3 sm:hidden">
               <span className="display text-[19px]">{rupees(hero.price_paise)}</span>
-              <span className="text-[12.5px] text-faint">{hero.chapters} chapters</span>
+              <span className="text-[12.5px] text-faint">{h.chaptersCount(hero.chapters)}</span>
             </div>
             <p className="hidden sm:block text-[13px] text-faint mt-3">
-              {hero.chapters} chapters · up to 135 pages
+              {h.chaptersPages(hero.chapters)}
             </p>
           </div>
           <div className="hidden sm:block sm:text-right">
             <div className="display text-[24px]">{rupees(hero.price_paise)}</div>
-            <span className="btn-dark btn-sm mt-3">See what's inside →</span>
+            <span className="btn-dark btn-sm mt-3">{h.reportsSeeInside}</span>
           </div>
         </button>
       )}
@@ -72,10 +75,10 @@ export default function Reports({ items, onPick, onAll, onAskGuide }: {
 
       <div className="mt-12 flex flex-wrap items-center gap-3">
         <button className="btn-line h-[50px]" onClick={onAll}>
-          All {items.length} reports →
+          {h.allReports(items.length)}
         </button>
         <button className="btn-quiet h-[50px]" onClick={onAskGuide}>
-          Not sure which one?
+          {h.notSure}
         </button>
       </div>
     </section>

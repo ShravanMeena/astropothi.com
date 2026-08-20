@@ -196,9 +196,24 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
                                                                        hi: "दशम भाव और उसका संकेतित कर्म" } },
       // The one report about a building rather than a person.
       vastu:      { deva: "वास्तु चक्र",   houses: [],         line: { en: "Nine directions, and what belongs in each",
-                                                                       hi: "नौ दिशाएँ, और प्रत्येक में क्या उचित है" } }
+                                                                       hi: "नौ दिशाएँ, और प्रत्येक में क्या उचित है" } },
+      // Two people and no chart at all — and no zodiac either. `motif: "none"`
+      // is the point: the fallback ring is twelve signs, and twelve signs on a
+      // book about a marriage is a promise the book does not keep.
+      couples:    { deva: "तीस दिन",       houses: [], motif: "none",
+                                                            line: { en: "Thirty evenings, one question at a time",
+                                                                       hi: "तीस शामें, एक बार में एक सवाल" } }
     };
-    const art = COVER_ART[model.reportType] || COVER_ART.kundli;
+    /**
+     * A report with no entry gets a blank cover motif, NOT the Kundali's.
+     *
+     * Falling back to COVER_ART.kundli meant a new report type printed
+     * "जन्म कुंडली" over a twelve-house wheel — wrong rather than merely
+     * missing, and wrong in the one place a buyer looks first. Silence is the
+     * only safe default: an absent strapline is invisible, a borrowed one is a
+     * lie about what was bought.
+     */
+    const art = COVER_ART[model.reportType] || { deva: "", houses: [], line: { en: "", hi: "" } };
 
     /**
      * The native's own D1 chart, in the North Indian square.
@@ -268,8 +283,12 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       pdf.lineWidth(0.9).strokeColor(accent).circle(cx, cy, r * 0.2).stroke();
     }
 
-    /** Whichever centrepiece this report has earned. */
+    /** Whichever centrepiece this report has earned — possibly none. */
     function centrepiece(top, size, { line, ink, accent }) {
+      // A report can decline the motif outright. The zodiac ring exists so a
+      // chartless astrology report does not print a blank half-page; a report
+      // that is not about the sky at all wants the blank half-page.
+      if (art.motif === "none") return top;
       if (model.planets.length) {
         drawChart((A4.w - size) / 2, top, size, { line, ink, accent, highlight: art.houses });
         return top + size;
@@ -346,13 +365,22 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
         profileRow(M + 22, 330, CW - 22, ink, acc, "flat");
 
         // Set flush to the rule rather than centred — this cover is a grid.
-        if (model.planets.length) {
-          drawChart(M + 22, 414, 210, { line: acc, ink, accent: acc, highlight: art.houses });
-        } else {
-          drawWheel(M + 127, 520, 105, { line: acc, accent: acc });
+        // `motif: "none"` draws neither: a book about two people has no chart to
+        // print, and the zodiac ring that stands in for one would be a promise
+        // about the sky that nothing inside the book keeps.
+        if (art.motif !== "none") {
+          if (model.planets.length) {
+            drawChart(M + 22, 414, 210, { line: acc, ink, accent: acc, highlight: art.houses });
+          } else {
+            drawWheel(M + 127, 520, 105, { line: acc, accent: acc });
+          }
         }
+        // With no motif beside it the strapline has the width to itself, and
+        // sitting it under the rule keeps the cover a grid rather than a column
+        // of text with a gap in the middle.
+        const lineX = art.motif === "none" ? M + 22 : M + 240;
         pdf.font(FT(art.line[hi ? "hi" : "en"], false)).fontSize(S(9)).fillColor(P.inkSoft)
-           .text(art.line[hi ? "hi" : "en"], M + 240, 430, { width: CW - 240 });
+           .text(art.line[hi ? "hi" : "en"], lineX, 430, { width: CW - (lineX - M) });
 
         pdf.lineWidth(0.6).strokeColor(P.rule).moveTo(M + 22, A4.h - 210).lineTo(M + CW, A4.h - 210).stroke();
         panditBlock(A4.h - 192, ink, acc, "left", M + 22, CW - 22);
@@ -753,7 +781,7 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
           const c = i < half ? 0 : 1, row = i < half ? i : i - half;
           const yy = y + row * 14;
           pdf.font(FT(s.title, false)).fontSize(FS(8.4)).fillColor(P.ink);
-          let line = `${s.n}. ${s.title}`;
+          let line = spec.chapterNumbers === false ? s.title : `${s.n}. ${s.title}`;
           if (pdf.widthOfString(line) > tocW) {
             while (line.length > 4 && pdf.widthOfString(line + "\u2026") > tocW) line = line.slice(0, -1);
             line = line.replace(/[\s\u2014-]+$/, "") + "\u2026";
@@ -762,7 +790,7 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
         } else {
           need(15, t.contents);
           pdf.font(FT(s.title, false)).fontSize(FS(9.5)).fillColor(P.ink);
-          let one = `${s.n}.  ${s.title}`;
+          let one = numbered(s);
           if (pdf.widthOfString(one) > CW - 40) {
             while (one.length > 4 && pdf.widthOfString(one + "\u2026") > CW - 40) one = one.slice(0, -1);
             one = one.replace(/[\s\u2014-]+$/, "") + "\u2026";
@@ -982,6 +1010,20 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       y += 4;
     }
 
+    /** Ruled lines to write on. Hairlines at the body measure, generously led. */
+    function writeLines(count) {
+      if (!count) return;
+      const w = textW(), step = 26;
+      y += 10;
+      for (let i = 0; i < count; i++) {
+        need(step);
+        pdf.save().lineWidth(0.5).strokeOpacity(0.45).strokeColor(P.rule)
+           .moveTo(textX(), y).lineTo(textX() + w, y).stroke().restore();
+        y += step;
+      }
+      y += 4;
+    }
+
     /** Roughly how tall this chapter's body will be, in points. */
     function chapterHeight(s) {
       const w = textW();
@@ -1045,10 +1087,21 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       newPage(model.title);
     }
 
+    /**
+     * "3.  Title" or just "Title", by design.
+     *
+     * The Keepsake layout turns numbering off because its subtitle already
+     * reads "Day 1 of 30". Printing "3." above that is not merely redundant, it
+     * disagrees — chapter three is day one, because the cover and welcome are
+     * chapters too, and the reader is left deciding which number to trust.
+     */
+    const numbered = (sec) =>
+      spec.chapterNumbers === false ? sec.title : `${sec.n}.  ${sec.title}`;
+
     function sectionHead(s) {
       const w = textW();
       pdf.font(HD(s.title)).fontSize(FS(spec.columns === 2 ? 13.5 : 15.5)).fillColor(P.accent)
-         .text(`${s.n}.  ${s.title}`, textX(), y, { width: w });
+         .text(numbered(s), textX(), y, { width: w });
       y = pdf.y + 4;
       if (s.subtitle) {
         pdf.font(FT(s.subtitle, false)).fontSize(S(9.4)).fillColor(P.inkSoft).text(s.subtitle, textX(), y, { width: w });
@@ -1242,6 +1295,7 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
         if (s.checklist) checklist(s.checklist);
         if (s.bullets.length) bullets(s.bullets);
         if (s.advisory) (spec.advisoryStyle === "note" ? note : summary)(s.advisory);
+        writeLines(s.writeLines);
       });
 
       backMatter();

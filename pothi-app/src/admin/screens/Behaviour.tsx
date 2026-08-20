@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { adminApi, num, when, ago, rupees } from "../api";
 import {
   Panel, TableWrap, Th, Td, Tr, Tag, Chip, Loading, Empty, ErrorNote,
-  Segmented, BarRow, Tile, Drawer, Note, SubHead
+  Segmented, Tile, Drawer, Note, SubHead, ActivityChart, FunnelSteps
 } from "../ui";
 
 type Step = { step: string; people: number; of_first: number; dropped: number };
+type Day = { day: string; visitors: number; viewed: number; checkout: number; pay: number; events: number };
 type Interest = { code: string | null; viewed: number; sampled: number; started: number; paid_click: number };
 type Ev = {
   at: string; name: string; category: string; path: string | null;
@@ -18,6 +19,10 @@ type Hop = {
   at: string; name: string; category: string; path: string | null;
   session: string | null; userId: string | null; props?: Record<string, unknown>;
 };
+
+/** How many raw events to show before asking. Enough to see a pattern, few
+ *  enough that the charts above stay on the same screen. */
+const EVENT_PREVIEW = 25;
 
 const WINDOWS = [
   { value: "7", label: "7 days" },
@@ -38,12 +43,18 @@ export default function Behaviour() {
   const [interest, setInterest] = useState<Interest[] | null>(null);
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [journey, setJourney] = useState<{ id: string; hops: Hop[] } | null>(null);
+  const [byDay, setByDay] = useState<Day[] | null>(null);
+  // The raw stream is exhaust, not a report. Two hundred rows inline made this
+  // screen fourteen thousand pixels tall and buried every chart above it — the
+  // signal was there, you just had to scroll past the log to disbelieve it.
+  const [showAll, setShowAll] = useState(false);
   const [rev, setRev] = useState<Money[] | null>(null);
   const [acq, setAcq] = useState<Money[] | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    setFunnel(null); setInterest(null); setEvents(null); setRev(null); setAcq(null);
+    setFunnel(null); setInterest(null); setEvents(null); setRev(null); setAcq(null); setByDay(null);
+    adminApi.get(`/events/by-day?days=${days}`).then(setByDay).catch((e) => setErr(e.message));
     adminApi.get(`/events/funnel?days=${days}`).then(setFunnel).catch((e) => setErr(e.message));
     adminApi.get(`/events/by-report?days=${days}`).then(setInterest).catch((e) => setErr(e.message));
     adminApi.get(`/events?days=${days}&limit=200`).then(setEvents).catch((e) => setErr(e.message));
@@ -58,6 +69,25 @@ export default function Behaviour() {
   };
 
   const first = funnel?.[0]?.people ?? 0;
+
+  /**
+   * Percent change between the two halves of the window.
+   *
+   * Not against a separately-fetched previous period: the same series is already
+   * here, and a second round trip to say "up 12%" is a second thing that can be
+   * out of date with the first. Null until both halves have something in them —
+   * a jump from zero is not a percentage, it is a first day.
+   */
+  const delta = (key: "visitors" | "checkout" | "pay") => {
+    if (!byDay || byDay.length < 4) return null;
+    const half = Math.floor(byDay.length / 2);
+    const sum = (rows: Day[]) => rows.reduce((n, r) => n + r[key], 0);
+    const before = sum(byDay.slice(0, half));
+    const after = sum(byDay.slice(half));
+    if (!before) return null;
+    return ((after - before) / before) * 100;
+  };
+
   // The step that loses the most people is the one worth fixing this week.
   const worst = (funnel || []).slice(1).reduce<Step | null>(
     (w, s) => (!w || s.dropped > w.dropped ? s : w), null);
@@ -78,37 +108,32 @@ export default function Behaviour() {
 
       {funnel && worst && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <Tile label="Visitors" value={num(first)} />
+          <Tile label="Visitors" value={num(first)}
+                series={byDay?.map((d) => d.visitors)} delta={delta("visitors")} />
           <Tile label="Reached checkout"
-                value={num(funnel.find((s) => s.step === "Started checkout")?.people ?? 0)} />
+                value={num(funnel.find((s) => s.step === "Started checkout")?.people ?? 0)}
+                series={byDay?.map((d) => d.checkout)} delta={delta("checkout")} />
           <Tile label="Pressed pay" tone="brass"
-                value={num(funnel.find((s) => s.step === "Pressed pay")?.people ?? 0)} />
+                value={num(funnel.find((s) => s.step === "Pressed pay")?.people ?? 0)}
+                series={byDay?.map((d) => d.pay)} delta={delta("pay")} />
           <Tile label="Biggest drop" tone="ember" value={num(worst.dropped)}
                 hint={`Between "${funnel[funnel.indexOf(worst) - 1]?.step}" and "${worst.step}"`} />
         </div>
       )}
 
+      <Panel title="Activity, day by day"
+             sub="Distinct devices per day, with the share of them that reached the pay button. Everything else on this screen is a total for the whole window — this is the only view that shows whether today is like last Tuesday.">
+        {!byDay ? <Loading /> : byDay.every((d) => d.visitors === 0)
+          ? <Empty label="No activity recorded in this window yet" />
+          : <ActivityChart rows={byDay} />}
+      </Panel>
+
       <Panel title="The funnel"
-             sub="Distinct devices reaching each step. A device that skipped a step — an ad landing straight on a report page — is counted where it actually arrived.">
+             sub="Distinct devices reaching each step, each bar as wide as the people who got there. A device that skipped a step — an ad landing straight on a report page — is counted where it actually arrived.">
         {!funnel ? <Loading /> : funnel[0]?.people === 0 ? (
           <Empty label="No events recorded in this window yet" />
         ) : (
-          <div className="py-1">
-            {funnel.map((s, i) => (
-              <BarRow key={s.step}
-                label={<span className="flex items-center gap-2">
-                  {s.step}
-                  {i > 0 && s.dropped > 0 && (
-                    <span className={`text-[11px] ${s === worst ? "text-ember font-medium" : "text-faint"}`}>
-                      −{num(s.dropped)} left here
-                    </span>
-                  )}
-                </span>}
-                value={s.people} max={first}
-                right={num(s.people)} sub={`${s.of_first}%`}
-                tone={i === 0 ? "muted" : "brass"} />
-            ))}
-          </div>
+          <FunnelSteps steps={funnel} worst={worst?.step} />
         )}
         <Note>
           Steps are counted independently, so a later step can exceed an earlier one — that is a
@@ -209,7 +234,13 @@ export default function Behaviour() {
       </Panel>
 
       <Panel title="Latest activity"
-             sub="Click any row to replay that device's whole journey — before and after they signed in.">
+             sub="The raw stream, newest first. Click any row to replay that device's whole journey — before and after they signed in."
+             right={events && events.length > EVENT_PREVIEW && (
+               <button onClick={() => setShowAll((v) => !v)}
+                       className="text-[11.5px] text-brass hover:underline">
+                 {showAll ? `Show ${EVENT_PREVIEW}` : `Show all ${num(events.length)}`}
+               </button>
+             )}>
         {!events ? <Loading /> : events.length === 0 ? <Empty label="No events yet" /> : (
           <TableWrap>
               <thead><tr>
@@ -217,7 +248,7 @@ export default function Behaviour() {
                 <Th>Source</Th><Th align="right">Who</Th>
               </tr></thead>
               <tbody>
-                {events.map((e, i) => (
+                {(showAll ? events : events.slice(0, EVENT_PREVIEW)).map((e, i) => (
                   <Tr key={`${e.at}-${i}`} onClick={() => openJourney(e.anonymous_id)}>
                     <Td dim mono>{ago(e.at)}</Td>
                     <Td><span className="font-medium text-fg">{e.name}</span>
@@ -238,6 +269,11 @@ export default function Behaviour() {
                 ))}
               </tbody>
           </TableWrap>
+        )}
+        {events && events.length > EVENT_PREVIEW && !showAll && (
+          <Note>
+            Showing the newest {EVENT_PREVIEW} of {num(events.length)} events in this window.
+          </Note>
         )}
       </Panel>
 

@@ -14,7 +14,11 @@ export const REPORT_TYPES = [
   { code: "career",     name_en: "Career & Livelihood",   name_hi: "कर्म एवं जीविका",      chapters: 28, credits: 3, engine: "career",     ready: true },
   // The only report whose subject is a building rather than a person — it asks
   // for the facing and the room layout, not a birth time.
-  { code: "vastu",      name_en: "Vastu Wheel Report",    name_hi: "वास्तु चक्र रिपोर्ट",  chapters: 25, credits: 3, engine: "vastu",      ready: true, subject: "property" }
+  { code: "vastu",      name_en: "Vastu Wheel Report",    name_hi: "वास्तु चक्र रिपोर्ट",  chapters: 25, credits: 3, engine: "vastu",      ready: true, subject: "property" },
+  // Two people, not one, and no chart at all — a written 30-day question set
+  // personalised with both names. Sold to couples and, as often, to whoever is
+  // buying them an anniversary present.
+  { code: "couples",    name_en: "Couples Challenge",     name_hi: "कपल्स चैलेंज",         chapters: 37, credits: 2, engine: "couples",    ready: true, subject: "couple", design: "keepsake" }
 ];
 
 /**
@@ -29,7 +33,7 @@ export const REPORT_TYPES = [
 export const COVER_PALETTE = {
   kundli: "gold", dosh: "slate", love: "saffron", health: "emerald",
   horoscope: "indigo", laalkitab: "crimson", varshaphal: "parchment",
-  vastu: "emerald", career: "slate"
+  vastu: "emerald", career: "slate", couples: "kalava"
 };
 /** What the storefront shows a cover in, unless the reader picks otherwise. */
 export const SHOP_DESIGN = "heritage";
@@ -67,7 +71,12 @@ export const PRICE_TIERS = {
   // A complete reading of a whole subject: ~30–40 chapters, ~40 pages.
   full:     59900,
   // One life area, read closely: ~20–26 chapters, ~15–26 pages.
-  focused:  39900
+  focused:  39900,
+  // Priced by occasion, not by chapter count. The three tiers above all answer
+  // "how much of your life does this read?" — the wrong question for a gift.
+  // Nobody comparison-shops an anniversary present, and ₹499 next to a ₹399
+  // shelf reads as the considered choice rather than the expensive one.
+  keepsake: 49900
 };
 
 const TIER_OF = {
@@ -80,7 +89,8 @@ const TIER_OF = {
   horoscope:  "focused",
   vastu:      "focused",
   // 28 chapters, same as Dosh — a complete reading of one whole subject.
-  career:     "full"
+  career:     "full",
+  couples:    "keepsake"
 };
 
 export const CONSUMER_PRICES = Object.fromEntries(
@@ -93,8 +103,9 @@ export const consumerCatalogue = () =>
   SELLABLE.map((r) => ({
     code: r.code, name_en: r.name_en, name_hi: r.name_hi,
     chapters: r.chapters, price_paise: CONSUMER_PRICES[r.code] ?? 29900,
-    // "person" (birth details) or "property" (facing + room layout). The
-    // checkout form branches on this — a Vastu report has no birth moment.
+    // "person" (birth details), "property" (facing + room layout) or "couple"
+    // (two names). The checkout form branches on this — a Vastu report has no
+    // birth moment, and a Couples Challenge has no chart at all.
     subject: r.subject || "person",
     // So the client never has to keep its own copy of this map.
     cover_palette: COVER_PALETTE[r.code] || "gold"

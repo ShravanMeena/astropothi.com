@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLang } from "../lib/lang";
+import { ui } from "../lib/reportStrings";
 import { motion, useMotionValueEvent, useReducedMotion, useScroll } from "framer-motion";
 
 type Shot = { page: number; url: string };
@@ -47,6 +49,8 @@ export default function PageTurner({
    *  press must not turn all of them. Enable it on the one being read. */
   keyboard?: boolean;
 }) {
+  const [lang] = useLang();
+  const t = ui(lang);
   const wide = useSpreadMode(single);
   const reduce = useReducedMotion();
   const per = wide ? 2 : 1;
@@ -282,7 +286,7 @@ export default function PageTurner({
             <div className="text-center min-w-[160px]">
               <div className="caps text-brass">{caption ?? "From the book"}</div>
               <div className="text-[13px] text-faint mt-1 tabular-nums">
-                Page {label}{many ? ` of ${shots.length}` : ""}
+                {t.pageLabel(String(label), many ? t.pageOfSuffix(shots.length) : "")}
               </div>
             </div>
             <button onClick={() => go(1)} disabled={atEnd} aria-label="Next pages"

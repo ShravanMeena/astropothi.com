@@ -1,4 +1,6 @@
 import Reveal from "../components/Reveal";
+import { useLang } from "../lib/lang";
+import { ui } from "../lib/reportStrings";
 
 /**
  * Why this and not one of the others.
@@ -14,40 +16,24 @@ import Reveal from "../components/Reveal";
  * exactly what the reader is holding in their head anyway.
  */
 
-const ROWS: { what: string; them: string; us: string }[] = [
-  { what: "Length",
-    them: "6–20 pages, mostly headings",
-    us: "25–88 pages, every chapter written out" },
-  { what: "Written by",
-    them: "A template with your name dropped in",
-    us: "Computed from your minute of birth, then explained" },
-  { what: "Delivery",
-    them: "24–72 hours, by email",
-    us: "Under a minute, on this page and on WhatsApp" },
-  { what: "Questions after",
-    them: "Pay again for a consultation",
-    us: "Ask the report itself, free, as often as you like" },
-  { what: "Language",
-    them: "English, or a machine translation",
-    us: "English or Hindi, written separately in both" },
-  { what: "If you dislike it",
-    them: "No refund on digital goods",
-    us: "100% back, no questions asked" }
-];
 
 export default function WhyUs({ compact = false }: { compact?: boolean }) {
+  const [lang] = useLang();
+  const t = ui(lang);
+  // The comparison rows live beside the rest of the page copy rather than in
+  // this file, so a translation cannot go stale against the English it mirrors.
+  const ROWS = t.rows;
   return (
     <section className="border-y border-line bg-sunken">
       <div className="shell py-12 sm:py-24">
         <Reveal>
-          <p className="caps text-brass">Why astropothi</p>
+          <p className="caps text-brass">{t.whyEyebrow}</p>
           <h2 className="display text-[25px] sm:text-[40px] mt-3 max-w-[20ch] leading-[1.08]">
-            The chart is the same. The book is not.
+            {t.whyTitle}
           </h2>
           {!compact && (
             <p className="lede mt-4 max-w-prose2">
-              Every service casts the same chart from the same ephemeris. What differs is
-              what lands in your hands afterwards.
+              {t.whyLede}
             </p>
           )}
         </Reveal>
@@ -58,7 +44,7 @@ export default function WhyUs({ compact = false }: { compact?: boolean }) {
               instead of taking a third column. */}
           <div className="hidden sm:grid grid-cols-[1fr_1fr_1.1fr] border-b border-line">
             <div className="px-5 py-3 caps text-faint" />
-            <div className="px-5 py-3 caps text-faint">The usual report</div>
+            <div className="px-5 py-3 caps text-faint">{t.usual}</div>
             <div className="px-5 py-3 caps text-brass bg-brassSoft/25 dark:bg-brass/10">astropothi</div>
           </div>
 
@@ -72,7 +58,7 @@ export default function WhyUs({ compact = false }: { compact?: boolean }) {
               </div>
               <div className="grid grid-cols-2 sm:contents">
                 <div className="px-4 sm:px-5 py-3 sm:py-4 text-[12.5px] sm:text-[14px] text-faint leading-snug">
-                  <span className="sm:hidden block caps text-[9.5px] text-faint/70 mb-1">Usual</span>
+                  <span className="sm:hidden block caps text-[9.5px] text-faint/70 mb-1">{t.usualShort}</span>
                   {r.them}
                 </div>
                 <div className="px-4 sm:px-5 py-3 sm:py-4 text-[12.5px] sm:text-[14px] text-fg leading-snug
@@ -86,8 +72,7 @@ export default function WhyUs({ compact = false }: { compact?: boolean }) {
         </div>
 
         <p className="mt-4 text-[12px] text-faint max-w-prose2">
-          “The usual report” describes what the large Indian astrology services currently sell
-          at this price. Compare for yourself before buying — the sample above is free.
+          {t.whyFootnote}
         </p>
       </div>
     </section>

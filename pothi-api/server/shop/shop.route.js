@@ -6,7 +6,7 @@ import { ask, suggestions } from "./ask.service.js";
 import { chat as aiChat } from "../ai/chat.service.js";
 import * as ChatLog from "./chat-log.service.js";
 import * as LLM from "../ai/llm.js";
-import { getReportType } from "../catalog/catalog.js";
+import { COVER_PALETTE, getReportType } from "../catalog/catalog.js";
 import * as Pricing from "../catalog/pricing.service.js";
 import { getPreview, getThumb } from "../catalog/preview.service.js";
 import config from "../../config.js";
@@ -45,8 +45,13 @@ export function noAuth() {
     const type = getReportType(req.params.code);
     if (!type || !(await Status.isSellable(req.params.code))) return fail(res, "Unknown report", 404);
     const lang = req.query.lang === "hi" ? "hi" : "en";
-    const design = String(req.query.design || "heritage");
-    const palette = String(req.query.palette || "gold");
+    // A report may pin its typesetting and its colourway, and when it does the
+    // storefront must preview THAT — the Couples Challenge is laid out one page
+    // per day in Keepsake, and the sample was showing it as a Heritage volume
+    // with a Ganesha on the cover. Showing a buyer a book they will not receive
+    // is the one thing a sample must never do.
+    const design = String(req.query.design || type.design || "heritage");
+    const palette = String(req.query.palette || COVER_PALETTE[type.code] || "gold");
 
     const [o, preview] = await Promise.all([
       outline(type.code, lang),
@@ -54,6 +59,9 @@ export function noAuth() {
     ]);
     return ok(res, {
       code: type.code, name_en: type.name_en, name_hi: type.name_hi,
+      // Which edition this sample actually is, so the picker on the detail page
+      // can start where the book starts rather than on its own default.
+      design, palette,
       chapters: type.chapters, price_paise: await Pricing.priceOf(type.code),
       // The preview is the real book in the design the reader is looking at, so
       // its page count is the true one. The outline's is a floor: it renders
@@ -87,23 +95,36 @@ export function noAuth() {
   }));
 
   r.post("/order", h(async (req, res) => {
-    // A Vastu report is about a building: it needs a facing, not a birth time.
+    // Three subjects, three sets of required fields. A Vastu report is about a
+    // building and needs a facing, not a birth time; a Couples Challenge is
+    // about two people and needs two names and no chart at all.
     const rt = getReportType(req.body.report_type);
-    const isProperty = rt?.subject === "property";
-    const need = isProperty
-      ? ["report_type", "name", "facing", "buyer_phone"]
-      : ["report_type", "name", "dob", "tob", "buyer_phone"];
-    const missing = need.filter((k) => !String(req.body[k] || "").trim());
+    const subject = rt?.subject || "person";
+    const isProperty = subject === "property";
+    const isCouple = subject === "couple";
+    const NEED = {
+      property: ["report_type", "name", "facing", "buyer_phone"],
+      couple:   ["report_type", "partner1_name", "partner2_name", "buyer_phone"],
+      person:   ["report_type", "name", "dob", "tob", "buyer_phone"]
+    };
+    const missing = NEED[subject].filter((k) => !String(req.body[k] || "").trim());
     if (missing.length) return fail(res, `Missing: ${missing.join(", ")}`);
-    if (!isProperty && !req.body.place_id && !req.body.pob)
+    if (!isProperty && !isCouple && !req.body.place_id && !req.body.pob)
       return fail(res, "Birth place is required");
     try {
       // Buying is what creates the account: the number they are reachable on
       // becomes the login, and the order is attached to it from the start.
       const user = await U.upsertByPhone(req.body.buyer_phone, {
-        name: req.body.buyer_name || req.body.name,
+        // A couples order carries no `name` — the buyer is one of the two
+        // partners, or the person gifting it. Without this the account would be
+        // created nameless and every later email would open "Hello ,".
+        name: req.body.buyer_name || req.body.name || req.body.partner1_name,
         email: req.body.buyer_email,
-        birth: { name: req.body.name, dob: req.body.dob, tob: req.body.tob, pob: req.body.pob },
+        // Nothing to remember for a report with no chart; skip rather than
+        // write a birth record of four nulls over a real one saved earlier.
+        ...(isCouple ? {} : {
+          birth: { name: req.body.name, dob: req.body.dob, tob: req.body.tob, pob: req.body.pob }
+        }),
         attribution: req.body.attribution
       });
       // Re-validated here: the browser may send any code and any total, and the

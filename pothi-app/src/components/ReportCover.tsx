@@ -20,7 +20,8 @@ export const COVER_PALETTE: Record<string, string> = {
   laalkitab:  "crimson",
   varshaphal: "parchment",
   vastu:      "emerald",
-  career:     "slate"
+  career:     "slate",
+  couples:    "kalava"
 };
 
 /**

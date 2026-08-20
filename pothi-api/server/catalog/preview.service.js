@@ -104,7 +104,17 @@ const DEMO_PROPERTY = {
   rooms: { entrance: "N", kitchen: "NE", master_bedroom: "SW", pooja: "NE",
            toilet: "NE", water: "NE", staircase: "SW", store: "NW" }
 };
-const demoFor = (type) => (getReportType(type)?.subject === "property" ? DEMO_PROPERTY : DEMO_SUBJECT);
+// A book with two names on the cover cannot be sampled with one. The storefront
+// was showing the Couples Challenge made out to a single person, which
+// contradicts the only thing its pitch promises.
+const DEMO_COUPLE = { partner1_name: "Priya", partner2_name: "Arjun", start_date: "03/2019" };
+
+const demoFor = (type) => {
+  const subject = getReportType(type)?.subject;
+  if (subject === "property") return DEMO_PROPERTY;
+  if (subject === "couple") return DEMO_COUPLE;
+  return DEMO_SUBJECT;
+};
 // Two audiences, two imprints. The console previews a white-labelled report so
 // the pandit sees HIS name; the storefront previews the house edition, because
 // showing a consumer a stranger's name on the product is a bug, not a demo.

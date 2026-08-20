@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useLang } from "../lib/lang";
+import { buyUi } from "../lib/buyStrings";
 import { track, flush, identify } from "../lib/track";
 import { useKeyboardInset } from "../lib/keyboard";
 import { api, rupees, type ReportItem } from "../lib/api";
@@ -76,12 +78,22 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
     name: "", gender: "", dob: "", tob: "", pob: "", place_id: "",
     language: "", buyer_phone: "", buyer_email: "",
     // Only used by property reports; the server ignores them otherwise.
-    facing: "", property_type: "home", rooms: {} as Record<string, string>
+    facing: "", property_type: "home", rooms: {} as Record<string, string>,
+    // Only used by the Couples Challenge, same arrangement.
+    partner1_name: "", partner2_name: "", start_date: "",
+    buying_for: "self", gift_from: "", gift_message: ""
   });
 
   // A Vastu report has no birth moment. It asks about a building instead, so the
   // whole first block of this form changes rather than being hidden field by field.
+  const [lang] = useLang();
+  const b = buyUi(lang);
   const isProperty = item?.subject === "property";
+  // And a Couples Challenge has no chart at all — two names, and everything
+  // else optional. The block below changes wholesale rather than hiding fields
+  // one by one, for the same reason the Vastu one does.
+  const isCouple = item?.subject === "couple";
+  const isChart = !isProperty && !isCouple;
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState(-1);
   const [err, setErr] = useState("");
@@ -136,7 +148,7 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
       // A bad code comes back as a 400 with the reason on it — that reason is
       // written for the buyer ("this coupon has expired"), so show it as-is.
       setApplied(null);
-      setCouponMsg(e.message || "Could not check that code.");
+      setCouponMsg(e.message || b.errCoupon);
       track("coupon_rejected", { code: item.code, coupon: code, reason: e.message });
     } finally { setCouponBusy(false); }
   };
@@ -156,23 +168,28 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
   /** What is missing, in the order it appears on the page. */
   const validate = (v: typeof f) => {
     const e: Record<string, string> = {};
-    if (!v.name.trim())
-      e.name = isProperty ? "Whose home is this? Enter the name to print on it."
-                          : "Whose chart is this? Enter the full name.";
+    if (isCouple) {
+      if (!v.partner1_name.trim()) e.partner1_name = b.errPartner1;
+      if (!v.partner2_name.trim()) e.partner2_name = b.errPartner2;
+      // A start date is optional, but a start date in the future is a typo, and
+      // the engine would silently drop the line rather than say so.
+      if (v.start_date && !/^(0?[1-9]|1[0-2])\/(19|20)\d{2}$/.test(v.start_date.trim()))
+        e.start_date = b.errSince;
+    } else if (!v.name.trim())
+      e.name = isProperty ? b.errNameProperty : b.errName;
     if (isProperty) {
-      if (!v.facing) e.facing = "Which way the main entrance faces — this is what the whole report is read from.";
-    } else {
-      if (!v.dob)      e.dob = "Choose the date of birth.";
-      if (!v.tob)      e.tob = "Choose the time of birth — it fixes the ascendant.";
+      if (!v.facing) e.facing = b.errFacing;
+    } else if (isChart) {
+      if (!v.dob)      e.dob = b.errDob;
+      if (!v.tob)      e.tob = b.errTob;
       if (!v.place_id) e.place_id = v.pob.trim()
-        ? "Pick the birth place from the list so we can resolve its coordinates."
-        : "Enter the birth place and pick it from the list.";
+        ? b.errPlacePick : b.errPlaceEmpty;
     }
-    if (!isProperty && !v.gender) e.gender = "Pick one — the reading differs.";
-    if (!v.language) e.language = "Which language should the report be written in?";
-    if (v.buyer_phone.length !== 10) e.buyer_phone = "Enter a 10-digit mobile number.";
+    if (isChart && !v.gender) e.gender = b.errGender;
+    if (!v.language) e.language = b.errLanguage;
+    if (v.buyer_phone.length !== 10) e.buyer_phone = b.errPhone;
     if (v.buyer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.buyer_email))
-      e.buyer_email = "That email address does not look right.";
+      e.buyer_email = b.errEmail;
     return e;
   };
 
@@ -247,12 +264,12 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
     <div className="shell py-14 sm:py-40 text-center">
       <div className="mx-auto w-10 h-10 rounded-full border-2 border-brass border-t-transparent animate-spin" />
       <h1 className="display text-[22px] mt-8">
-        {stage < 0 ? "Taking you to payment" : "Preparing your report"}
+        {stage < 0 ? b.stagePay : b.stagePrep}
       </h1>
       <p className="text-[14px] text-muted mt-2">
         {stage < 0
-          ? "Razorpay's secure page is opening. Do not close this tab."
-          : "This takes a few seconds. Please stay on the page."}
+          ? b.stagePaySub
+          : b.stagePrepSub}
       </p>
       <div className="mt-9 space-y-2.5 inline-block text-left">
         {STAGES.map((s, i) => (
@@ -268,42 +285,65 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
 
   return (
     <div className="shell py-5 sm:py-14 max-w-3xl pb-32 sm:pb-14">
-      <button onClick={onBack} className="text-[13.5px] text-faint hover:text-fg">← Back</button>
+      <button onClick={onBack} className="text-[13.5px] text-faint hover:text-fg">{b.back}</button>
 
       {/* The price is pinned to the bottom bar two inches below, and the report
           name is what the reader just tapped. Repeating both at the top of a
           390px screen pushed the first field under the fold. */}
       <div className="mt-4 sm:mt-6 flex items-baseline justify-between gap-4 flex-wrap">
         <h1 className="display text-[24px] sm:text-[40px]">
-          {isProperty ? "About your home" : "Your birth details"}
+          {isProperty ? b.headingProperty : b.headingPerson}
         </h1>
         <div className="hidden sm:block text-right">
-          <div className="text-[13px] text-faint">{item?.name_en}</div>
+          <div className="text-[13px] text-faint">{lang === "hi" ? item?.name_hi : item?.name_en}</div>
           <div className="display text-[21px]">{item ? rupees(item.price_paise) : ""}</div>
         </div>
       </div>
       <p className="hidden sm:block lede mt-3">
         {isProperty
-          ? "The facing matters more than anything else here — it decides what belongs in every other corner. Stand inside your main door looking out; that is the direction the home faces."
-          : "Birth time matters more than anything else here — it fixes the ascendant and every house cusp. Use a birth certificate if you have one."}
+          ? b.noteProperty : b.notePerson}
       </p>
       {/* One line on a phone: the single thing that changes the answer. */}
       <p className="sm:hidden text-[13px] text-muted mt-2 leading-snug">
         {isProperty
-          ? "The facing decides everything else — stand inside your main door looking out."
-          : "Birth time matters most: it fixes the ascendant and every house."}
+          ? b.subProperty : b.subPerson}
       </p>
 
       <div ref={formRef} className="mt-6 sm:mt-10 space-y-8 sm:space-y-10">
-        <Block n="01" title={isProperty ? "The home being read" : "Who the reading is for"}>
-        <Field id="field-name" label={isProperty ? "Name to print on the report" : "Full name"}
+        <Block n="01" title={isCouple ? b.blockSubjectCouple : isProperty ? b.blockSubjectProperty : b.blockSubjectPerson}>
+        {isCouple ? (
+          <>
+            <div className="grid sm:grid-cols-2 gap-5">
+              <Field id="field-partner1_name" label={b.yourName} error={errors.partner1_name}
+                     hint={b.yourNameHint}>
+                <input className="field deva" value={f.partner1_name} onChange={set("partner1_name")}
+                       autoFocus aria-invalid={!!errors.partner1_name} maxLength={24}
+                       placeholder={b.yourNamePh} />
+              </Field>
+              <Field id="field-partner2_name" label={b.partnerName} error={errors.partner2_name}
+                     hint={b.partnerNameHint}>
+                <input className="field deva" value={f.partner2_name} onChange={set("partner2_name")}
+                       aria-invalid={!!errors.partner2_name} maxLength={24}
+                       placeholder={b.partnerNamePh} />
+              </Field>
+            </div>
+            <Field id="field-start_date" label={b.since} error={errors.start_date}
+                   hint={b.sinceHint}>
+              <input className="field" value={f.start_date} onChange={set("start_date")}
+                     aria-invalid={!!errors.start_date} inputMode="numeric" maxLength={7}
+                     placeholder="03/2019" />
+            </Field>
+          </>
+        ) : (
+        <Field id="field-name" label={isProperty ? b.printName : b.fullName}
                error={errors.name}>
           <input className="field deva" value={f.name} onChange={set("name")} autoFocus
                  aria-invalid={!!errors.name}
-                 placeholder={isProperty ? "The owner's name" : "As you would like it printed"} />
+                 placeholder={isProperty ? b.ownerPh : b.yourNamePh} />
         </Field>
+        )}
 
-        {isProperty ? (
+        {isCouple ? null : isProperty ? (
           <VastuForm
             value={{ facing: f.facing, property_type: f.property_type, rooms: f.rooms } as VastuValue}
             facingError={errors.facing}
@@ -311,46 +351,46 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
         ) : (
           <>
             <div className="grid sm:grid-cols-2 gap-5">
-              <Field id="field-dob" label="Date of birth" error={errors.dob}>
+              <Field id="field-dob" label={b.dob} error={errors.dob}>
                 <DateField value={f.dob} onChange={(v) => patch({ dob: v })} />
               </Field>
-              <Field id="field-tob" label="Time of birth" error={errors.tob}>
+              <Field id="field-tob" label={b.tob} error={errors.tob}>
                 <TimeField value={f.tob} onChange={(v) => patch({ tob: v })} />
               </Field>
             </div>
-            <Field id="field-place_id" label="Place of birth" error={errors.place_id}
-                   hint="pick from the list">
+            <Field id="field-place_id" label={b.pob} error={errors.place_id}
+                   hint={b.pobHint}>
               <PlaceInput value={f.pob} placeId={f.place_id} onChange={(v) => patch(v)} />
             </Field>
           </>
         )}
         </Block>
 
-        <Block n="02" title="How you want it written">
+        <Block n="02" title={b.blockWritten}>
         <div className="grid sm:grid-cols-2 gap-5">
-          <div id="field-gender" className={isProperty ? "hidden" : ""}>
-            <label className="label">Gender</label>
-            <Select value={f.gender} ariaLabel="Gender" placeholder="Select"
+          <div id="field-gender" className={isChart ? "" : "hidden"}>
+            <label className="label">{b.gender}</label>
+            <Select value={f.gender} ariaLabel="Gender" placeholder={b.select}
                     onChange={(v) => patch({ gender: v })}
-                    options={[{ value: "female", label: "Female" },
-                              { value: "male", label: "Male" },
-                              { value: "other", label: "Other" }]} />
+                    options={[{ value: "female", label: b.female },
+                              { value: "male", label: b.male },
+                              { value: "other", label: b.other }]} />
             {errors.gender && <p className="text-[12.5px] text-ember mt-1.5">{errors.gender}</p>}
           </div>
           <div id="field-language">
-            <label className="label">Report language</label>
-            <Select value={f.language} ariaLabel="Report language" placeholder="Select"
+            <label className="label">{b.language}</label>
+            <Select value={f.language} ariaLabel={b.language} placeholder={b.select}
                     onChange={(v) => patch({ language: v })}
-                    options={[{ value: "en", label: "English" },
+                    options={[{ value: "en", label: b.english },
                               { value: "hi", label: "हिन्दी" }]} />
             {errors.language && <p className="text-[12.5px] text-ember mt-1.5">{errors.language}</p>}
           </div>
         </div>
         </Block>
 
-        <Block n="03" title="Where to send it">
+        <Block n="03" title={b.blockSend}>
         <div className="grid sm:grid-cols-2 gap-5">
-          <Field id="field-buyer_phone" label="WhatsApp number" error={errors.buyer_phone}>
+          <Field id="field-buyer_phone" label={b.whatsapp} error={errors.buyer_phone}>
             <div className={`field flex items-center gap-2 p-0 pl-4 pr-4
                              focus-within:border-brass focus-within:ring-4 focus-within:ring-brass/10`}>
               <span className="text-muted text-[15px] tabular-nums shrink-0">+91</span>
@@ -363,9 +403,9 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
                      onChange={(e) => patch({ buyer_phone: e.target.value.replace(/\D/g, "") })} />
             </div>
             {!errors.buyer_phone &&
-              <p className="text-[12px] text-faint mt-1.5">We use this to reach you about this order.</p>}
+              <p className="text-[12px] text-faint mt-1.5">{b.whatsappNote}</p>}
           </Field>
-          <Field id="field-buyer_email" label="Email" hint="optional" error={errors.buyer_email}>
+          <Field id="field-buyer_email" label={b.email} hint={b.optional} error={errors.buyer_email}>
             <input className="field" type="email" value={f.buyer_email} onChange={set("buyer_email")}
                    aria-invalid={!!errors.buyer_email} placeholder="you@example.com" />
           </Field>
@@ -377,7 +417,7 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
           do not have one. Collapsed to a link until it is wanted. */}
       <div className="mt-7 card-quiet p-5">
         <div className="flex items-baseline justify-between gap-4">
-          <span className="text-[14px] text-muted">Total</span>
+          <span className="text-[14px] text-muted">{b.total}</span>
           <span className="display text-[22px]">{item ? rupees(payable) : ""}</span>
         </div>
         {applied && (
@@ -390,15 +430,15 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
         )}
         <div className="rule my-4" />
         <div className="flex gap-2">
-          <input className="field flex-1 uppercase tracking-wide" placeholder="Coupon code"
+          <input className="field flex-1 uppercase tracking-wide" placeholder={b.coupon}
                  aria-label="Coupon code" value={coupon} maxLength={32}
                  onChange={(e) => { setCoupon(e.target.value); setCouponMsg(""); }}
                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); applyCoupon(); } }} />
           {applied
             ? <button type="button" className="btn btn-sm btn-line"
-                      onClick={() => { setApplied(null); setCoupon(""); setCouponMsg(""); }}>Remove</button>
+                      onClick={() => { setApplied(null); setCoupon(""); setCouponMsg(""); }}>{b.remove}</button>
             : <button type="button" className="btn btn-sm btn-line" disabled={couponBusy || !coupon.trim()}
-                      onClick={applyCoupon}>{couponBusy ? "…" : "Apply"}</button>}
+                      onClick={applyCoupon}>{couponBusy ? "…" : b.apply}</button>}
         </div>
         {couponMsg && <p className="text-[12.5px] text-ember mt-2">{couponMsg}</p>}
       </div>
@@ -410,15 +450,13 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
       {/* Desktop: the button sits at the end of the form, where the eye lands. */}
       <div className="mt-8 hidden sm:flex flex-wrap items-center gap-4">
         <button className="btn-brass h-[52px] px-8 text-[16px]" disabled={busy} onClick={submit}>
-          Pay {item ? rupees(payable) : ""} securely
+          {b.payAmount(item ? rupees(payable) : "")}
         </button>
         <SecureNote />
       </div>
 
       <p className="text-[12px] text-faint mt-6 max-w-prose2 leading-relaxed">
-        Price includes GST. Not satisfied with your report? We refund the full amount, no
-        questions asked. Prepared for guidance; not a substitute for medical, legal or financial
-        advice.
+        {b.legal}
       </p>
 
       {/*
@@ -453,7 +491,7 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
             </div>
           </div>
           <button className="btn-brass flex-1 h-[50px] text-[15.5px]" disabled={busy} onClick={submit}>
-            {busy ? "…" : "Pay securely"}
+            {busy ? "…" : b.pay}
           </button>
         </div>
       </div>

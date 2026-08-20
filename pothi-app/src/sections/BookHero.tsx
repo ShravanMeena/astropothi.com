@@ -1,4 +1,6 @@
 import { useRef } from "react";
+import { useLang } from "../lib/lang";
+import { homeUi } from "../lib/homeStrings";
 import { motion, useScroll, useTransform, useSpring, useReducedMotion } from "framer-motion";
 import ChartMark from "../components/ChartMark";
 import ReportBanners from "./ReportBanners";
@@ -14,23 +16,24 @@ import type { ReportItem } from "../lib/api";
  */
 /** The pitch. Identical in every branch so they can never drift apart. */
 function Copy({ onOpen }: { onOpen: () => void }) {
+  const [lang] = useLang();
+  const h = homeUi(lang);
   return (
     <>
       <div className="flex items-center gap-3">
         <span className="h-px w-8 bg-brass" />
-        <span className="caps text-brass">Vedic · computed, then explained</span>
+        <span className="caps text-brass">{h.heroEyebrow}</span>
       </div>
       <h1 className="mt-6">
         <span className="deva foil block text-[25px] sm:text-[48px] leading-[1.18] font-semibold">
-          जन्म कुंडली
+          {h.heroDeva}
         </span>
         <span className="display block text-[26px] sm:text-[56px] lg:text-[64px] leading-[1.0] mt-1">
-          Your birth chart,<br />read properly.
+          {h.heroTitleA}<br />{h.heroTitleB}
         </span>
       </h1>
       <p className="lede mt-6 max-w-prose2">
-        A 64-chapter kundali computed from your exact birth time — every line traceable
-        to a planetary position we can show you.
+        {h.heroLede}
       </p>
       {/* One button, not two. "See what's inside" and "See every report" both
           went to the range, so the pair was a choice between two words for the
@@ -38,7 +41,7 @@ function Copy({ onOpen }: { onOpen: () => void }) {
           fold. */}
       <div className="mt-8">
         <button className="btn-brass h-[52px] px-8 text-[16px] w-full sm:w-auto" onClick={onOpen}>
-          See every report
+          {h.heroCta}
         </button>
       </div>
     </>
@@ -48,6 +51,8 @@ function Copy({ onOpen }: { onOpen: () => void }) {
 export default function BookHero({ onOpen, items, onPick }: {
   onOpen: () => void; items: ReportItem[]; onPick: (code: string) => void;
 }) {
+  const [lang] = useLang();
+  const h = homeUi(lang);
   const track = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
   const { scrollYProgress } = useScroll({ target: track, offset: ["start start", "end start"] });
@@ -98,7 +103,7 @@ export default function BookHero({ onOpen, items, onPick }: {
         </div>
         <div className="shell relative z-10 pt-16 pb-20 grid lg:grid-cols-2 gap-12 items-center">
           <div><Copy onOpen={onOpen} /></div>
-          <img src="/covers/heritage.png" alt="A printed astropothi Vedic report, open at a chapter page"
+          <img src="/covers/heritage.png" alt={h.bookAlt}
                className="rounded-[2px] border border-line shadow-book w-[72%] mx-auto" />
         </div>
       </section>
@@ -141,7 +146,7 @@ export default function BookHero({ onOpen, items, onPick }: {
               <motion.div
                 style={{ rotateY: coverRotate, transformOrigin: "left center", transformStyle: "preserve-3d" }}
                 className="absolute inset-0 rounded-lg shadow-book will-change-transform">
-                <img src="/covers/heritage.png" alt="A printed astropothi Vedic report, open at a chapter page" className="h-full w-full rounded-lg" />
+                <img src="/covers/heritage.png" alt={h.bookAlt} className="h-full w-full rounded-lg" />
                 {/* the page darkens as it swings past the light */}
                 <motion.div style={{ opacity: coverShade }}
                             className="absolute inset-0 rounded-lg bg-black pointer-events-none" />
@@ -152,7 +157,7 @@ export default function BookHero({ onOpen, items, onPick }: {
 
         <motion.div style={{ opacity: hintOpacity }}
                     className="absolute bottom-8 left-1/2 -translate-x-1/2 text-center">
-          <p className="text-[12px] text-faint tracking-wide">scroll to open</p>
+          <p className="text-[12px] text-faint tracking-wide">{h.scrollToOpen}</p>
           <motion.div animate={{ y: [0, 7, 0] }} transition={{ repeat: Infinity, duration: 1.9, ease: "easeInOut" }}
                       className="mx-auto mt-2 w-px h-6 bg-line" />
         </motion.div>

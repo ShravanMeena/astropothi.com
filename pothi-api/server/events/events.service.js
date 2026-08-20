@@ -21,7 +21,22 @@ export const EVENTS = {
   chat_opened: "chat", chat_question: "chat",
 
   support_clicked: "support",
-  coupon_applied: "checkout", coupon_rejected: "checkout"
+  coupon_applied: "checkout", coupon_rejected: "checkout",
+
+  // How far down a page somebody got, and which parts they stopped at. The
+  // funnel says whether they reached checkout; these say why they didn't —
+  // lost in the first screen, or read to the chapter list and still walked.
+  scroll_depth: "browse", section_viewed: "browse",
+
+  // The welcome sheet: shown, taken, or closed — and HOW it was closed, since
+  // the interesting number is not how many leave a phone number, it is how many
+  // dismiss it on sight and whether they stay afterwards.
+  welcome_shown: "account", welcome_submitted: "account",
+  welcome_dismissed: "account", welcome_coupon_copied: "account",
+
+  // Which language the report page was read in. Every scroll and section event
+  // carries it too, so "does Hindi sell better" is answerable rather than felt.
+  language_selected: "browse"
 };
 
 const str = (v, n) => (v === undefined || v === null ? null : String(v).slice(0, n));

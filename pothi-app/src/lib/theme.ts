@@ -13,9 +13,16 @@ function paint(t: Theme) {
     ?.setAttribute("content", dark ? "#100E0C" : "#FCFBF8");
 }
 
-/** Follows the device by default; an explicit choice is remembered. */
+/**
+ * Light by default; an explicit choice is remembered.
+ *
+ * It followed the device, which meant a visitor whose phone was in dark mode
+ * met a dark storefront — and the covers, the palettes and the gold leaf are
+ * all designed against paper. The device preference is still one click away in
+ * the footer toggle, and "system" still works once chosen.
+ */
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem(KEY) as Theme) || "system");
+  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem(KEY) as Theme) || "light");
 
   useEffect(() => {
     paint(theme);
@@ -32,6 +39,6 @@ export function useTheme() {
 
 // Paint before React mounts so there is no flash of the wrong theme.
 export function primeTheme() {
-  const t = (localStorage.getItem(KEY) as Theme) || "system";
+  const t = (localStorage.getItem(KEY) as Theme) || "light";
   paint(t);
 }

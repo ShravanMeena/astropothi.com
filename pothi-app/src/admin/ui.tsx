@@ -123,8 +123,29 @@ const TONES: Record<string, string> = {
   suspended:  "bg-ember/12 text-ember"
 };
 
+/** Which tones are a state worth spotting, and which are just a label. */
+const DOTTED: Record<string, string> = {
+  ready: "bg-brass", paid: "bg-brass", active: "bg-brass",
+  generating: "bg-muted", created: "bg-faint",
+  failed: "bg-ember", refunded: "bg-ember", suspended: "bg-ember"
+};
+
+/**
+ * A state, as a pill.
+ *
+ * The dot is not decoration. At 10.5px the difference between the brass pill
+ * and the grey one is a shade, and staff were reading a wall of `created` as a
+ * wall of `ready` — the two states that matter most to tell apart, because one
+ * of them means somebody paid. Shape carries the state alongside the colour, so
+ * it survives a colourblind reader, a bad monitor, and a fast scan.
+ */
 export const Chip = ({ children, tone }: { children: ReactNode; tone?: string }) => (
-  <span className={`chip ${TONES[tone || ""] || "bg-sunken text-muted"}`}>{children}</span>
+  <span className={`chip inline-flex items-center gap-1.5 ${TONES[tone || ""] || "bg-sunken text-muted"}`}>
+    {DOTTED[tone || ""] && (
+      <span aria-hidden className={`w-1.5 h-1.5 rounded-full shrink-0 ${DOTTED[tone || ""]}`} />
+    )}
+    {children}
+  </span>
 );
 
 export const Tag = ({ children }: { children: ReactNode }) => (
@@ -466,16 +487,177 @@ export function BarRow({ label, sub, value, max, right, tone = "brass" }: {
   );
 }
 
-/** A compact tile for the secondary numbers — six of these in one strip. */
-export const Tile = ({ label, value, tone = "plain", hint }: {
+/**
+ * A compact tile for the secondary numbers — six of these in one strip.
+ *
+ * `series` and `delta` are optional and the tile is plain without them, but a
+ * bare number is a number nobody can act on: "412 visitors" is good news or bad
+ * news depending entirely on last week, and the panel used to make staff hold
+ * that comparison in their heads. The sparkline gives the shape, the delta gives
+ * the direction, and both are drawn from data the screen already has.
+ */
+export const Tile = ({ label, value, tone = "plain", hint, series, delta, deltaLabel }: {
   label: string; value: ReactNode; tone?: "plain" | "brass" | "ember"; hint?: ReactNode;
-}) => (
-  <div className="card px-4 py-3.5">
-    <div className="caps text-faint flex items-center gap-1.5">{label}{hint && <Hint>{hint}</Hint>}</div>
-    <div className={`mt-1.5 font-serif text-[24px] leading-none tabular-nums tracking-tightest
-                     ${tone === "brass" ? "text-brass" : tone === "ember" ? "text-ember" : "text-fg"}`}>{value}</div>
-  </div>
-);
+  /** Values over the window, oldest first. Drawn only when there is a shape to draw. */
+  series?: number[];
+  /** Percent change against the preceding window. Null when there is no baseline. */
+  delta?: number | null;
+  deltaLabel?: string;
+}) => {
+  // Direction is not goodness. More refunds is not an improvement, so the tile
+  // that owns the number says which way is up rather than the arrow assuming it.
+  const up = typeof delta === "number" && delta > 0;
+  const flat = typeof delta === "number" && delta === 0;
+  return (
+    <div className="card px-4 py-3.5 relative overflow-hidden">
+      <div className="caps text-faint flex items-center gap-1.5">{label}{hint && <Hint>{hint}</Hint>}</div>
+      <div className="mt-1.5 flex items-baseline gap-2 flex-wrap">
+        <span className={`font-serif text-[24px] leading-none tabular-nums tracking-tightest
+                         ${tone === "brass" ? "text-brass" : tone === "ember" ? "text-ember" : "text-fg"}`}>{value}</span>
+        {typeof delta === "number" && (
+          <span className={`text-[11px] tabular-nums font-medium inline-flex items-center gap-0.5
+                            ${flat ? "text-faint" : up ? "text-brass" : "text-ember"}`}
+                title={deltaLabel || "against the previous window of the same length"}>
+            <svg viewBox="0 0 10 10" width="9" height="9" fill="none" stroke="currentColor"
+                 strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              {flat ? <path d="M2 5h6" /> : up ? <path d="M5 8V2M2.5 4.5 5 2l2.5 2.5" />
+                                               : <path d="M5 2v6M2.5 5.5 5 8l2.5-2.5" />}
+            </svg>
+            {flat ? "0%" : `${Math.abs(Math.round(delta))}%`}
+          </span>
+        )}
+      </div>
+      {series && series.length > 3 && (
+        <div className="mt-2 -mx-1 opacity-90"><Spark values={series} height={26}
+             tone={tone === "ember" ? "muted" : "brass"} /></div>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Daily activity — the view the panel was missing entirely.
+ *
+ * Everything else here is a total over a window, which describes a month and
+ * says nothing about this morning. A funnel is a shape, not a trend.
+ *
+ * The two marks are nested, not additive: everyone who pressed pay is also a
+ * visitor. So they share a baseline and the smaller sits inside the larger,
+ * which reads as "of these, that many" — stacking them would draw a total that
+ * does not exist and double-count every buyer.
+ */
+export function ActivityChart({ rows, height = 132 }: {
+  rows: { day: string; visitors: number; viewed: number; checkout: number; pay: number; events: number }[];
+  height?: number;
+}) {
+  const [hover, setHover] = useState<number | null>(null);
+  if (!rows.length) return null;
+  const max = Math.max(1, ...rows.map((r) => r.visitors));
+  const active = hover === null ? null : rows[hover];
+  const total = rows.reduce((n, r) => n + r.visitors, 0);
+  const busiest = rows.reduce((a, b) => (b.visitors > a.visitors ? b : a), rows[0]);
+  const dm = (d: string) => d.slice(8, 10) + "/" + d.slice(5, 7);
+
+  return (
+    <div className="px-4 sm:px-5 py-4">
+      <div className="flex items-center justify-between gap-4 mb-3 flex-wrap">
+        <div className="flex items-center gap-4 text-[11px] text-muted">
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-[2px] bg-brass/30" />Visitors
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-[2px] bg-brass" />Pressed pay
+          </span>
+        </div>
+        <div className="text-[11px] text-faint tabular-nums">
+          {active
+            ? <><span className="text-fg">{active.day}</span>{" · "}
+                <span className="text-fg">{num(active.visitors)}</span> visitors · {num(active.viewed)} viewed ·{" "}
+                {num(active.checkout)} checkout · <span className="text-brass">{num(active.pay)}</span> pay</>
+            : <>{num(total)} visitors · busiest {dm(busiest.day)} at {num(busiest.visitors)}</>}
+        </div>
+      </div>
+
+      <div className="relative flex items-end gap-[2px]" style={{ height }}
+           onMouseLeave={() => setHover(null)}>
+        {rows.map((r, i) => (
+          <button key={r.day} type="button" onMouseEnter={() => setHover(i)} onFocus={() => setHover(i)}
+                  aria-label={`${r.day}: ${r.visitors} visitors, ${r.pay} pressed pay`}
+                  className="flex-1 min-w-0 h-full relative flex items-end justify-center
+                             rounded-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brass/40">
+            {hover === i && <span aria-hidden className="absolute inset-0 bg-sunken/70 rounded-sm" />}
+            <span aria-hidden className="relative w-full max-w-[16px] rounded-t-[3px] bg-brass/25 transition-all"
+                  style={{ height: `${Math.max(r.visitors ? 3 : 1.5, (r.visitors / max) * 100)}%`,
+                           opacity: hover === null || hover === i ? 1 : 0.45 }}>
+              {/* A day with no visitors still draws a hairline, so an empty day
+                  reads as zero rather than as a gap in the data. */}
+              <span className="absolute inset-x-0 bottom-0 rounded-t-[3px] bg-brass transition-all"
+                    style={{ height: r.visitors ? `${(r.pay / Math.max(1, r.visitors)) * 100}%` : 0 }} />
+            </span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 flex justify-between text-[10.5px] text-faint tabular-nums">
+        <span>{dm(rows[0].day)}</span><span>{dm(rows[rows.length - 1].day)}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The funnel, drawn as one.
+ *
+ * It was a stack of equal-length bars with the count on the right, which is a
+ * table wearing a chart's clothes — the eye had to compare numbers rather than
+ * see the collapse. Each step is now as wide as the people who reached it, and
+ * the fall between two steps is drawn in the gap it happens in.
+ */
+export function FunnelSteps({ steps, worst }: {
+  steps: { step: string; people: number; of_first: number; dropped: number }[];
+  worst?: string;
+}) {
+  const first = Math.max(1, steps[0]?.people ?? 1);
+  return (
+    <div className="px-4 sm:px-5 py-4 space-y-0">
+      {steps.map((s, i) => {
+        const w = Math.max(s.people > 0 ? 2 : 0, (s.people / first) * 100);
+        const isWorst = s.step === worst && s.dropped > 0;
+        return (
+          <div key={s.step}>
+            {i > 0 && (
+              <div className="flex items-center gap-2 h-6 pl-1">
+                <span aria-hidden className="w-px h-full bg-line" />
+                {s.dropped > 0 ? (
+                  <span className={`text-[11px] tabular-nums ${isWorst ? "text-ember font-semibold" : "text-faint"}`}>
+                    −{num(s.dropped)} left here{isWorst ? " · biggest drop" : ""}
+                  </span>
+                ) : (
+                  <span className="text-[11px] text-faint">no drop</span>
+                )}
+              </div>
+            )}
+            <div className="group">
+              <div className="flex items-baseline justify-between gap-4 mb-1">
+                <span className="text-[13px] text-fg">{s.step}</span>
+                <span className="text-[13px] tabular-nums shrink-0">
+                  <span className="font-medium text-fg">{num(s.people)}</span>
+                  <span className="text-faint ml-1.5 text-[11px]">{s.of_first}%</span>
+                </span>
+              </div>
+              <div className="h-2.5 rounded-full bg-sunken overflow-hidden">
+                {/* Width carries the magnitude. Fading later steps as well made
+                    the last bar look uncertain rather than small, and a step
+                    that lost nobody was drawn faintest of all. */}
+                <div className={`h-full rounded-full transition-all ${isWorst ? "bg-ember" : "bg-brass"}`}
+                     style={{ width: `${w}%` }} />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 /**
  * Confirmation, in the panel rather than in a native dialog.

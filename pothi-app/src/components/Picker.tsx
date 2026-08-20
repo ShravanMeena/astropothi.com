@@ -1,4 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLang } from "../lib/lang";
+import { buyUi } from "../lib/buyStrings";
 import { AnimatePresence, motion } from "framer-motion";
 
 /* ── shared behaviour ──────────────────────────────────────────────────────
@@ -122,6 +124,8 @@ const firstWeekday = (y: number, m: number) => new Date(Date.UTC(y, m, 1)).getUT
 export function DateField({ value, onChange, minYear = 1920 }: {
   value: string; onChange: (v: string) => void; minYear?: number;
 }) {
+  const [lang] = useLang();
+  const t = buyUi(lang);
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
   const today = new Date();
@@ -170,7 +174,7 @@ export function DateField({ value, onChange, minYear = 1920 }: {
   return (
     <div className="relative" ref={ref}>
       <Trigger open={open} filled={!!parsed} onClick={() => setOpen(!open)} aria-label="Date of birth">
-        {parsed ? `${parsed.d} ${MONTHS[parsed.m]} ${parsed.y}` : "Select date"}
+        {parsed ? `${parsed.d} ${MONTHS[parsed.m]} ${parsed.y}` : t.selectDate}
       </Trigger>
       <AnimatePresence>
         {open && (
@@ -252,6 +256,8 @@ function TimeCol({ items, active, onPick, label }: {
 /* ── Time of birth ────────────────────────────────────────────────────────── */
 
 export function TimeField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [lang] = useLang();
+  const t = buyUi(lang);
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
   const ok = /^\d{2}:\d{2}$/.test(value);
@@ -283,7 +289,7 @@ export function TimeField({ value, onChange }: { value: string; onChange: (v: st
   return (
     <div className="relative" ref={ref}>
       <Trigger open={open} filled={ok} onClick={() => setOpen(!open)} aria-label="Time of birth">
-        {ok ? `${pad(h12)}:${pad(M)} ${pm ? "PM" : "AM"}` : "Select time"}
+        {ok ? `${pad(h12)}:${pad(M)} ${pm ? "PM" : "AM"}` : t.selectTime}
       </Trigger>
       <AnimatePresence>
         {open && (

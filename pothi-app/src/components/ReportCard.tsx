@@ -1,4 +1,6 @@
 import Link from "./Link";
+import { useLang } from "../lib/lang";
+import { homeUi } from "../lib/homeStrings";
 import ReportCover from "./ReportCover";
 import { rupees, type ReportItem } from "../lib/api";
 
@@ -38,7 +40,12 @@ export const REPORT_COPY: Record<string, { deva: string; for: string; text: stri
 export default function ReportCard({ item, onPick, featured = false }: {
   item: ReportItem; onPick: (code: string) => void; featured?: boolean;
 }) {
+  const [lang] = useLang();
   const c = REPORT_COPY[item.code];
+  // The Devanagari word stays in REPORT_COPY — it is the same in both
+  // languages. Only the hook and the description are copy.
+  const h = homeUi(lang);
+  const card = h.cards[item.code];
 
   return (
     // A real <a href="/report/…">, not a button. These nine cards are the main
@@ -69,22 +76,22 @@ export default function ReportCard({ item, onPick, featured = false }: {
       </div>
 
       <div className="flex flex-col flex-1 min-w-0 p-3.5 sm:p-5">
-        <span className="caps text-brass text-[9.5px] sm:text-[10.5px]">{c?.for}</span>
+        <span className="caps text-brass text-[9.5px] sm:text-[10.5px]">{card?.f ?? c?.for}</span>
         <span className="flex items-baseline gap-2 mt-2 flex-wrap">
-          <span className="display text-[16.5px] sm:text-[20px] leading-tight">{item.name_en}</span>
+          <span className="display text-[16.5px] sm:text-[20px] leading-tight">{lang === "hi" ? item.name_hi : item.name_en}</span>
           <span className="deva text-[13px] text-brass">{c?.deva}</span>
         </span>
         {/* Clamped, so every card in a row ends its copy on the same line.
             No `block` here: line-clamp works by setting display:-webkit-box,
             and `block` overrode it — which is why one card ran to three lines
             while the rest stopped at two. */}
-        <span className="text-[13px] text-muted mt-2 leading-snug line-clamp-2">{c?.text}</span>
+        <span className="text-[13px] text-muted mt-2 leading-snug line-clamp-2">{card?.t ?? c?.text}</span>
 
         {/* mt-auto pins this to the bottom whatever the copy above did. */}
         <span className="mt-auto pt-2.5 sm:pt-4 flex items-center justify-between gap-3">
           <span className="flex items-baseline gap-2">
             <span className="display text-[19px] text-brass">{rupees(item.price_paise)}</span>
-            <span className="text-[11.5px] text-faint">{item.chapters} chapters</span>
+            <span className="text-[11.5px] text-faint">{h.chaptersCount(item.chapters)}</span>
           </span>
           <span aria-hidden
                 className="hidden sm:grid h-8 w-8 rounded-full border border-line place-items-center

@@ -1,4 +1,7 @@
 import { SUPPORT, prettyPhone, waLink, mailLink, telLink, aboutOrder } from "../lib/support";
+import { useLang } from "../lib/lang";
+import { ui } from "../lib/reportStrings";
+import { homeUi } from "../lib/homeStrings";
 import { track } from "../lib/track";
 
 const Whatsapp = ({ className = "" }: { className?: string }) => (
@@ -30,6 +33,9 @@ export default function Support({
   orderId?: string; reportName?: string;
   tone?: "panel" | "inline" | "bar" | "mini"; where?: string; className?: string;
 }) {
+  const [lang] = useLang();
+  const t = ui(lang);
+  const h = homeUi(lang);
   const msg = aboutOrder(orderId, reportName);
   const subject = orderId ? `astropothi order ${orderId}` : "astropothi — a question";
   const hit = (channel: string) => track("support_clicked", { channel, where, order_id: orderId });
@@ -46,7 +52,7 @@ export default function Support({
     const item = "inline-flex items-center gap-1.5 text-[12.5px] text-muted hover:text-brass transition";
     return (
       <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 ${className}`}>
-        <span className="text-[12.5px] text-faint">Need help?</span>
+        <span className="text-[12.5px] text-faint">{t.needHelp}</span>
         <a href={waLink(msg)} target="_blank" rel="noreferrer" onClick={() => hit("whatsapp")} className={item}>
           <Whatsapp className="text-[#25D366]" /> {prettyPhone()}
         </a>
@@ -67,7 +73,7 @@ export default function Support({
   if (tone === "inline") {
     return (
       <p className={`text-[13px] text-muted ${className}`}>
-        Need help?{" "}
+        {t.needHelp}{" "}
         <a href={waLink(msg)} target="_blank" rel="noreferrer" onClick={() => hit("whatsapp")}
            className="text-brass hover:underline">WhatsApp {prettyPhone()}</a>
         {" · "}
@@ -94,10 +100,9 @@ export default function Support({
 
   return (
     <section className={`card p-6 sm:p-7 ${className}`}>
-      <h3 className="display text-[19px]">Stuck, or something looks wrong?</h3>
+      <h3 className="display text-[19px]">{t.supportTitle}</h3>
       <p className="text-[14px] text-muted mt-1.5 leading-relaxed max-w-lg">
-        A person reads every message — not a bot. Ask about your chart, your reading, your
-        payment or your order. {SUPPORT.hours}.
+        {t.supportBody(h.supportHours)}
       </p>
       <div className="flex flex-col sm:flex-row gap-2.5 mt-5">
         <a href={waLink(msg)} target="_blank" rel="noreferrer" onClick={() => hit("whatsapp")}
@@ -110,7 +115,7 @@ export default function Support({
         </a>
         {/* Calling matters to the half of our buyers who will never type a message. */}
         <a href={telLink()} onClick={() => hit("call")}
-           className="btn btn-sm btn-line justify-center sm:hidden">Call</a>
+           className="btn btn-sm btn-line justify-center sm:hidden">{t.supportCall}</a>
       </div>
       {orderId && (
         <p className="text-[12.5px] text-faint mt-4">

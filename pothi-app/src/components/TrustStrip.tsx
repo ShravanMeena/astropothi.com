@@ -23,12 +23,16 @@
  * Change it when the number changes — not before.
  * ─────────────────────────────────────────────────────────────────────────────
  */
-const SOCIAL_PROOF = "Computed, never templated";
-
-const ITEMS: { icon: "lock" | "shield" | "star"; label: string }[] = [
-  { icon: "lock",   label: "100% secure payments" },
-  { icon: "shield", label: "100% refund, no questions" },
-  { icon: "star",   label: SOCIAL_PROOF }
+import { useLang } from "../lib/lang";
+import { ui } from "../lib/reportStrings";
+// The claims are keys now rather than sentences, so the Hindi and the English
+// wording live together and cannot drift apart. WHAT each one asserts is
+// unchanged — read the note above before touching any of them, in either
+// language. `trustComputed` is the honest line that replaced a customer count.
+const ITEMS: { icon: "lock" | "shield" | "star"; key: "trustSecure" | "trustRefund" | "trustComputed" }[] = [
+  { icon: "lock",   key: "trustSecure" },
+  { icon: "shield", key: "trustRefund" },
+  { icon: "star",   key: "trustComputed" }
 ];
 
 const Icon = ({ kind }: { kind: "lock" | "shield" | "star" }) => (
@@ -44,12 +48,14 @@ const Icon = ({ kind }: { kind: "lock" | "shield" | "star" }) => (
 );
 
 export default function TrustStrip({ className = "" }: { className?: string }) {
+  const [lang] = useLang();
+  const t = ui(lang);
   return (
     <ul className={`flex flex-wrap items-center gap-x-4 gap-y-2 ${className}`}>
       {ITEMS.map((it) => (
-        <li key={it.label} className="inline-flex items-center gap-1.5 text-[12px] text-muted">
+        <li key={it.key} className="inline-flex items-center gap-1.5 text-[12px] text-muted">
           <Icon kind={it.icon} />
-          {it.label}
+          {t[it.key]}
         </li>
       ))}
     </ul>

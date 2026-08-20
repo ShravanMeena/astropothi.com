@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useLang } from "../lib/lang";
+import { buyUi } from "../lib/buyStrings";
 import { api } from "../lib/api";
 
 type Place = { display_name: string; place_id: string };
@@ -9,6 +11,8 @@ type Place = { display_name: string; place_id: string };
 export default function PlaceInput({ value, placeId, onChange }: {
   value: string; placeId: string; onChange: (v: { pob: string; place_id: string }) => void;
 }) {
+  const [lang] = useLang();
+  const t = buyUi(lang);
   const [q, setQ] = useState(value);
   const [list, setList] = useState<Place[]>([]);
   const [open, setOpen] = useState(false);
@@ -49,7 +53,7 @@ export default function PlaceInput({ value, placeId, onChange }: {
   return (
     <div className="relative" ref={box}>
       <input className="field" value={q} autoComplete="off" spellCheck={false}
-             placeholder="Start typing a city or town…"
+             placeholder={t.placePh}
              onChange={(e) => { setQ(e.target.value); onChange({ pob: e.target.value, place_id: "" }); }}
              onFocus={() => list.length && setOpen(true)}
              onKeyDown={(e) => {

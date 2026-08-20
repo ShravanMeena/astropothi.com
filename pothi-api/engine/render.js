@@ -17,8 +17,24 @@ const GENERATORS = {
   career:     { mod: "./reports/career.js",     fn: "generateInhouseCareer",     en: "Career & Livelihood",    hi: "कर्म एवं जीविका" },
   // Not chart-derived: its subject is a building, so it takes facing + rooms
   // rather than birth details. See engine/vastu/rules.js.
-  vastu:      { mod: "./reports/vastu.js",      fn: "generateInhouseVastu",      en: "Vastu Wheel Report",     hi: "वास्तु चक्र रिपोर्ट" }
+  vastu:      { mod: "./reports/vastu.js",      fn: "generateInhouseVastu",      en: "Vastu Wheel Report",     hi: "वास्तु चक्र रिपोर्ट" },
+  // Not chart-derived either: its subject is two people and a written
+  // question set. See engine/i18n/couples-strings.js — that file is the report.
+  couples:    { mod: "./reports/couples.js",    fn: "generateCouplesBook",       en: "Couples Challenge",      hi: "कपल्स चैलेंज" }
 };
+
+/**
+ * Report types that must never be handed to the enricher, whatever the caller
+ * asked for.
+ *
+ * enrichSections() expands any chapter under 90 words. Every daily page in the
+ * Couples Challenge is deliberately short — a question, a line of framing, one
+ * small action — so enrichment would turn all thirty into paragraphs and
+ * destroy the format the buyer paid for. Making this a property of the report
+ * rather than an argument means a new call site cannot reintroduce the bug by
+ * forgetting a flag.
+ */
+const NEVER_ENRICH = new Set(["couples"]);
 
 export const REPORT_CODES = Object.keys(GENERATORS);
 
@@ -47,9 +63,10 @@ export async function renderReport({ reportType, input, designId, paletteId, bra
   // nothing else. Expansion only appends paragraphs to a chapter; it cannot
   // rename one or change how many there are. Rendering it anyway cost ten
   // seconds and a Bedrock call per report, on the page an advertisement lands.
-  const enrichment = enrich
+  const enrichment = enrich && !NEVER_ENRICH.has(reportType)
     ? await enrichSections(model, { lang, reportType })
-    : { expanded: 0, rejected: 0, skipped: "not requested" };
+    : { expanded: 0, rejected: 0,
+        skipped: NEVER_ENRICH.has(reportType) ? "never enriched" : "not requested" };
 
   const { buffer, pages } = await renderReportPdf({
     doc: model, designId, paletteId, branding

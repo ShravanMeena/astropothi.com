@@ -71,9 +71,15 @@ export function noAuth() {
     const phone = U.cleanPhone(req.body.phone);
     const name = String(req.body.name || "").trim().slice(0, 120);
     if (phone.length !== 10) return fail(res, "A 10-digit mobile number is required");
-    if (!name) return fail(res, "A name is required");
 
-    const user = await U.upsertByPhone(phone, { name, attribution: req.body.attribution });
+    // A name is optional here, and deliberately so: the welcome sheet asks for a
+    // number and nothing else, because every extra field on a first-touch form
+    // is a reason to close it. upsertByPhone only ever fills blanks, so an
+    // absent name cannot erase one the buyer gave at checkout.
+    const user = await U.upsertByPhone(phone, {
+      ...(name ? { name } : {}),
+      attribution: req.body.attribution
+    });
     return ok(res, { token: signUserToken(user), user: U.publicUser(user) });
   }));
 

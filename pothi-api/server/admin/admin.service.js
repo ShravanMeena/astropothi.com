@@ -582,6 +582,50 @@ export async function funnel({ days = 30 } = {}) {
   return out;
 }
 
+/**
+ * Daily activity, gapless.
+ *
+ * The panel could count every step in the funnel but not tell you whether last
+ * Tuesday was busier than today — a funnel is a shape, not a trend, and staff
+ * were reading a 30-day total as if it described this morning. generate_series
+ * fills empty days with zero: a series that silently omits them draws a slope
+ * that never happened.
+ *
+ * Devices, not events, for the same reason the funnel counts devices — one
+ * person refreshing eleven times is one visitor.
+ */
+export async function activityByDay({ days = 30 } = {}) {
+  const n = Math.max(1, Math.min(180, Number(days) || 30));
+  return db.sequelize.query(
+    `WITH span AS (
+       SELECT generate_series(
+         date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata') - interval '${n - 1} days',
+         date_trunc('day', now() AT TIME ZONE 'Asia/Kolkata'),
+         interval '1 day')::date AS day
+     ),
+     ev AS (
+       SELECT (occurred_at AT TIME ZONE 'Asia/Kolkata')::date AS day,
+              COUNT(DISTINCT anonymous_id)::int AS visitors,
+              COUNT(DISTINCT anonymous_id) FILTER (WHERE name = 'report_viewed')::int AS viewed,
+              COUNT(DISTINCT anonymous_id) FILTER (WHERE name = 'checkout_started')::int AS checkout,
+              COUNT(DISTINCT anonymous_id) FILTER (WHERE name = 'pay_clicked')::int AS pay,
+              COUNT(*)::int AS events
+         FROM app_events
+        WHERE occurred_at >= (now() AT TIME ZONE 'Asia/Kolkata')::date - interval '${n - 1} days'
+        GROUP BY 1
+     )
+     SELECT to_char(span.day, 'YYYY-MM-DD') AS day,
+            COALESCE(ev.visitors, 0) AS visitors,
+            COALESCE(ev.viewed, 0)   AS viewed,
+            COALESCE(ev.checkout, 0) AS checkout,
+            COALESCE(ev.pay, 0)      AS pay,
+            COALESCE(ev.events, 0)   AS events
+       FROM span LEFT JOIN ev ON ev.day = span.day
+      ORDER BY span.day`,
+    { type: db.Sequelize.QueryTypes.SELECT }
+  );
+}
+
 /** Which reports get looked at, and which of those turn into money. */
 export async function reportInterest({ days = 30 } = {}) {
   return db.sequelize.query(

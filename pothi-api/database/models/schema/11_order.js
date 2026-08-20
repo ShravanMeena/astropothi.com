@@ -26,6 +26,11 @@ export default (sequelize, DataTypes) =>
     // Kept in its own column rather than overloading `birth`, so nothing that
     // reads a chart can ever be handed a floor plan.
     property:     { type: DataTypes.JSONB },
+    // A Couples Challenge has neither a birth moment nor a building: two names,
+    // an optional start date, and an optional gift message. Its own column for
+    // the same reason `property` has one — nothing that reads `birth` should
+    // have to learn that some orders keep something else in it.
+    couple:       { type: DataTypes.JSONB },
 
     // What was charged, and what it would have been. Keeping the list price
     // means discount depth is a column, not a join against a coupon that may

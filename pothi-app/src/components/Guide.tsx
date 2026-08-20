@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { useLang } from "../lib/lang";
+import { homeUi } from "../lib/homeStrings";
 import { AnimatePresence, motion } from "framer-motion";
 import { rupees, type ReportItem } from "../lib/api";
 import { track } from "../lib/track";
@@ -168,6 +170,8 @@ export default function Guide({ items, open, onClose, onReport, onBuy }: {
 
 /** The always-there button that opens it. */
 export function GuideButton({ onClick, hidden }: { onClick: () => void; hidden?: boolean }) {
+  const [lang] = useLang();
+  const h = homeUi(lang);
   return (
     <AnimatePresence>
       {!hidden && (
@@ -189,7 +193,7 @@ export function GuideButton({ onClick, hidden }: { onClick: () => void; hidden?:
                strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
             <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 9.3 9.3 0 0 1-3.3-.6L3 21l1.8-5a8.2 8.2 0 0 1-.8-3.5 8.4 8.4 0 0 1 8.5-8.4 8.4 8.4 0 0 1 8.5 8.4Z" />
           </svg>
-          <span className="hidden sm:inline text-[15px] font-medium whitespace-nowrap">Which report?</span>
+          <span className="hidden sm:inline text-[15px] font-medium whitespace-nowrap">{h.whichReport}</span>
         </motion.button>
       )}
     </AnimatePresence>

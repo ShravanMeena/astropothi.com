@@ -61,7 +61,15 @@ function normalizeSection(raw, index) {
      * the middle of each, which is unreadable at a glance and is the one page
      * a buyer looks at first.
      */
-    checklist: Array.isArray(raw.checklist) ? raw.checklist : null
+    checklist: Array.isArray(raw.checklist) ? raw.checklist : null,
+    /**
+     * How many ruled lines to leave the reader at the foot of the chapter.
+     * Only the Couples Challenge sets it: its pages are a question and a blank
+     * two thirds, and blankness alone reads as a rendering fault rather than an
+     * invitation to write. Drawn as rules, never as text — the horizontal-bar
+     * character does not survive the built-in font encodings.
+     */
+    writeLines: Number.isFinite(+raw.writeLines) ? Math.min(12, Math.max(0, +raw.writeLines)) : 0
   };
 }
 
@@ -110,7 +118,13 @@ export function buildDocModel({ result, reportType, titles, input, language }) {
     reportType,
     title: titles?.[lang] || titles?.en || reportType,
     subject: {
-      name: str(input?.name) || "—",
+      // Two names for a couples book, one for everything else. The subject name
+      // is what the cover sets largest, so a report whose subject is a pair had
+      // to be able to say so — without it the biggest line on the cover was an
+      // em dash.
+      name: str(input?.partner1_name) && str(input?.partner2_name)
+        ? `${str(input.partner1_name)} ${lang === "hi" ? "और" : "&"} ${str(input.partner2_name)}`
+        : str(input?.name) || "—",
       // Printed, not stored: "2001-01-09" is a database format and it was
       // going on the cover of a book somebody paid for.
       dob: prettyDate(str(input?.dob), lang),

@@ -1,10 +1,14 @@
 import { useState } from "react";
+import { useLang } from "../lib/lang";
+import { homeUi } from "../lib/homeStrings";
 import Reveal from "../components/Reveal";
 
+// The names are proper nouns and stay as they are in both languages; only the
+// description is copy, and it lives with the rest of the page's copy.
 const D = [
-  { id: "classic",   name: "Classic",   line: "Traditional Vedic setting. Serif throughout, a fine ruled border, chapters running one after another.", img: "/covers/classic.png" },
-  { id: "heritage",  name: "Heritage",  line: "A presentation edition. Gold frame, corner medallions, a title page for every long chapter.", img: "/covers/heritage.png" },
-  { id: "editorial", name: "Editorial", line: "Modern and quiet. Two columns, generous margins, no ornament — a magazine rather than a manuscript.", img: "/covers/editorial.png" }
+  { id: "classic",   name: "Classic",   img: "/covers/classic.png" },
+  { id: "heritage",  name: "Heritage",  img: "/covers/heritage.png" },
+  { id: "editorial", name: "Editorial", img: "/covers/editorial.png" }
 ];
 
 /**
@@ -17,16 +21,17 @@ const D = [
  */
 export default function Designs() {
   const [active, setActive] = useState(1);
+  const [lang] = useLang();
+  const h = homeUi(lang);
   return (
     <section id="designs" className="hidden sm:block shell py-12 sm:py-28">
       <Reveal>
-        <p className="eyebrow">The designs</p>
+        <p className="eyebrow">{h.designsEyebrow}</p>
         <h2 className="display text-[25px] sm:text-[44px] mt-3 max-w-prose2 leading-[1.08]">
-          Three books, not three colours.
+          {h.designsTitle}
         </h2>
         <p className="lede mt-4 max-w-prose2">
-          The same reading, laid out three different ways. The structure changes, not the palette —
-          one runs to 53 pages, another to 135.
+          {h.designsLede}
         </p>
       </Reveal>
 
@@ -37,7 +42,7 @@ export default function Designs() {
               className={`w-full text-left p-5 rounded-xl border transition-all
                 ${i === active ? "border-fg bg-raised shadow-soft" : "border-transparent hover:bg-raised/60"}`}>
               <h3 className="display text-[21px]">{d.name}</h3>
-              <p className="text-[14px] text-muted mt-1.5 leading-relaxed">{d.line}</p>
+              <p className="text-[14px] text-muted mt-1.5 leading-relaxed">{h.designLines[d.id]}</p>
             </button>
           ))}
         </div>

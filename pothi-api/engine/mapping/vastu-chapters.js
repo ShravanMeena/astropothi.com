@@ -84,7 +84,7 @@ export function buildVastuSections(audit, input, lang = "en") {
     summary: lang === "hi"
       ? "यह रिपोर्ट आपके भवन की दिशा और कक्षों के स्थान की जाँच वास्तु पुरुष मंडल के शास्त्रीय नियमों से करती है।"
       : "This report checks your home's orientation and room placement against the classical rules of the Vastu Purusha Mandala.",
-    paras: [ lang === "hi"
+    body: [ lang === "hi"
       ? "प्रत्येक निष्कर्ष उस नियम के साथ दिया गया है जिससे वह निकला है। जहाँ आपने कोई कक्ष दर्ज नहीं किया, वहाँ रिपोर्ट मौन है — अनुमान नहीं लगाती।"
       : "Every verdict is given with the rule that produced it. Where you did not record a room, the report says nothing rather than guessing." ],
     advisory: t.advisory });
@@ -124,7 +124,7 @@ export function buildVastuSections(audit, input, lang = "en") {
     summary: lang === "hi"
       ? `${pick(fz, lang)} मुखी भवन ${pick(fz.governs, lang)} से जोड़ा जाता है।`
       : `A ${pick(fz, lang)}-facing building is associated with ${pick(fz.governs, lang)}.`,
-    paras: [ lang === "hi"
+    body: [ lang === "hi"
       ? `${pick(fz, lang)} दिशा के अधिष्ठाता ${fz.deity} हैं और इसका तत्व ${fz.element} है। मुख की दिशा भवन का दोष या गुण तय नहीं करती — वह केवल यह तय करती है कि भीतर क्या कहाँ रखा जाना चाहिए।`
       : `${pick(fz, lang)} is presided over by ${fz.deity}, and its element is ${fz.element}. The facing does not by itself make a building good or bad — it sets what should sit where inside it.` ] });
 
@@ -138,7 +138,7 @@ export function buildVastuSections(audit, input, lang = "en") {
         ? (lang === "hi" ? `यहाँ है: ${here.map((f) => nm(f.placement)).join(", ")}।`
                          : `Here you have: ${here.map((f) => nm(f.placement)).join(", ")}.`)
         : (lang === "hi" ? "इस क्षेत्र में कुछ दर्ज नहीं है।" : "Nothing was recorded in this zone."),
-      paras: [
+      body: [
         lang === "hi"
           ? `${pick(z, lang)} का तत्व ${z.element} है और शास्त्र इसे ${pick(z.governs, lang)} सौंपते हैं।`
           : `${pick(z, lang)} carries the element ${z.element}, and the classics assign it ${pick(z.governs, lang)}.`,
@@ -170,7 +170,7 @@ export function buildVastuSections(audit, input, lang = "en") {
                            : `Your ${nm(p.key).toLowerCase()} is in ${zn(f.zoneKey)}, a direction the texts keep it out of.`)
           : (lang === "hi" ? `${nm(p.key)} ${zn(f.zoneKey)} में है — न आदर्श, न वर्जित।`
                            : `Your ${nm(p.key).toLowerCase()} is in ${zn(f.zoneKey)} — neither ideal nor forbidden.`),
-      paras: [
+      body: [
         lang === "hi"
           ? `${zn(f.zoneKey)} ${pick(z.governs, lang)} से जुड़ा है और इसका तत्व ${z.element} है।`
           : `${zn(f.zoneKey)} is associated with ${pick(z.governs, lang)}, and its element is ${z.element}.`,

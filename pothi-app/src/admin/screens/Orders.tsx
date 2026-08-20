@@ -3,6 +3,9 @@ import { adminApi, rupees, num, when, ms } from "../api";
 import type { OrderRow, OrderDetail } from "../types";
 import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Loading, Empty, ErrorNote, Search, Segmented, Btn, Drawer, Facts, SubHead, Hint, Confirm } from "../ui";
 
+/** Rows per fetch. Big enough to scroll, small enough to arrive quickly. */
+const PAGE = 50;
+
 const FILTERS = [
   { value: "all", label: "All" }, { value: "ready", label: "Delivered" },
   { value: "failed", label: "Failed" }, { value: "created", label: "Unpaid" },
@@ -17,16 +20,23 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [open, setOpen] = useState<string | null>(null);
+  // The list was capped at 200 with no way past it, while the header cheerfully
+  // said "334 matching" — everything older than the cap was unreachable unless
+  // you already knew what to search for.
+  const [limit, setLimit] = useState(PAGE);
 
   const load = useCallback(() => {
     setLoading(true); setErr("");
-    adminApi.get(`/orders?status=${status}&q=${encodeURIComponent(q)}&limit=200`)
+    adminApi.get(`/orders?status=${status}&q=${encodeURIComponent(q)}&limit=${limit}`)
       .then((d) => { setRows(d.orders); setTotal(d.total); })
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
-  }, [status, q]);
+  }, [status, q, limit]);
 
   useEffect(load, [load]);
+  // A filter or a search is a new question; answering it with page four of the
+  // old one is why "no results" gets reported for orders that are there.
+  useEffect(() => { setLimit(PAGE); }, [status, q]);
 
   return (
     <>
@@ -67,6 +77,14 @@ export default function Orders() {
               ))}
             </tbody>
           </TableWrap>
+        )}
+        {!loading && rows.length < total && (
+          <div className="px-4 sm:px-5 py-3 border-t border-line flex items-center justify-between gap-4">
+            <span className="text-[11.5px] text-faint tabular-nums">
+              Showing {num(rows.length)} of {num(total)}
+            </span>
+            <Btn onClick={() => setLimit((n) => n + PAGE)}>Load {PAGE} more</Btn>
+          </div>
         )}
       </Panel>
 

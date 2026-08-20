@@ -24,7 +24,7 @@
     "audit:astro": "node scripts/audit_astro_sanity.js",
     "test:loop": "bash scripts/loop_check.sh 8",
     "test:shop": "bash scripts/test_shop.sh",
-    "migrate": "node scripts/ensure_consumer_reports.js && node scripts/ensure_report_status.js && node scripts/ensure_attribution.js",
+    "migrate": "node scripts/ensure_consumer_reports.js && node scripts/ensure_report_status.js && node scripts/ensure_attribution.js && node scripts/ensure_couples.js",
  "schema:check": "node scripts/schema_check.js",
     "test:payments": "node scripts/test_payments.js",
     "test:admin": "node scripts/test_admin.js",

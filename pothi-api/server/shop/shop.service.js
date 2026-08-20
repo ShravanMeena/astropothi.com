@@ -7,7 +7,7 @@
 import { randomBytes } from "node:crypto";
 import db from "../../database/index.js";
 import config from "../../config.js";
-import { getReportType } from "../catalog/catalog.js";
+import { getReportType, COVER_PALETTE } from "../catalog/catalog.js";
 import * as Pricing from "../catalog/pricing.service.js";
 import { getDesign } from "../../engine/reporting/designs/index.js";
 import { getPalette } from "../../engine/reporting/palettes/index.js";
@@ -50,12 +50,13 @@ export async function createOrder(input) {
   const q = await quote(input.report_type);
   const type = getReportType(q.code);
   const isProperty = type?.subject === "property";
+  const isCouple = type?.subject === "couple";
 
   // Coordinates are resolved server-side — never trusted from the browser, and
-  // an unresolvable place must fail before we take money. A Vastu report has no
-  // birth place to resolve, so it skips this entirely.
+  // an unresolvable place must fail before we take money. Neither a Vastu report
+  // nor a Couples Challenge has a birth place to resolve, so both skip this.
   let hit = null;
-  if (!isProperty) {
+  if (!isProperty && !isCouple) {
     hit = await Loc.geocode({ placeId: input.place_id, address: input.pob });
     if (!hit) throw Object.assign(new Error("BAD_PLACE"), { code: 400 });
   }
@@ -68,13 +69,19 @@ export async function createOrder(input) {
   const order = await db.Order.create({
     public_id: publicId(),
     report_type: q.code,
-    design: getDesign(input.design).id,
-    palette: getPalette(input.palette).id,
+    // A report may pin its typesetting. The Couples Challenge needs one chapter
+    // per page or it stops being a thirty-day ritual — see the Keepsake spec.
+    design: getDesign(input.design || type?.design).id,
+    // The buyer picks a colourway, or the report's own is used. Falling through
+    // to the global default put a Couples Challenge on the shelf in kalava and
+    // then printed the delivered book in saffron — the same book in two colours,
+    // and the wrong one is the one they paid for.
+    palette: getPalette(input.palette || COVER_PALETTE[q.code]).id,
     language: input.language === "en" ? "en" : "hi",
     user_id: input.user_id || null,
     buyer_name: input.buyer_name, buyer_phone: input.buyer_phone,
     buyer_email: input.buyer_email || null, state: input.state || null,
-    birth: isProperty ? null : {
+    birth: (isProperty || isCouple) ? null : {
       name: input.name, dob: input.dob, tob: input.tob, pob: input.pob,
       lat: hit.lat, lon: hit.lon, tzone: hit.tzone,
       gender: ["male", "female", "other"].includes(input.gender) ? input.gender : "male"
@@ -85,6 +92,15 @@ export async function createOrder(input) {
       property_type: input.property_type || "home",
       city: input.pob || null,
       rooms: input.rooms && typeof input.rooms === "object" ? input.rooms : {}
+    } : null,
+    couple: isCouple ? {
+      partner1_name: String(input.partner1_name || "").trim(),
+      partner2_name: String(input.partner2_name || "").trim(),
+      // Optional, and stored raw. The mapper decides whether it is readable and
+      // drops the line if it is not — a half-parsed date must never reach a cover.
+      start_date: String(input.start_date || "").trim() || null,
+      gift_from: String(input.gift_from || "").trim() || null,
+      gift_message: String(input.gift_message || "").trim().slice(0, 200) || null
     } : null,
     // Stamped at creation, so the answer to "where did this order come from"
     // lives on the order forever — not reconstructed later from a browser id
@@ -162,7 +178,7 @@ export async function settleAndGenerate({ razorpayOrderId, linkId, publicId: pid
     // table have a blank "ms" column and slow renders hide.
     const startedAt = Date.now();
     const { buffer, pages, model } = await renderReport({
-      reportType: order.report_type, input: order.property || order.birth,
+      reportType: order.report_type, input: order.couple || order.property || order.birth,
       designId: order.design, paletteId: order.palette,
       language: order.language, branding: houseBranding(),
       reference: order.public_id

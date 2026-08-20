@@ -2,6 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type ReportItem, type Design, type Palette } from "./lib/api";
 import { useRoute } from "./lib/route";
 import Nav from "./sections/Nav";
+import WelcomeSheet from "./components/WelcomeSheet";
+import { useLang } from "./lib/lang";
+import { homeUi } from "./lib/homeStrings";
 import BookHero from "./sections/BookHero";
 import Reports from "./sections/Reports";
 import How from "./sections/How";
@@ -127,12 +130,19 @@ export default function App() {
   const openReport = (code: string) => go(`/report/${code}`);
   const openBuy = (code: string) => { track("buy_clicked", { code, from: route.name }); go(`/buy/${code}`); };
   // The guide belongs where someone is still choosing, not mid-checkout.
+  const [lang] = useLang();
+  const h = homeUi(lang);
+
   const guideWelcome = route.name === "home" || route.name === "reports" || route.name === "faq" ||
                        route.name === "methodology" || route.name === "about";
 
   return (
     <>
       <Seo meta={metaFor(route, items)} />
+      {/* Every page, not just the home page: an ad lands straight on
+          /report/kundli, and that visitor should get the code too. It shows
+          once a visit and never to somebody already signed in. */}
+      <WelcomeSheet />
       <Nav onAstrologers={() => go("/astrologers")}
            signedIn={signedIn} onSignIn={() => { track("signin_opened", { from: route.name }); setSignIn(true); }} onProfile={() => go("/profile")}
            theme={theme} setTheme={setTheme} />
@@ -149,16 +159,16 @@ export default function App() {
               <div className="shell relative z-10 py-12 sm:py-28 text-center">
                 <span className="mx-auto mb-8 block h-8 w-px bg-gradient-to-b from-transparent to-brass" />
                 <h2 className="display text-[25px] sm:text-[48px] max-w-[17ch] mx-auto leading-[1.05]">
-                  Read what your chart actually says.
+                  {h.closeTitle}
                 </h2>
                 <p className="lede mt-5 max-w-prose2 mx-auto">
-                  Computed from your exact birth time, written out in full, delivered in under a minute.
+                  {h.closeLede}
                 </p>
                 <div className="mt-9 flex flex-wrap justify-center gap-3">
                   <button className="btn-brass h-[52px] px-8 text-[16px]" onClick={() => go("/reports")}>
-                    Browse all {items.length} reports
+                    {h.closeBrowse(items.length)}
                   </button>
-                  <button className="btn-line h-[52px]" onClick={() => go("/faq")}>Read the questions</button>
+                  <button className="btn-line h-[52px]" onClick={() => go("/faq")}>{h.closeFaq}</button>
                 </div>
               </div>
             </section>
@@ -223,15 +233,19 @@ export default function App() {
             is a sales page: it gets the one-line version instead, placed by the
             page itself, because a support card under a price competes with the
             buy button for the same glance. */}
-        {!["order", "profile", "legal", "report", "article"].includes(route.name) && (
+        {/* "buy" joins the list: the checkout is the last screen before money
+            changes hands, and a support card there reads as "something usually
+            goes wrong" at the exact moment a buyer is deciding to trust us. */}
+        {!["order", "profile", "legal", "report", "article", "buy"].includes(route.name) && (
           <div className="shell pb-16"><Support where={route.name} /></div>
         )}
       </main>
 
-      {/* No footer on a report page either — twelve links and a disclaimer at
-          the end of a sales page is a set of exits. The report page closes with
-          its own buy button. */}
-      {route.name !== "report" && <Footer onAstrologers={() => go("/astrologers")} />}
+      {/* No footer on a report page or the checkout — twelve links and a
+          disclaimer at the end of a sales page is a set of exits, and the
+          checkout has one job. The report page closes with its own buy button;
+          the checkout closes with the pay button. */}
+      {!["report", "buy"].includes(route.name) && <Footer onAstrologers={() => go("/astrologers")} />}
 
       <GuideButton onClick={() => { track("guide_opened", { from: route.name }); setGuide(true); }} hidden={!guideWelcome || guide} />
       <Guide items={items} open={guide} onClose={() => setGuide(false)}
