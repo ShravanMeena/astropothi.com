@@ -5,19 +5,41 @@ import { AnimatePresence, motion } from "framer-motion";
    One dismiss rule for every picker: click outside, or press Escape. */
 function useDismiss(open: boolean, close: () => void) {
   const ref = useRef<HTMLDivElement>(null);
+  // Held in a ref so the listener is attached once per open, not re-attached on
+  // every render — callers pass an inline arrow, which is a new function each
+  // time and was tearing the listener down and rebuilding it constantly.
+  const closeRef = useRef(close);
+  closeRef.current = close;
+
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) close();
+    /**
+     * pointerdown, not mousedown.
+     *
+     * On Android the month and year `<select>` open as a native overlay, and
+     * choosing an option dispatches a mousedown whose target is that overlay —
+     * outside this panel. The panel closed before the change applied, so the
+     * date could be set once and never corrected. pointerdown fires from the
+     * real touch, and the two guards below reject the synthetic ones.
+     */
+    const onDown = (e: PointerEvent) => {
+      const t = e.target as Node | null;
+      if (!t) return;
+      // A native select overlay's option is not in the document, and neither is
+      // an element React has already unmounted. Either way it is not an
+      // "outside click" — it is the browser's own UI.
+      if (!document.contains(t)) return;
+      if (ref.current?.contains(t)) return;
+      closeRef.current();
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    document.addEventListener("mousedown", onDown);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") closeRef.current(); };
+    document.addEventListener("pointerdown", onDown, true);
     document.addEventListener("keydown", onKey);
     return () => {
-      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("pointerdown", onDown, true);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open, close]);
+  }, [open]);
   return ref;
 }
 
@@ -51,9 +73,11 @@ function Trigger({ open, filled, children, onClick, ...rest }: {
 
 /* ── Select ───────────────────────────────────────────────────────────────── */
 
-export function Select({ value, onChange, options, ariaLabel }: {
+export function Select({ value, onChange, options, ariaLabel, placeholder = "Select" }: {
   value: string; onChange: (v: string) => void;
   options: { value: string; label: string }[]; ariaLabel?: string;
+  /** Shown until a real choice is made, so an unanswered field looks unanswered. */
+  placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useDismiss(open, () => setOpen(false));
@@ -62,7 +86,7 @@ export function Select({ value, onChange, options, ariaLabel }: {
   return (
     <div className="relative" ref={ref}>
       <Trigger open={open} filled={!!current} onClick={() => setOpen(!open)} aria-label={ariaLabel}>
-        {current?.label ?? "Select"}
+        {current?.label ?? placeholder}
       </Trigger>
       <AnimatePresence>
         {open && (

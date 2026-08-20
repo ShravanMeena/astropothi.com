@@ -28,11 +28,41 @@ export default function Support({
   orderId, reportName, tone = "panel", where = "page", className = ""
 }: {
   orderId?: string; reportName?: string;
-  tone?: "panel" | "inline" | "bar"; where?: string; className?: string;
+  tone?: "panel" | "inline" | "bar" | "mini"; where?: string; className?: string;
 }) {
   const msg = aboutOrder(orderId, reportName);
-  const subject = orderId ? `Pothi order ${orderId}` : "Pothi — a question";
+  const subject = orderId ? `astropothi order ${orderId}` : "astropothi — a question";
   const hit = (channel: string) => track("support_clicked", { channel, where, order_id: orderId });
+
+  /**
+   * The smallest version: three icon links and nothing else.
+   *
+   * For a page that is selling something. The full panel is a card with a
+   * heading and two sentences, and directly under a price it competes with the
+   * buy button for the same attention — a reader who is deciding does not need
+   * a paragraph about support, only the reassurance that a person exists.
+   */
+  if (tone === "mini") {
+    const item = "inline-flex items-center gap-1.5 text-[12.5px] text-muted hover:text-brass transition";
+    return (
+      <div className={`flex flex-wrap items-center gap-x-5 gap-y-2 ${className}`}>
+        <span className="text-[12.5px] text-faint">Need help?</span>
+        <a href={waLink(msg)} target="_blank" rel="noreferrer" onClick={() => hit("whatsapp")} className={item}>
+          <Whatsapp className="text-[#25D366]" /> {prettyPhone()}
+        </a>
+        <a href={telLink()} onClick={() => hit("call")} className={item}>
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+               strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <path d="M5 4h3.6l1.6 4-2 1.4a12 12 0 0 0 5.4 5.4l1.4-2 4 1.6V18a2 2 0 0 1-2.2 2A15.5 15.5 0 0 1 3 6.2 2 2 0 0 1 5 4Z" />
+          </svg>
+          Call
+        </a>
+        <a href={mailLink(subject)} onClick={() => hit("email")} className={item}>
+          <Mail /> Email
+        </a>
+      </div>
+    );
+  }
 
   if (tone === "inline") {
     return (

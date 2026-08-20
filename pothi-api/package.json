@@ -35,8 +35,9 @@
     "test:whatsapp": "MSG91_AUTH_KEY= node scripts/test_whatsapp.js",
     "whatsapp:test-send": "node scripts/send_test_whatsapp.js",
     "test:enrich": "node scripts/test_enrich.js",
-    "test:all": "npm run test:layout && npm run test:content && npm run test:credits && npm run test:pilot && npm run test:shop && npm run test:payments && npm run test:whatsapp && npm run audit:reports && npm run test:admin && npm run test:files && npm run test:catalogue && npm run test:pricing && npm run test:events && node scripts/audit_astro_sanity.js && node scripts/audit_report_text.js --budget && node scripts/audit_data_driven.js --budget",
-    "test:files": "node scripts/test_file_access.js"
+    "test:all": "npm run test:layout && npm run test:content && npm run test:credits && npm run test:pilot && npm run test:shop && npm run test:payments && npm run test:whatsapp && npm run audit:reports && npm run test:admin && npm run test:files && npm run test:catalogue && npm run test:pricing && npm run test:events && npm run test:attribution && node scripts/audit_astro_sanity.js && node scripts/audit_report_text.js --budget && node scripts/audit_data_driven.js --budget",
+    "test:files": "node scripts/test_file_access.js",
+    "test:attribution": "node scripts/test_attribution.js"
   },
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.1113.0",

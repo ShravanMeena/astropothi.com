@@ -10,6 +10,8 @@ import CountUp from "../components/CountUp";
 import { track } from "../lib/track";
 import WhyUs from "../sections/WhyUs";
 import SoftSignIn from "../components/SoftSignIn";
+import Support from "../components/Support";
+import TrustStrip from "../components/TrustStrip";
 
 type Detail = {
   code: string; name_en: string; chapters: number; price_paise: number; approx_pages: number;
@@ -198,6 +200,8 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
                   <span className="text-muted">, no questions asked</span>
                 </p>
               </div>
+
+              <TrustStrip className="mt-5" />
             </div>
 
             {/* Desktop only. On a phone this sat directly under the refund
@@ -394,6 +398,12 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
           <div aria-hidden className="h-20 sm:hidden" />
         </div>
       </section>
+
+      {/* The page ends on its own terms: one quiet line saying a person exists,
+          then the buy button in the bar. No footer, no support card. */}
+      <div className="shell pb-12 sm:pb-16 -mt-4">
+        <Support tone="mini" where={`report/${code}`} />
+      </div>
 
       {/* Thirty seconds on one report is interest; the ask is reasonable by
           then and an interruption before it. */}

@@ -35,6 +35,14 @@ async function renderRev() {
     try { h.update(await readFile(path.resolve(import.meta.dirname, rel))); }
     catch { h.update(rel); }
   }
+  // The brand is printed on the cover of every sample, so it belongs in the
+  // key. Renaming Pothi to astropothi left the storefront serving samples with
+  // the old name beside a site carrying the new one — the cached bytes were
+  // still valid for a renderer that had not changed, and wrong for the product.
+  h.update(String(config.brand.name || ""));
+  h.update(String(config.brand.tagline || ""));
+  h.update(String(config.brand.supportPhone || ""));
+  h.update(String(config.brand.supportEmail || ""));
   RENDER_REV = h.digest("hex").slice(0, 8);
   return RENDER_REV;
 }

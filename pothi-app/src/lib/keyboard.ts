@@ -19,16 +19,43 @@ export function useKeyboardInset() {
   useEffect(() => {
     const vv = window.visualViewport;
     if (!vv) return;
-    const read = () => {
-      // Rounded, and ignored below 80px: browser chrome collapsing on scroll
-      // moves this by a few pixels and must not shove the bar around.
-      const gap = Math.round(window.innerHeight - vv.height - vv.offsetTop);
-      setInset(gap > 80 ? gap : 0);
+
+    /**
+     * Only while a field is actually focused.
+     *
+     * The first version read the gap unconditionally, and iOS reports a large
+     * one whenever the address bar collapses on scroll — so the bar translated
+     * hundreds of pixels up the page and sat in the middle of the form,
+     * covering it. A keyboard is only ever open when something is focused, so
+     * that is the gate.
+     */
+    const typing = () => {
+      const el = document.activeElement;
+      return !!el && /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
     };
+
+    const read = () => {
+      if (!typing()) return setInset(0);
+      const gap = Math.round(window.innerHeight - vv.height - vv.offsetTop);
+      // Clamped to half the screen. Anything larger is not a keyboard, and
+      // acting on it moves the button somewhere the reader is not looking.
+      const max = Math.round(window.innerHeight * 0.5);
+      setInset(gap > 100 && gap < max ? gap : 0);
+    };
+
     read();
     vv.addEventListener("resize", read);
     vv.addEventListener("scroll", read);
-    return () => { vv.removeEventListener("resize", read); vv.removeEventListener("scroll", read); };
+    // focusout fires before the viewport settles, so re-read on the next frame.
+    const later = () => requestAnimationFrame(read);
+    document.addEventListener("focusin", later);
+    document.addEventListener("focusout", later);
+    return () => {
+      vv.removeEventListener("resize", read);
+      vv.removeEventListener("scroll", read);
+      document.removeEventListener("focusin", later);
+      document.removeEventListener("focusout", later);
+    };
   }, []);
 
   return inset;

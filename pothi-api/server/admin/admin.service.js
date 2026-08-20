@@ -596,7 +596,177 @@ export async function reportInterest({ days = 30 } = {}) {
     { replacements: { since: since(days) }, type: db.Sequelize.QueryTypes.SELECT });
 }
 
+/**
+ * Money by campaign.
+ *
+ * Reads `orders` rather than `app_events`, deliberately. Events are stitched by
+ * a browser-local id that a cleared cache or a second device breaks, and the
+ * question here has revenue in it — it has to be answered from the row that
+ * holds the payment. Grouped on LAST touch, because that is the click a spend
+ * report is asking about; first touch is in the JSONB for the acquisition view.
+ *
+ * `paid` counts orders that reached a state where money moved.
+ */
+export async function revenueBySource({ days = 30 } = {}) {
+  return db.sequelize.query(
+    `SELECT coalesce(nullif(utm_source, ''),   'direct') AS source,
+            coalesce(nullif(utm_medium, ''),   '—')      AS medium,
+            coalesce(nullif(utm_campaign, ''), '—')      AS campaign,
+            count(*)::int                                                       AS orders,
+            count(*) FILTER (WHERE status IN ('paid','generating','ready'))::int AS paid,
+            coalesce(sum(amount_paise) FILTER (WHERE status IN ('paid','generating','ready')), 0)::bigint AS revenue_paise
+       FROM orders
+      WHERE "createdAt" >= :since AND "deletedAt" IS NULL
+      GROUP BY 1, 2, 3
+      ORDER BY revenue_paise DESC, orders DESC`,
+    { replacements: { since: since(days) }, type: db.Sequelize.QueryTypes.SELECT });
+}
+
+/** Which campaign ACQUIRED each buyer, as opposed to which one closed the sale. */
+export async function acquisitionBySource({ days = 90 } = {}) {
+  return db.sequelize.query(
+    `SELECT coalesce(nullif(u.first_utm_source, ''),   'direct') AS source,
+            coalesce(nullif(u.first_utm_campaign, ''), '—')      AS campaign,
+            count(DISTINCT u.id)::int AS buyers,
+            count(o.id)::int          AS orders,
+            coalesce(sum(o.amount_paise) FILTER (WHERE o.status IN ('paid','generating','ready')), 0)::bigint AS revenue_paise
+       FROM users u
+       LEFT JOIN orders o ON o.user_id = u.id AND o."deletedAt" IS NULL
+      WHERE u."createdAt" >= :since AND u."deletedAt" IS NULL
+      GROUP BY 1, 2
+      ORDER BY revenue_paise DESC, buyers DESC`,
+    { replacements: { since: since(days) }, type: db.Sequelize.QueryTypes.SELECT });
+}
+
 export async function journeyOf(anonymousId) {
   const { journey } = await import("../events/events.service.js");
   return journey(anonymousId);
+}
+
+// ── catalogue status ────────────────────────────────────────────────────────
+// The mirror of the pricing block above. catalog.js `ready` stays the default;
+// a row here overrides it, and deleting the row restores the default.
+
+export async function catalogueStatus() {
+  const { REPORT_TYPES } = await import("../catalog/catalog.js");
+  const { priceMap } = await import("../catalog/pricing.service.js");
+  const [rows, prices] = await Promise.all([db.ReportStatus.findAll(), priceMap()]);
+  const byCode = Object.fromEntries(rows.map((r) => [r.report_type, r]));
+
+  // Counts come from live rows, because "can I safely pull this" is really the
+  // question "has anybody bought it" — and that is not answerable from code.
+  const sold = await sql(
+    `SELECT report_type, COUNT(*)::int AS orders
+       FROM orders
+      WHERE status IN (${PAID_STATES.map((s) => `'${s}'`).join(",")}) AND "deletedAt" IS NULL
+      GROUP BY report_type`
+  );
+  const soldBy = Object.fromEntries(sold.map((r) => [r.report_type, r.orders]));
+
+  return REPORT_TYPES.map((t) => {
+    const ov = byCode[t.code];
+    return {
+      code: t.code, name_en: t.name_en, name_hi: t.name_hi,
+      chapters: t.chapters, subject: t.subject || "person",
+      price_paise: prices[t.code] ?? null,
+      default_ready: Boolean(t.ready),
+      override: ov ? Boolean(ov.sellable) : null,
+      sellable: ov ? Boolean(ov.sellable) : Boolean(t.ready),
+      paid_orders: soldBy[t.code] || 0,
+      note: ov?.note ?? null, set_by: ov?.set_by ?? null, changed_at: ov?.updatedAt ?? null
+    };
+  });
+}
+
+export async function setCatalogueStatus(code, sellable, note, by) {
+  const { getReportType } = await import("../catalog/catalog.js");
+  if (!getReportType(code)) throw Object.assign(new Error("Unknown report"), { code: 404 });
+  await db.ReportStatus.upsert({
+    report_type: code, sellable: Boolean(sellable), note: note || null, set_by: by || null
+  });
+  const { bustStatusCache } = await import("../catalog/status.service.js");
+  bustStatusCache();
+  return { code, sellable: Boolean(sellable) };
+}
+
+/** Drop the override and fall back to `ready` in catalog.js. */
+export async function clearCatalogueStatus(code) {
+  await db.ReportStatus.destroy({ where: { report_type: code }, force: true });
+  const { bustStatusCache } = await import("../catalog/status.service.js");
+  bustStatusCache();
+  const { getReportType } = await import("../catalog/catalog.js");
+  return { code, cleared: true, sellable: Boolean(getReportType(code)?.ready) };
+}
+
+// ── individual reports: correct one, or remove it ───────────────────────────
+
+/**
+ * Change a report's status by hand.
+ *
+ * For clearing up after testing, and for the case where a report generated fine
+ * but its row says otherwise. It does NOT re-render — `ready` here only means
+ * "this row is correct"; if there is no pdf_url, say so rather than pretend.
+ */
+export async function setReportStatus(id, status) {
+  if (!["generating", "ready", "failed"].includes(status))
+    throw Object.assign(new Error("Status must be generating, ready or failed"), { code: 400 });
+  const rep = await db.Report.findByPk(id);
+  if (!rep) throw Object.assign(new Error("REPORT_NOT_FOUND"), { code: 404 });
+  if (status === "ready" && !rep.pdf_url)
+    throw Object.assign(new Error("This report has no PDF, so marking it ready would lie to the buyer. Retry the order instead."), { code: 409 });
+  await rep.update({ status, ...(status === "ready" ? { error: null } : {}) });
+  return { id: String(rep.id), status: rep.status };
+}
+
+/**
+ * Remove a report.
+ *
+ * A soft delete, because every model here is paranoid and because a deleted
+ * report is evidence of what a buyer was sent. If an order points at it, the
+ * link is cleared and the order is marked failed — otherwise the order would
+ * claim to be delivered while pointing at nothing, which is worse than either.
+ *
+ * The PDF is deliberately left in storage: unpicking a delivered file is not
+ * something an admin click should do silently.
+ */
+export async function deleteReport(id, { force = false } = {}) {
+  const rep = await db.Report.findByPk(id);
+  if (!rep) throw Object.assign(new Error("REPORT_NOT_FOUND"), { code: 404 });
+
+  const order = rep.order_id ? await db.Order.findByPk(rep.order_id) : null;
+  // Refuse to quietly strip a paid buyer's only report unless it is asked for
+  // twice. Test rows are unpaid, so the ordinary case is unaffected.
+  if (order && PAID_STATES.includes(order.status) && !force)
+    throw Object.assign(new Error(
+      `Order ${order.public_id} was paid and points at this report. Deleting it leaves that buyer with nothing. Confirm to proceed.`
+    ), { code: 409, needsForce: true });
+
+  if (order && String(order.report_id) === String(rep.id)) {
+    await order.update({
+      report_id: null, status: "failed",
+      error: `report ${rep.id} deleted from the admin panel`
+    });
+  }
+  await rep.destroy();
+  return { id: String(rep.id), deleted: true, order: order?.public_id || null };
+}
+
+/**
+ * Remove an order and whatever it produced.
+ *
+ * The intended use is clearing test rows. A paid order needs `force`, because
+ * deleting one silently removes real money from every figure on the Overview.
+ */
+export async function deleteOrder(publicId, { force = false } = {}) {
+  const order = await db.Order.findOne({ where: { public_id: publicId } });
+  if (!order) throw Object.assign(new Error("ORDER_NOT_FOUND"), { code: 404 });
+  if (PAID_STATES.includes(order.status) && !force)
+    throw Object.assign(new Error(
+      `${order.public_id} is a PAID order worth ${(order.amount_paise / 100).toFixed(0)} rupees. Deleting it removes that from revenue. Confirm to proceed.`
+    ), { code: 409, needsForce: true });
+
+  const reports = await db.Report.findAll({ where: { order_id: order.id } });
+  for (const r of reports) await r.destroy();
+  await order.destroy();
+  return { public_id: order.public_id, deleted: true, reports_deleted: reports.length };
 }

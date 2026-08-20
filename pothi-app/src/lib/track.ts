@@ -1,4 +1,5 @@
 import { getUserToken } from "./account";
+import { captureAttribution, currentCampaign } from "./attribution";
 
 /**
  * What people actually do on the site.
@@ -53,24 +54,6 @@ type Ev = {
 let queue: Ev[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 
-/** utm_* from the landing URL, remembered for the visit — the click that paid. */
-function campaign() {
-  try {
-    const saved = sessionStorage.getItem("pothi.utm");
-    if (saved) return JSON.parse(saved);
-    const q = new URLSearchParams(location.search);
-    const utm = {
-      source: q.get("utm_source") || (document.referrer ? new URL(document.referrer).hostname : "") || "direct",
-      medium: q.get("utm_medium") || "",
-      campaign: q.get("utm_campaign") || ""
-    };
-    sessionStorage.setItem("pothi.utm", JSON.stringify(utm));
-    return utm;
-  } catch {
-    return { source: "direct", medium: "", campaign: "" };
-  }
-}
-
 export function flush(useBeacon = false) {
   if (timer) { clearTimeout(timer); timer = null; }
   if (!queue.length) return;
@@ -93,7 +76,7 @@ export function flush(useBeacon = false) {
 
 export function track(name: string, properties?: Record<string, unknown>) {
   try {
-    const utm = campaign();
+    const utm = currentCampaign();
     queue.push({
       name,
       path: location.pathname + location.search,
@@ -145,6 +128,9 @@ export function startTracking() {
   if (started) return;
   started = true;
   anonymousId(); sessionId();
+  // Before the first event, so the very first page_view already carries the
+  // campaign that produced it.
+  captureAttribution();
   // visibilitychange is the reliable one on mobile Safari; unload often never
   // fires there at all.
   document.addEventListener("visibilitychange", () => {

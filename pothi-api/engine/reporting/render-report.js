@@ -65,6 +65,16 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
     const BODYI = serif ? "Times-Italic" : "Helvetica-Oblique";
     const F = (bold) => (hi && hasDeva ? (bold ? "Deva-Bold" : "Deva")
                                        : (bold ? (serif ? "Times-Bold" : "Helvetica-Bold") : BODY));
+    /**
+     * The italic body face — unless the text is Devanagari, in which case there
+     * is no italic and Times-Italic has no glyphs for it at all.
+     *
+     * `note()` used BODYI unconditionally, so the सुझाव box printed
+     * `•y8 " ? '©K" M'ò` instead of Hindi, in every Hindi report we have ever
+     * generated. It also ran off the page, because pdfkit cannot measure a
+     * string in a font that cannot render it, so the wrap width was wrong too.
+     */
+    const FI = (v) => (isDeva(v) && hasDeva ? "Deva" : BODYI);
     // Display face for headings, chosen by the design — not hardcoded to sans.
     const headSerif = (spec.headingFace || spec.bodyFace) === "serif";
     const HD = (v, bold = true) =>
@@ -846,13 +856,13 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
     function note(txt) {
       const w = textW(), label = hi ? "\u0938\u0941\u091d\u093e\u0935" : "Advice";
       const inner = w - 18;
-      pdf.font(BODYI).fontSize(FS(D.body - 0.6));
+      pdf.font(FI(txt)).fontSize(FS(D.body - 0.6));
       const h = pdf.heightOfString(txt, { width: inner, lineGap: D.lead }) + 22;
       need(h + 8);
       pdf.lineWidth(2).strokeColor(P.accent).moveTo(textX(), y + 2).lineTo(textX(), y + h - 4).stroke();
       pdf.font(FT(label, true)).fontSize(FS(7.6)).fillColor(P.accent)
          .text(up(label), textX() + 14, y + 2, { width: inner, characterSpacing: tr(label, 1.2) });
-      pdf.font(BODYI).fontSize(FS(D.body - 0.6)).fillColor(P.inkSoft)
+      pdf.font(FI(txt)).fontSize(FS(D.body - 0.6)).fillColor(P.inkSoft)
          .text(txt, textX() + 14, y + 14, { width: inner, lineGap: D.lead });
       y += h + D.gapPara;
     }
@@ -913,7 +923,11 @@ export async function renderReportPdf({ doc: model, designId, paletteId, brandin
       for (const p of s.paras) h += pdf.heightOfString(p, { width: w, lineGap: D.lead }) + D.gapPara;
       for (const b of s.bullets) h += pdf.heightOfString(b, { width: w - 15, lineGap: D.lead }) + 6;
       if (s.summary) h += pdf.heightOfString(s.summary, { width: w - 28, lineGap: D.lead }) + 40;
-      if (s.advisory) h += pdf.heightOfString(s.advisory, { width: w - 18, lineGap: D.lead }) + 30;
+      if (s.advisory) {
+        // Measured in the font it will actually be drawn in — see FI().
+        pdf.font(FI(s.advisory)).fontSize(FS(D.body - 0.6));
+        h += pdf.heightOfString(s.advisory, { width: w - 18, lineGap: D.lead }) + 30;
+      }
       return h;
     }
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, rupees, num, when, ms } from "../api";
 import type { OrderRow, OrderDetail } from "../types";
-import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Loading, Empty, ErrorNote, Search, Segmented, Btn, Drawer, Facts, SubHead, Hint } from "../ui";
+import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Loading, Empty, ErrorNote, Search, Segmented, Btn, Drawer, Facts, SubHead, Hint, Confirm } from "../ui";
 
 const FILTERS = [
   { value: "all", label: "All" }, { value: "ready", label: "Delivered" },
@@ -82,6 +82,8 @@ function OrderDrawer({ publicId, onClose, onChanged }: {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  const [pending, setPending] = useState<{ force: boolean } | null>(null);
+  const [warn, setWarn] = useState("");
 
   useEffect(() => {
     setD(null); setErr(""); setMsg("");
@@ -101,6 +103,25 @@ function OrderDrawer({ publicId, onClose, onChanged }: {
     } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
   };
 
+  /**
+   * Delete the order and anything it produced. Meant for clearing test rows;
+   * a paid order needs a second confirmation, because removing one takes real
+   * money out of every figure on the Overview.
+   */
+  async function doDelete(force: boolean) {
+    if (!d) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      await adminApi.del(`/orders/${d.public_id}${force ? "?force=true" : ""}`);
+      setPending(null); onChanged(); onClose();
+    } catch (e) {
+      const err = e as Error & { body?: { needs_force?: boolean } };
+      // Only the server knows whether this order carried money.
+      if (err.body?.needs_force) { setWarn(err.message); setPending({ force: true }); }
+      else { setPending(null); setErr(err.message); }
+    } finally { setBusy(false); }
+  }
+
   const birth = (d?.birth || {}) as Record<string, string | number>;
 
   return (
@@ -118,6 +139,7 @@ function OrderDrawer({ publicId, onClose, onChanged }: {
               <a href={d.report.pdf_url} target="_blank" rel="noreferrer" className="btn btn-line btn-sm">Open PDF</a>
             )}
             {d.status === "failed" && <Btn tone="brass" onClick={retry} busy={busy}>Retry generation</Btn>}
+            <Btn tone="danger" onClick={() => { setWarn(""); setPending({ force: false }); }} busy={busy}>Delete order</Btn>
             {d.status === "created" && d.razorpay_link_url && (
               <a href={d.razorpay_link_url} target="_blank" rel="noreferrer" className="btn btn-line btn-sm">Open payment link</a>
             )}
@@ -206,6 +228,19 @@ function OrderDrawer({ publicId, onClose, onChanged }: {
           )}
         </>
       )}
+      <Confirm
+        key={d?.public_id || "none"}
+        open={!!pending}
+        tone="danger"
+        confirmLabel={pending?.force ? "Delete anyway" : "Delete order"}
+        busy={busy}
+        title={pending?.force ? "This order was paid" : `Delete order ${d?.public_id}?`}
+        onCancel={() => { setPending(null); setWarn(""); }}
+        onConfirm={() => doDelete(pending?.force ?? false)}
+        body={warn
+          ? <span className="text-ember">{warn}</span>
+          : <>Its report goes with it, and both disappear from every list and every total in this panel.</>}
+      />
     </Drawer>
   );
 }

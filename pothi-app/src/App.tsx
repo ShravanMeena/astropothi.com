@@ -164,13 +164,19 @@ export default function App() {
         )}
         {/* Reachable from wherever someone gets stuck, not only from a
             "Contact" link nobody clicks. */}
-        {/* Order and profile place it themselves, with the order number in the
-            message — a second copy here would be the same panel twice. */}
-        {route.name !== "order" && route.name !== "profile" && route.name !== "legal" && (
+        {/* Order, profile and the policies place it themselves. A report page
+            is a sales page: it gets the one-line version instead, placed by the
+            page itself, because a support card under a price competes with the
+            buy button for the same glance. */}
+        {!["order", "profile", "legal", "report"].includes(route.name) && (
           <div className="shell pb-16"><Support where={route.name} /></div>
         )}
       </main>
-      <Footer onAstrologers={() => go("/astrologers")} onGo={nav} />
+
+      {/* No footer on a report page either — twelve links and a disclaimer at
+          the end of a sales page is a set of exits. The report page closes with
+          its own buy button. */}
+      {route.name !== "report" && <Footer onAstrologers={() => go("/astrologers")} onGo={nav} />}
 
       <GuideButton onClick={() => { track("guide_opened", { from: route.name }); setGuide(true); }} hidden={!guideWelcome || guide} />
       <Guide items={items} open={guide} onClose={() => setGuide(false)}

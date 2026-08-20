@@ -30,6 +30,21 @@ export default (sequelize, DataTypes) =>
     // What was charged, and what it would have been. Keeping the list price
     // means discount depth is a column, not a join against a coupon that may
     // since have been edited.
+    /**
+     * Where this order came from.
+     *
+     * Flat columns for the three fields every report groups by, and the whole
+     * record — click ids, term, content, landing page, first AND last touch —
+     * in the JSONB beside them. Stored ON THE ORDER at creation rather than
+     * joined from app_events later: events are stitched by a browser-local
+     * anonymous_id, which a cleared cache or a second device breaks, and the
+     * one row that must never lose its attribution is the one with money on it.
+     */
+    utm_source:   { type: DataTypes.STRING(120) },
+    utm_medium:   { type: DataTypes.STRING(120) },
+    utm_campaign: { type: DataTypes.STRING(160) },
+    attribution:  { type: DataTypes.JSONB },
+
     list_paise:   { type: DataTypes.INTEGER },
     coupon_code:  { type: DataTypes.STRING(32) },
     discount_paise: { type: DataTypes.INTEGER, defaultValue: 0 },

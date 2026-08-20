@@ -62,6 +62,14 @@ const catalogue = async () => {
 const priceOf = async (code) => (await catalogue()).find((r) => r.code === code)?.price_paise;
 
 console.log("pricing");
+// The tier-price assertion below only means anything if kundli has no override,
+// and the launch pricing rows in this table are a real business setting that
+// changes between runs. Clear just this one first rather than depending on what
+// the database happened to hold — the same hidden precondition that made the
+// payments suite flaky.
+q(`DELETE FROM price_overrides WHERE report_type = 'kundli'`);
+await call("/admin-api/v1/pricing", { token: T });   // bust the 30s price cache
+
 // Counted from the catalogue rather than hard-coded. A literal here means the
 // suite fails the day a ninth report ships, which is exactly the day nobody
 // wants to be reading a red test that is not about their change.
@@ -126,35 +134,62 @@ is("deactivating stops it dead",
 
 // ── the part that actually protects revenue ──────────────────────────────────
 console.log("\nthe order, not the quote");
-await call("/admin-api/v1/coupons", { token: T, method: "POST",
+const made = await call("/admin-api/v1/coupons", { token: T, method: "POST",
   body: { code: "TESTORDER", kind: "flat", value: 10000 } });
+is("the order coupon was created", made.json?.results?.code, "TESTORDER");
 
 const birth = {
   name: "Coupon Suite", gender: "male", dob: "1990-05-15", tob: "10:30",
   pob: "Jaipur, Rajasthan, India", lat: 26.9124, lon: 75.7873,
   tz: "Asia/Kolkata", buyer_phone: "9812345678", language: "en"
 };
-const mkOrder = (body) => call("/noauth-api/v1/shop/order", { method: "POST", body });
+/**
+ * Every order here creates a REAL Razorpay payment link, and the test account
+ * throttles at a few per second — which is what made this suite flaky: three
+ * orders back to back, a 429 on the second, and the assertions that depended on
+ * it silently stopped running. Space them out and retry once.
+ */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const mkOrder = async (body) => {
+  let last;
+  // Up to ~30s of backoff. Generous because the alternative is a suite that
+  // reports our arithmetic as broken when the only thing wrong is a throttle,
+  // and a red test nobody trusts is worse than a slow one.
+  for (const wait of [0, 2000, 4000, 8000, 16000]) {
+    if (wait) await sleep(wait);
+    last = await call("/noauth-api/v1/shop/order", { method: "POST", body });
+    if (last.status !== 503) return last;
+  }
+  return last;
+};
 
-const honest = await mkOrder({ report_type: "love", ...birth, coupon: "TESTORDER" });
+/**
+ * One order, both rules.
+ *
+ * Every order created here mints a REAL Razorpay payment link and the test
+ * account throttles at a handful per minute — two orders back to back was
+ * enough to 429, and the assertions behind the failed one silently stopped
+ * running. Coupon arithmetic and "ignore whatever the browser posted" can be
+ * checked on the same order: send the coupon AND a bogus total, then read what
+ * actually landed in the row.
+ */
+const honest = await mkOrder({
+  report_type: "love", ...birth, coupon: "TESTORDER",
+  amount_paise: 100, price_paise: 100      // what a tampered browser would send
+});
 const honestId = honest.json?.results?.public_id;
 is("an order is created with the coupon", typeof honestId, "string");
+if (!honestId) console.log(`      why: ${honest.json?.message ?? honest.status}`);
 if (honestId) {
   const row = q(`SELECT list_paise||'|'||discount_paise||'|'||amount_paise||'|'||coalesce(coupon_code,'')
                    FROM orders WHERE public_id='${honestId}'`);
   const [listP, disc, amt, code] = row.split("|");
-  is("the order records the list price", Number(listP), await priceOf("love"));
+  const listed = await priceOf("love");
+  is("the order records the list price", Number(listP), listed);
   is("the order records the discount", Number(disc), 10000);
-  is("the order charges list minus discount", Number(amt), Number(listP) - 10000);
+  is("the order charges list minus discount", Number(amt), listed - 10000);
   is("the order records which coupon", code, "TESTORDER");
-}
-
-// A browser that posts its own amount must be ignored.
-const liar = await mkOrder({ report_type: "love", ...birth, coupon: "TESTORDER", amount_paise: 100, price_paise: 100 });
-const liarId = liar.json?.results?.public_id;
-if (liarId) {
-  const amt = Number(q(`SELECT amount_paise FROM orders WHERE public_id='${liarId}'`));
-  is("a posted amount is ignored", amt, (await priceOf("love")) - 10000);
+  is("the posted amount is ignored", Number(amt) !== 100, true);
 }
 
 // An expired coupon posted straight at the order endpoint must be refused

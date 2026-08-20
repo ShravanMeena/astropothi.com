@@ -24,5 +24,15 @@ export default (sequelize, DataTypes) =>
     verified_at: { type: DataTypes.DATE },
 
     status:    { type: DataTypes.ENUM("active", "suspended"), defaultValue: "active" },
-    last_seen_at: { type: DataTypes.DATE }
+    last_seen_at: { type: DataTypes.DATE },
+
+    /**
+     * The click that first brought this person to us, kept for the life of the
+     * account. An order records both first and last touch; this records only
+     * first, because the question a customer row answers is "which campaign
+     * acquired them", not "what did they click last week".
+     */
+    first_utm_source:   { type: DataTypes.STRING(120) },
+    first_utm_campaign: { type: DataTypes.STRING(160) },
+    attribution:        { type: DataTypes.JSONB }
   }, { tableName: "users", indexes: [{ fields: ["phone"], unique: true }] });

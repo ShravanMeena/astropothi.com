@@ -1,17 +1,48 @@
 import { useEffect, useState } from "react";
 import { adminApi, rupees, num, when } from "../api";
-import type { PaymentLink, Catalogue, Environment } from "../types";
-import { Panel, TableWrap, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Hint, Stat, StatRow, Facts } from "../ui";
+import type { PaymentLink, Catalogue, CatalogueStatus, Environment } from "../types";
+import { Panel, TableWrap, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Hint, Stat, StatRow, Facts, Btn, Confirm } from "../ui";
 
 export default function Ops({ environment }: { environment: Environment | null }) {
   const [links, setLinks] = useState<PaymentLink[] | null>(null);
   const [cat, setCat] = useState<Catalogue | null>(null);
+  const [status, setStatus] = useState<CatalogueStatus[] | null>(null);
+  const [busy, setBusy] = useState("");
+  const [pending, setPending] = useState<CatalogueStatus | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
     adminApi.get("/ops/payment-links?limit=100").then(setLinks).catch((e) => setErr(e.message));
     adminApi.get("/ops/catalogue").then(setCat).catch((e) => setErr(e.message));
+    loadStatus();
   }, []);
+
+  function loadStatus() {
+    adminApi.get("/catalogue/status").then(setStatus).catch((e) => setErr(e.message));
+  }
+
+  // Putting something back on sale is harmless and goes straight through.
+  // Taking it off is the one that needs a reason recorded.
+  function toggle(t: CatalogueStatus) {
+    if (!t.sellable) return apply(t, "");
+    setPending(t);
+  }
+
+  async function apply(t: CatalogueStatus, note: string) {
+    setBusy(t.code); setErr(""); setPending(null);
+    try {
+      await adminApi.post(`/catalogue/${t.code}/status`, { sellable: !t.sellable, note });
+      loadStatus();
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(""); }
+  }
+
+  async function clearOverride(t: CatalogueStatus) {
+    setBusy(t.code); setErr("");
+    try {
+      await adminApi.del(`/catalogue/${t.code}/status`);
+      loadStatus();
+    } catch (e) { setErr((e as Error).message); } finally { setBusy(""); }
+  }
 
   // A link that exists with no payment against it is either an unpaid link or a
   // webhook that never landed. We cannot tell which apart without a delivery log.
@@ -94,33 +125,46 @@ export default function Ops({ environment }: { environment: Environment | null }
         )}
       </Panel>
 
-      {cat && (
-        <Panel title="Catalogue" sub="Prices live in code — they change with a deploy, not from this screen."
-               right={<Hint>There is deliberately no price editor: a price typed into an admin form would diverge from the one the renderer and the invoice actually use. While the pilot runs, every report costs 1 credit regardless of type.</Hint>}>
+      {status && (
+        <Panel title="Catalogue" sub="What is on sale right now. Taking a report off hides it from the storefront immediately."
+               right={<Hint>catalog.js decides what EXISTS; this switch decides what is on sale. Turning one off removes its card, 404s its page, and refuses checkout for anyone with a stale tab open — it never touches orders already placed.</Hint>}>
           <TableWrap>
             <thead><tr>
-              <Th>Report</Th><Th align="right">Chapters</Th><Th align="right">Consumer price</Th>
-              <Th align="right">Net of GST</Th><Th align="right">Credits</Th><Th>Sellable</Th>
+              <Th>Report</Th><Th align="right">Chapters</Th><Th align="right">Price</Th>
+              <Th align="right">Paid orders</Th><Th>State</Th><Th />
             </tr></thead>
             <tbody>
-              {cat.reports.map((t) => (
+              {status.map((t) => (
                 <Tr key={t.code}>
                   <Td>
                     <div className="font-medium">{t.name_en}</div>
                     <div className="text-[11px] text-faint deva">{t.name_hi}</div>
                   </Td>
-                  <Td align="right">{t.chapters}</Td>
-                  <Td align="right" className="font-medium">{rupees(t.consumer_price_paise)}</Td>
-                  <Td align="right" dim>
-                    {t.consumer_price_paise ? rupees(Math.round(t.consumer_price_paise / (1 + cat.gst_rate_pct / 100))) : "—"}
+                  <Td align="right">{t.subject === "property" ? "—" : t.chapters}</Td>
+                  <Td align="right" className="font-medium">{rupees(t.price_paise)}</Td>
+                  <Td align="right" dim={!t.paid_orders}>{num(t.paid_orders)}</Td>
+                  <Td>
+                    {t.sellable ? <Tag>on sale</Tag> : <Chip tone="failed">off sale</Chip>}
+                    {t.override !== null && (
+                      <div className="mt-1 text-[10.5px] text-faint">
+                        overridden{t.set_by ? ` by ${t.set_by}` : ""}
+                        {t.note ? ` — ${t.note}` : ""}
+                      </div>
+                    )}
                   </Td>
                   <Td align="right">
-                    {t.pilot_credits !== t.credits
-                      ? <><span className="text-brass font-medium">{t.pilot_credits}</span>{" "}
-                          <span className="text-faint line-through">{t.credits}</span></>
-                      : t.credits}
+                    <div className="flex gap-1.5 justify-end">
+                      <Btn tone={t.sellable ? "danger" : "brass"} busy={busy === t.code}
+                           onClick={() => toggle(t)}>
+                        {t.sellable ? "Take off sale" : "Put on sale"}
+                      </Btn>
+                      {t.override !== null && (
+                        <Btn tone="quiet" busy={busy === t.code}
+                             title={`Fall back to catalog.js, which says ${t.default_ready ? "on sale" : "off sale"}`}
+                             onClick={() => clearOverride(t)}>Reset</Btn>
+                      )}
+                    </div>
                   </Td>
-                  <Td>{t.ready ? <Tag>live</Tag> : <Chip tone="failed">not ready</Chip>}</Td>
                 </Tr>
               ))}
             </tbody>
@@ -146,6 +190,28 @@ export default function Ops({ environment }: { environment: Environment | null }
           </TableWrap>
         </Panel>
       )}
+
+      <Confirm
+        key={pending?.code || "none"}
+        open={!!pending}
+        tone="danger"
+        confirmLabel="Take off sale"
+        title={`Take ${pending?.name_en} off sale?`}
+        notePrompt="Why? (shown in this table)"
+        busy={busy === pending?.code}
+        onCancel={() => setPending(null)}
+        onConfirm={(note) => pending && apply(pending, note)}
+        body={<>
+          It disappears from the storefront at once — no card, no page, and checkout
+          refuses it even for someone with the tab already open.
+          {pending && pending.paid_orders > 0 && (
+            <div className="mt-2 text-ember">
+              {pending.paid_orders} paid order(s) already exist. Those orders and their
+              reports are untouched; it simply stops being offered.
+            </div>
+          )}
+        </>}
+      />
 
       <Panel title="Not built" sub="Deliberate gaps, so nobody goes looking.">
         <div className="grid sm:grid-cols-2 gap-px bg-line">

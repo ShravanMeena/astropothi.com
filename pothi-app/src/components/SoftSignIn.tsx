@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { api } from "../lib/api";
 import { setUserToken, getUserToken } from "../lib/account";
 import { track, identify } from "../lib/track";
+import { attribution } from "../lib/attribution";
 
 const DISMISSED = "pothi.softsignin.dismissed";
 
@@ -54,7 +55,8 @@ export default function SoftSignIn({ delayMs = 30000, context }: {
       // The same no-OTP path the checkout uses. See config.autoLoginOnOrder and
       // the note about it in the Terms — typing a number signs you in but is
       // not proof you own it, and nothing is charged from here.
-      const r = await api.post("/noauth-api/v1/user/soft-signin", { phone: digits, name: name.trim() });
+      const r = await api.post("/noauth-api/v1/user/soft-signin",
+        { phone: digits, name: name.trim(), attribution: attribution() });
       setUserToken(r.token);
       track("signed_in", { via: "soft", where: context });
       identify();

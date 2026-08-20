@@ -39,5 +39,5 @@ export const telLink = () => `tel:+91${SUPPORT.phone.replace(/\D/g, "")}`;
  */
 export const aboutOrder = (publicId?: string, reportName?: string) =>
   publicId
-    ? `Namaste, I need help with my Pothi order ${publicId}${reportName ? ` (${reportName})` : ""}.`
-    : "Namaste, I have a question about Pothi.";
+    ? `Namaste, I need help with my astropothi order ${publicId}${reportName ? ` (${reportName})` : ""}.`
+    : "Namaste, I have a question about astropothi.";

@@ -3,7 +3,7 @@ import { SUPPORT } from "./support";
 /**
  * Who we legally are.
  *
- * Pothi is a brand operated by DreamyHook Digital Media. The entity name,
+ * astropothi is a brand operated by DreamyHook Digital Media. The entity name,
  * registered address and jurisdiction below are taken from the parent's own
  * published policies at dreamyhook.consulting, so the two cannot contradict
  * each other — if a buyer or a gateway compares them, they must match.
@@ -16,7 +16,7 @@ import { SUPPORT } from "./support";
  */
 export const LEGAL = {
   /** Trading name — the one buyers see. */
-  brand: "Pothi",
+  brand: "astropothi",
 
   /**
    * As published by the parent. Note there is no "Private Limited" or "LLP"

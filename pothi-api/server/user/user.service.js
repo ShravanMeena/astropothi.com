@@ -2,6 +2,7 @@
 // signs in — there is no sign-up step and nothing to fill in.
 
 import db from "../../database/index.js";
+import { userAttribution } from "../shop/attribution.js";
 
 export const cleanPhone = (p) => String(p || "").replace(/\D/g, "").slice(-10);
 
@@ -12,14 +13,27 @@ export const cleanPhone = (p) => String(p || "").replace(/\D/g, "").slice(-10);
  */
 export async function upsertByPhone(phone, patch = {}) {
   const clean = cleanPhone(phone);
-  const [user] = await db.User.findOrCreate({
+  // `attribution` is pulled OUT of the spread on purpose. It arrives in the
+  // client's shape ({first,last}) and has to go through userAttribution()
+  // before it touches a column — spreading it into defaults wrote the raw
+  // browser object straight into the JSONB on create, which then made the
+  // "already has attribution" check below true and left first_utm_source null
+  // on every account.
+  const { attribution: rawAttribution, ...columns } = patch;
+  const [user, created] = await db.User.findOrCreate({
     where: { phone: clean },
-    defaults: { phone: clean, isd_code: "+91", ...patch }
+    defaults: { phone: clean, isd_code: "+91", ...columns, ...userAttribution(rawAttribution) }
   });
   // Only fill blanks — never overwrite something the buyer has since edited.
   const fill = {};
   for (const k of ["name", "email"]) if (!user[k] && patch[k]) fill[k] = patch[k];
   if (patch.birth && !user.birth) fill.birth = patch.birth;
+  // First touch, and only first touch. Written once and then left alone: the
+  // question this answers is which campaign acquired the customer, and that
+  // stops being true the moment a later visit overwrites it.
+  if (rawAttribution && !created && !user.attribution) {
+    Object.assign(fill, userAttribution(rawAttribution));
+  }
   fill.last_seen_at = new Date();
   await user.update(fill);
 

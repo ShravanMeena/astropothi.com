@@ -6,6 +6,8 @@ import PlaceInput from "../sections/PlaceInput";
 import { DateField, TimeField, Select } from "../components/Picker";
 import { setUserToken, useMe } from "../lib/account";
 import VastuForm, { type VastuValue } from "../components/VastuForm";
+import TrustStrip, { SecureNote } from "../components/TrustStrip";
+import { attribution } from "../lib/attribution";
 
 const STAGES = [
   "Casting the chart from the ephemeris",
@@ -66,8 +68,13 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
   onDone: (publicId: string) => void; onBack: () => void;
 }) {
   const [f, setF] = useState({
-    name: "", gender: "female", dob: "", tob: "", pob: "", place_id: "",
-    language: "en", buyer_phone: "", buyer_email: "",
+    // Gender and language start EMPTY on purpose. Pre-selecting "Female" and
+    // "English" meant a buyer who never looked at that block got a report about
+    // the wrong person's chart, in a language they may not read — and both are
+    // printed on every page, so the mistake is expensive and obvious only after
+    // paying. Neither has a defensible default, so both are asked.
+    name: "", gender: "", dob: "", tob: "", pob: "", place_id: "",
+    language: "", buyer_phone: "", buyer_email: "",
     // Only used by property reports; the server ignores them otherwise.
     facing: "", property_type: "home", rooms: {} as Record<string, string>
   });
@@ -161,6 +168,8 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
         ? "Pick the birth place from the list so we can resolve its coordinates."
         : "Enter the birth place and pick it from the list.";
     }
+    if (!isProperty && !v.gender) e.gender = "Pick one — the reading differs.";
+    if (!v.language) e.language = "Which language should the report be written in?";
     if (v.buyer_phone.length !== 10) e.buyer_phone = "Enter a 10-digit mobile number.";
     if (v.buyer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(v.buyer_email))
       e.buyer_email = "That email address does not look right.";
@@ -196,7 +205,10 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
     try {
       const o = await api.post("/noauth-api/v1/shop/order",
         { ...f, buyer_name: f.name, report_type: item.code, design, palette,
-          coupon: applied?.code || undefined });
+          coupon: applied?.code || undefined,
+          // Where this buyer came from, first touch and last, stamped onto the
+          // order at creation.
+          attribution: attribution() });
 
       // The number they just gave us is the account, so the server signs them in
       // with the order. From here the report lands on their profile by itself.
@@ -316,17 +328,23 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
 
         <Block n="02" title="How you want it written">
         <div className="grid sm:grid-cols-2 gap-5">
-          <div className={isProperty ? "hidden" : ""}><label className="label">Gender</label>
-            <Select value={f.gender} ariaLabel="Gender"
+          <div id="field-gender" className={isProperty ? "hidden" : ""}>
+            <label className="label">Gender</label>
+            <Select value={f.gender} ariaLabel="Gender" placeholder="Select"
                     onChange={(v) => patch({ gender: v })}
                     options={[{ value: "female", label: "Female" },
                               { value: "male", label: "Male" },
-                              { value: "other", label: "Other" }]} /></div>
-          <div><label className="label">Report language</label>
-            <Select value={f.language} ariaLabel="Report language"
+                              { value: "other", label: "Other" }]} />
+            {errors.gender && <p className="text-[12.5px] text-ember mt-1.5">{errors.gender}</p>}
+          </div>
+          <div id="field-language">
+            <label className="label">Report language</label>
+            <Select value={f.language} ariaLabel="Report language" placeholder="Select"
                     onChange={(v) => patch({ language: v })}
                     options={[{ value: "en", label: "English" },
-                              { value: "hi", label: "हिन्दी" }]} /></div>
+                              { value: "hi", label: "हिन्दी" }]} />
+            {errors.language && <p className="text-[12.5px] text-ember mt-1.5">{errors.language}</p>}
+          </div>
         </div>
         </Block>
 
@@ -385,6 +403,8 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
         {couponMsg && <p className="text-[12.5px] text-ember mt-2">{couponMsg}</p>}
       </div>
 
+      <TrustStrip className="mt-5" />
+
       {err && <p className="mt-4 text-[14px] text-ember">{err}</p>}
 
       {/* Desktop: the button sits at the end of the form, where the eye lands. */}
@@ -392,7 +412,7 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
         <button className="btn-brass h-[52px] px-8 text-[16px]" disabled={busy} onClick={submit}>
           Pay {item ? rupees(payable) : ""} securely
         </button>
-        <span className="text-[13px] text-faint">Secure payment on Razorpay · UPI, card or netbanking</span>
+        <SecureNote />
       </div>
 
       <p className="text-[12px] text-faint mt-6 max-w-prose2 leading-relaxed">
@@ -419,10 +439,17 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
             <div className="display text-[20px] leading-none">
               {item ? rupees(payable) : ""}
             </div>
-            <div className="text-[11px] text-faint mt-1">
+            <div className="text-[11px] text-faint mt-1 inline-flex items-center gap-1">
               {applied
                 ? <span className="text-brass">{applied.code} applied</span>
-                : "incl. GST"}
+                : (<>
+                    <svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor"
+                         strokeWidth="2" strokeLinecap="round" className="text-brass" aria-hidden>
+                      <rect x="4.5" y="10.5" width="15" height="10" rx="2.2" />
+                      <path d="M8 10.5V7.6a4 4 0 0 1 8 0v2.9" />
+                    </svg>
+                    Secure · incl. GST
+                  </>)}
             </div>
           </div>
           <button className="btn-brass flex-1 h-[50px] text-[15.5px]" disabled={busy} onClick={submit}>

@@ -46,7 +46,9 @@ export function noAuth() {
     // Consume only once the sign-in is certain to succeed.
     if (session) await session.update({ status: "completed" });
 
-    const user = await U.upsertByPhone(phone, { name: req.body.name, email: req.body.email });
+    const user = await U.upsertByPhone(phone, {
+      name: req.body.name, email: req.body.email, attribution: req.body.attribution
+    });
     await U.markVerified(user);
     return ok(res, { token: signUserToken(user), user: U.publicUser(user) });
   }));
@@ -71,7 +73,7 @@ export function noAuth() {
     if (phone.length !== 10) return fail(res, "A 10-digit mobile number is required");
     if (!name) return fail(res, "A name is required");
 
-    const user = await U.upsertByPhone(phone, { name });
+    const user = await U.upsertByPhone(phone, { name, attribution: req.body.attribution });
     return ok(res, { token: signUserToken(user), user: U.publicUser(user) });
   }));
 

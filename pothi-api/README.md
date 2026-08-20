@@ -42,6 +42,7 @@ npm test                  # everything below, in order
 | `test:admin` | staff auth is unreachable with a buyer or pandit token |
 | `test:pricing` | price overrides reach the shop; coupons cannot be forged, reused past their limit, or spent by an abandoned cart |
 | `test:events` | behavioural ingest, the `sendBeacon` text/plain path, identify backfill, and the funnel |
+| `test:attribution` | an order keeps the click that produced it — first touch on the buyer, last touch on the order |
 | `audit:reports` | Kundali + Dosh prose cross-checked against the chart, **English and Hindi** |
 | `audit:astro` | 480 chart invariants across 8 charts |
 | `audit:text` · `audit:data` | depth, duplicate sentences, how much of a report is static |

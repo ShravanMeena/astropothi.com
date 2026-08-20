@@ -476,3 +476,54 @@ export const Tile = ({ label, value, tone = "plain", hint }: {
                      ${tone === "brass" ? "text-brass" : tone === "ember" ? "text-ember" : "text-fg"}`}>{value}</div>
   </div>
 );
+
+/**
+ * Confirmation, in the panel rather than in a native dialog.
+ *
+ * `confirm()` and `prompt()` were the first version of this. They work, but a
+ * browser chrome dialog in the middle of a styled tool looks like a bug, cannot
+ * show the consequence in more than one line, and cannot carry the note that a
+ * catalogue change is supposed to record. This can do all three.
+ *
+ * `danger` exists because two of the three callers destroy something.
+ */
+export function Confirm({ open, title, body, confirmLabel = "Confirm", tone = "brass",
+                          notePrompt, busy, onConfirm, onCancel }: {
+  open: boolean; title: ReactNode; body?: ReactNode;
+  confirmLabel?: string; tone?: "brass" | "danger";
+  /** When set, a text field is shown and its value is handed to onConfirm. */
+  notePrompt?: string;
+  busy?: boolean;
+  onConfirm: (note: string) => void; onCancel: () => void;
+}) {
+  const [note, setNote] = useState("");
+  useEffect(() => { if (open) setNote(""); }, [open]);
+  useEffect(() => {
+    if (!open) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") onCancel(); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [open, onCancel]);
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] grid place-items-center p-4">
+      <div className="absolute inset-0 bg-fg/35 backdrop-blur-[2px]" onClick={onCancel} />
+      <div className="relative w-full max-w-[440px] card p-5 shadow-lift">
+        <h3 className="text-[15px] font-semibold text-fg">{title}</h3>
+        {body && <div className="mt-2 text-[12.5px] leading-relaxed text-muted">{body}</div>}
+        {notePrompt && (
+          <div className="mt-4">
+            <label className="label">{notePrompt}</label>
+            <input value={note} onChange={(e) => setNote(e.target.value)} autoFocus
+                   className="field h-10 text-[13px]" placeholder="optional" />
+          </div>
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <Btn tone="quiet" onClick={onCancel}>Cancel</Btn>
+          <Btn tone={tone} busy={busy} onClick={() => onConfirm(note)}>{confirmLabel}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}

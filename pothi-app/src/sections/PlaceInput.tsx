@@ -29,9 +29,16 @@ export default function PlaceInput({ value, placeId, onChange }: {
     return () => clearTimeout(t);
   }, [q]);
   useEffect(() => {
-    const away = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener("mousedown", away);
-    return () => document.removeEventListener("mousedown", away);
+    // pointerdown and a document-contains guard, for the same reason the date
+    // picker needs them: on Android a synthetic mousedown from browser UI was
+    // closing the list before the tap on a suggestion could land.
+    const away = (e: PointerEvent) => {
+      const t = e.target as Node | null;
+      if (!t || !document.contains(t)) return;
+      if (box.current && !box.current.contains(t)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", away, true);
+    return () => document.removeEventListener("pointerdown", away, true);
   }, []);
 
   const pick = (p: Place) => {

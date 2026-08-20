@@ -158,3 +158,17 @@ export type Environment = {
 };
 
 export type Me = { id: string; phone: string; name: string; environment: Environment };
+
+export type CatalogueStatus = {
+  code: string; name_en: string; name_hi: string;
+  chapters: number; subject: string;
+  price_paise: number | null;
+  /** What catalog.js says. */
+  default_ready: boolean;
+  /** What the DB says, or null when nothing overrides the default. */
+  override: boolean | null;
+  /** The answer that is actually in force. */
+  sellable: boolean;
+  paid_orders: number;
+  note: string | null; set_by: string | null; changed_at: string | null;
+};

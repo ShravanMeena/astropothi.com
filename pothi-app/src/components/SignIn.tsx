@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { api } from "../lib/api";
 import { setUserToken } from "../lib/account";
 import { track, identify } from "../lib/track";
+import { attribution } from "../lib/attribution";
 
 /**
  * Sign in with a mobile number. There is no sign-up: the number is the account,
@@ -42,7 +43,8 @@ export default function SignIn({ open, onClose, onDone, reason }: {
   const verify = async (code?: string) => {
     setBusy(true); setErr("");
     try {
-      const r = await api.post("/noauth-api/v1/user/otp/verify", { phone, otp: code ?? otp });
+      const r = await api.post("/noauth-api/v1/user/otp/verify",
+        { phone, otp: code ?? otp, attribution: attribution() });
       setUserToken(r.token);
       // Everything this device did before anyone knew who they were now belongs
       // to this account — that pre-login half is the interesting half.

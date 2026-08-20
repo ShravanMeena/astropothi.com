@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { adminApi, num, when, ago } from "../api";
+import { adminApi, num, when, ago, rupees } from "../api";
 import {
   Panel, TableWrap, Th, Td, Tr, Tag, Chip, Loading, Empty, ErrorNote,
   Segmented, BarRow, Tile, Drawer, Note, SubHead
@@ -12,6 +12,8 @@ type Ev = {
   anonymous_id: string; session_id: string | null; user_id: string | null;
   source: string | null; campaign: string | null; props: Record<string, unknown> | null;
 };
+type Money = { source: string; medium?: string; campaign: string;
+               orders?: number; paid?: number; buyers?: number; revenue_paise: string | number };
 type Hop = {
   at: string; name: string; category: string; path: string | null;
   session: string | null; userId: string | null; props?: Record<string, unknown>;
@@ -36,13 +38,17 @@ export default function Behaviour() {
   const [interest, setInterest] = useState<Interest[] | null>(null);
   const [events, setEvents] = useState<Ev[] | null>(null);
   const [journey, setJourney] = useState<{ id: string; hops: Hop[] } | null>(null);
+  const [rev, setRev] = useState<Money[] | null>(null);
+  const [acq, setAcq] = useState<Money[] | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    setFunnel(null); setInterest(null); setEvents(null);
+    setFunnel(null); setInterest(null); setEvents(null); setRev(null); setAcq(null);
     adminApi.get(`/events/funnel?days=${days}`).then(setFunnel).catch((e) => setErr(e.message));
     adminApi.get(`/events/by-report?days=${days}`).then(setInterest).catch((e) => setErr(e.message));
     adminApi.get(`/events?days=${days}&limit=200`).then(setEvents).catch((e) => setErr(e.message));
+    adminApi.get(`/events/revenue-by-source?days=${days}`).then(setRev).catch((e) => setErr(e.message));
+    adminApi.get(`/events/acquisition?days=${Math.max(90, Number(days))}`).then(setAcq).catch((e) => setErr(e.message));
   }, [days]);
 
   const openJourney = async (anonId: string) => {
@@ -144,6 +150,60 @@ export default function Behaviour() {
                   );
                 })}
               </tbody>
+          </TableWrap>
+        )}
+      </Panel>
+
+      {/* Read from the orders table, not from the event stream. Events are
+          stitched by a browser-local id that a cleared cache breaks, and the
+          row with money on it must not depend on that. */}
+      <Panel title="Where the money came from"
+             sub="Grouped on last touch — the click that closed the sale. Taken from the order itself, stamped at checkout.">
+        {!rev ? <Loading /> : rev.length === 0 ? <Empty label="No orders in this window" /> : (
+          <TableWrap>
+            <thead><tr>
+              <Th>Source</Th><Th>Medium</Th><Th>Campaign</Th>
+              <Th align="right">Orders</Th><Th align="right">Paid</Th><Th align="right">Revenue</Th>
+            </tr></thead>
+            <tbody>
+              {rev.map((r, i) => (
+                <Tr key={i}>
+                  <Td><span className="font-medium text-fg">{r.source}</span></Td>
+                  <Td dim>{r.medium}</Td>
+                  <Td dim>{r.campaign}</Td>
+                  <Td align="right" mono>{num(r.orders)}</Td>
+                  <Td align="right" mono>{num(r.paid)}</Td>
+                  <Td align="right" mono>
+                    <span className={Number(r.revenue_paise) > 0 ? "text-brass font-semibold" : "text-faint"}>
+                      {rupees(Number(r.revenue_paise))}
+                    </span>
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </TableWrap>
+        )}
+      </Panel>
+
+      <Panel title="Which campaign won the customer"
+             sub="First touch, held on the buyer for the life of the account. The click above closed a sale; this one earned the relationship.">
+        {!acq ? <Loading /> : acq.length === 0 ? <Empty label="No buyers yet" /> : (
+          <TableWrap>
+            <thead><tr>
+              <Th>Source</Th><Th>Campaign</Th>
+              <Th align="right">Buyers</Th><Th align="right">Orders</Th><Th align="right">Revenue</Th>
+            </tr></thead>
+            <tbody>
+              {acq.map((r, i) => (
+                <Tr key={i}>
+                  <Td><span className="font-medium text-fg">{r.source}</span></Td>
+                  <Td dim>{r.campaign}</Td>
+                  <Td align="right" mono>{num(r.buyers)}</Td>
+                  <Td align="right" mono>{num(r.orders)}</Td>
+                  <Td align="right" mono>{rupees(Number(r.revenue_paise))}</Td>
+                </Tr>
+              ))}
+            </tbody>
           </TableWrap>
         )}
       </Panel>

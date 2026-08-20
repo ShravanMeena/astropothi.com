@@ -64,6 +64,56 @@ for (const type of types) {
   }
 }
 
+/**
+ * The Hindi half.
+ *
+ * The loop above only ever rendered `language: "en"`, which is why a Devanagari
+ * font bug lived in `note()` unnoticed: the सुझाव box was drawn in Times-Italic,
+ * a face with no Devanagari glyphs, so it printed `•y8 " ? '©K" M'ò` in every
+ * Hindi report ever generated — and ran off the page, because pdfkit cannot
+ * measure a string in a font that cannot render it.
+ *
+ * Word coverage is the wrong assertion here: pdftotext's Devanagari extraction
+ * is lossy (मार्गदर्शन comes back as मागदशन), so a missing-word count would fail
+ * on correct output. What a Latin-font block DOES do is replace a run of
+ * Devanagari with Latin punctuation soup, so the ratio of Devanagari to Latin
+ * catches it and nothing else does.
+ */
+console.log("\nhindi rendering");
+console.log("type        deva chars   latin runs");
+console.log("─".repeat(44));
+
+const DEVA = /[\u0900-\u097F]/g;
+// Six or more Latin letters/punctuation in a row inside a Hindi report is either
+// a placement name we print in English or a font that could not render.
+const LATIN_RUN = /[A-Za-z\u00C0-\u00FF‘’“”•·]{6,}/g;
+
+for (const type of types) {
+  try {
+    const { buffer } = await renderReport({
+      reportType: type, input: SUBJECT, designId: "heritage", paletteId: "saffron",
+      branding: BRANDING, language: "hi"
+    });
+    const pdfPath = path.join(tmp, `${type}_hi.pdf`);
+    await writeFile(pdfPath, buffer);
+    await run("pdftotext", ["-q", "-enc", "UTF-8", pdfPath, pdfPath + ".txt"]);
+    const { stdout } = await run("cat", [pdfPath + ".txt"]);
+
+    const deva = (stdout.match(DEVA) || []).length;
+    // Mojibake is Latin glyphs standing in for Devanagari, so it shows up as
+    // runs made of accented Latin and typographic punctuation rather than words.
+    const gibberish = (stdout.match(LATIN_RUN) || [])
+      .filter((r) => /[\u00C0-\u00FF‘’“”•·]/.test(r));
+    const ok = deva > 400 && gibberish.length === 0;
+    console.log(`${type.padEnd(11)} ${String(deva).padStart(10)} ${String(gibberish.length).padStart(12)}`
+                + (ok ? "" : `  ✗ ${gibberish.slice(0, 3).join(" | ").slice(0, 60)}`));
+    ok ? pass++ : fail++;
+  } catch (e) {
+    console.log(`${type.padEnd(11)} FAIL ${e.message}`);
+    fail++;
+  }
+}
+
 await rm(tmp, { recursive: true, force: true });
 console.log("─".repeat(56));
 console.log(`${pass} passed, ${fail} failed`);

@@ -84,8 +84,13 @@ export default function ReportBanners({ items, onPick }: {
   return (
     <div className="mt-7">
       <div ref={rail} onScroll={onScroll}
+           // The rail bleeds to both screen edges so the next banner can peek,
+           // but the FIRST one still starts on the page's own left margin —
+           // flush against the edge it read as a broken layout rather than a
+           // shelf. scroll-pl keeps the snap honest at that inset.
            className="flex gap-3 overflow-x-auto snap-x snap-mandatory scroll-smooth
-                      -mx-5 px-5 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      -mx-5 px-5 scroll-pl-5 pb-1
+                      [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {items.map((r) => {
           const b = B[r.code] ?? B.kundli;
           return (

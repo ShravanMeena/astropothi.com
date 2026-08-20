@@ -12,6 +12,7 @@ import { getPreview, getThumb } from "../catalog/preview.service.js";
 import config from "../../config.js";
 import db from "../../database/index.js";
 import { consumerCatalogue } from "../catalog/catalog.js";
+import * as Status from "../catalog/status.service.js";
 import { listDesigns } from "../../engine/reporting/designs/index.js";
 import { listPalettes } from "../../engine/reporting/palettes/index.js";
 import { ok, fail, h } from "../../utilities/http.js";
@@ -26,8 +27,14 @@ export function noAuth() {
   r.get("/brand", (req, res) => ok(res, { name: config.brand.name, tagline: config.brand.tagline }));
   r.get("/catalogue", h(async (req, res) => {
     const prices = await Pricing.priceMap();
+    // A report pulled from the shelf in the admin panel has to disappear here,
+    // not merely stop being buyable further down — a card that 404s on click is
+    // worse than one that was never shown.
+    const sellable = await Status.sellableMap();
     return ok(res, {
-      reports: consumerCatalogue().map((r) => ({ ...r, price_paise: prices[r.code] ?? r.price_paise })),
+      reports: consumerCatalogue()
+        .filter((r) => sellable[r.code])
+        .map((r) => ({ ...r, price_paise: prices[r.code] ?? r.price_paise })),
       designs: listDesigns(), palettes: listPalettes()
     });
   }));
@@ -36,7 +43,7 @@ export function noAuth() {
   // rendered sample pages of the exact design they are looking at.
   r.get("/report/:code", h(async (req, res) => {
     const type = getReportType(req.params.code);
-    if (!type || !type.ready) return fail(res, "Unknown report", 404);
+    if (!type || !(await Status.isSellable(req.params.code))) return fail(res, "Unknown report", 404);
     const lang = req.query.lang === "hi" ? "hi" : "en";
     const design = String(req.query.design || "heritage");
     const palette = String(req.query.palette || "gold");
@@ -57,7 +64,7 @@ export function noAuth() {
   // describing them. Fetched per card so a cold render never blocks the page.
   r.get("/thumb/:code", h(async (req, res) => {
     const type = getReportType(req.params.code);
-    if (!type || !type.ready) return fail(res, "Unknown report", 404);
+    if (!type || !(await Status.isSellable(req.params.code))) return fail(res, "Unknown report", 404);
     const url = await getThumb(
       String(req.query.design || "heritage"), String(req.query.palette || "gold"),
       req.query.lang === "hi" ? "hi" : "en", type.code, "house"
@@ -92,7 +99,8 @@ export function noAuth() {
       const user = await U.upsertByPhone(req.body.buyer_phone, {
         name: req.body.buyer_name || req.body.name,
         email: req.body.buyer_email,
-        birth: { name: req.body.name, dob: req.body.dob, tob: req.body.tob, pob: req.body.pob }
+        birth: { name: req.body.name, dob: req.body.dob, tob: req.body.tob, pob: req.body.pob },
+        attribution: req.body.attribution
       });
       // Re-validated here: the browser may send any code and any total, and the
       // amount charged must come from our arithmetic, not theirs.
@@ -124,6 +132,13 @@ export function noAuth() {
     } catch (e) {
       if (e.message === "BAD_PLACE") return fail(res, "Could not resolve that birth place — pick one from the list", 400);
       if (e.message === "UNKNOWN_REPORT") return fail(res, "Unknown report", 400);
+      // Razorpay throttles, and it surfaced to the buyer as "Internal error" —
+      // which reads as "your details are wrong" at the exact moment somebody is
+      // about to pay. It is transient and retrying works, so say that.
+      if (e?.statusCode === 429)
+        return fail(res, "Our payment provider is busy. Wait a few seconds and press pay again.", 503);
+      if (e?.statusCode >= 400 && e?.statusCode < 600 && e?.error?.description)
+        return fail(res, `Payment could not be set up: ${e.error.description}`, 502);
       throw e;
     }
   }));

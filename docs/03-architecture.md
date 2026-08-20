@@ -146,7 +146,7 @@ Sixteen tables, as built:
 | Table | Key columns |
 |---|---|
 | `pandits` | `phone` unique, `isd_code, name, email, city, state` (GST place-of-supply), `gstin, business_name, status, referred_by, trial_granted_at, invite_code, pilot_seat, is_admin, last_seen_at` |
-| `users` | **consumers.** `phone` unique, `isd_code, name, email, birth JSONB, profile JSONB, verified_at, status, last_seen_at` |
+| `users` | **consumers.** `first_utm_source, first_utm_campaign, attribution` JSONB (first touch only), `phone` unique, `isd_code, name, email, birth JSONB, profile JSONB, verified_at, status, last_seen_at` |
 | `otp_sessions` | UUID pk, `isd_code, phone, otp, channel, attempts, status, expires_at` — shared by both audiences |
 | `branding_profiles` | `pandit_id, honorific, display_name, shop_name, phone, whatsapp, email, address, logo_url, photo_url, signature_url, tagline, chart_style, default_language, default_design, default_palette, ui_language, changes_this_quarter` |
 | `branding_change_log` | `pandit_id, changed_fields, before, after, ip, ua` ← arbitrage detection |
@@ -155,7 +155,7 @@ Sixteen tables, as built:
 | `credit_ledger` | `pandit_id, delta` (+/−), `reason, ref_type, ref_id, note`. **Append-only; balance is always `SUM(delta)`.** |
 | `clients` | `pandit_id, name, gender, dob, tob, tob_unknown, pob, lat, lon, tzone, phone, notes` ← the vahi |
 | `reports` | `pandit_id, order_id, source` (`pandit\|consumer`), `client_id, report_type, design, palette, language, status, pdf_url, page_count, credits_charged, report_json, birth_meta, rashi, nakshatra, lagna, share_token, sale_price_paise, error, generated_ms` |
-| `orders` | **consumer purchases.** `public_id` unique, `report_type, design, palette, language, user_id, buyer_name, buyer_phone, buyer_email, state, birth JSONB, amount_paise, gst_paise, razorpay_order_id, razorpay_payment_id, razorpay_link_id, razorpay_link_url, status, report_id, invoice_no, whatsapp_sent_at, whatsapp_error, error` |
+| `orders` | **consumer purchases.** `utm_source, utm_medium, utm_campaign` + `attribution` JSONB (first AND last touch, click ids, term, content, landing), `public_id` unique, `report_type, design, palette, language, user_id, buyer_name, buyer_phone, buyer_email, state, birth JSONB, amount_paise, gst_paise, razorpay_order_id, razorpay_payment_id, razorpay_link_id, razorpay_link_url, status, report_id, invoice_no, whatsapp_sent_at, whatsapp_error, error` |
 | `pandit_prices` | `pandit_id, report_type, sale_price_paise` ← powers the earnings dashboard |
 | `price_overrides` | `report_type` unique, `price_paise, note, set_by` ← one row per deliberate exception to the code's tier price |
 | `coupons` | `code` unique, `kind` (`percent\|flat`), `value, max_discount_paise, min_amount_paise, report_types` JSONB, `max_uses, uses, starts_at, expires_at, active, note` |
@@ -336,3 +336,63 @@ whole batch and lose the good events beside it. `user_id` is taken from the toke
 
 Anything not in the whitelist is silently discarded, so step 1 is not optional.
 `scripts/test_events.js` covers ingest, the beacon path, identify and the funnel.
+
+---
+
+## Attribution — where an order came from
+
+Two records, because they answer different questions and the business needs both:
+
+| | Kept on | Written | Answers |
+|---|---|---|---|
+| **First touch** | `users.first_utm_*` + `users.attribution` | once, never overwritten | which campaign *acquired* this customer |
+| **Last touch** | `orders.utm_*` + `orders.attribution` | at checkout | which click *closed* this sale |
+
+Someone who sees an Instagram ad on Monday, thinks about it, and searches for the brand on
+Thursday is an Instagram acquisition and a direct conversion. Recording one of those credits
+the wrong channel — and "direct" is very often an ad whose attribution was dropped somewhere
+in between.
+
+### On the client
+
+`pothi-app/src/lib/attribution.ts` captures `utm_source/medium/campaign/term/content` **and
+the click id** — `gclid`, `wbraid`, `gbraid`, `fbclid`, `msclkid`, `ttclid`, `twclid`,
+`li_fat_id`, `epik`. The click id matters more than the UTMs: it is what reconciles a sale
+against the ad platform's own spend report, and no UTM can stand in for it.
+
+Both records live in **localStorage, not sessionStorage**. Buying a ₹999 report is not a
+same-tab decision, and a session-scoped record forgets the ad the moment the tab closes.
+
+Two rules that are easy to get wrong:
+
+- **Last touch only moves for a real campaign.** A buyer who returns by typing the URL must
+  not overwrite the ad that brought them with `direct`.
+- **A bare referrer is not a campaign.** It is recorded as the fallback for a first visit with
+  no UTMs at all, and never overwrites a real ad click.
+
+### On the server
+
+`server/shop/attribution.js` normalises before storing. Everything here came out of a URL, so
+it is treated as untrusted text: control characters stripped, every field length-capped, and
+reduced to the fields we report on. A 4KB `utm_campaign` in every order row is its own kind of
+damage.
+
+Attribution is stamped **onto the order at creation**, not joined from `app_events` later.
+Events are stitched by a browser-local `anonymous_id` that a cleared cache, a second device or
+a WhatsApp link opened on a phone all break — and the one row that must never lose its
+attribution is the one with money on it.
+
+> **A bug worth remembering.** `upsertByPhone` spread its `patch` into `findOrCreate`'s
+> `defaults`, so a client-shaped `{first,last}` went straight into the JSONB column unnormalised
+> — which then made the "already has attribution" guard true and left `first_utm_source` null on
+> every account. Attribution is now pulled out of that spread explicitly.
+
+### Reading it back
+
+Admin → Behaviour:
+
+- **Where the money came from** — `orders` grouped on last touch, with paid count and revenue.
+- **Which campaign won the customer** — `users` grouped on first touch, with lifetime revenue.
+
+`scripts/test_attribution.js` covers both records, the write-once rule, the length caps, an
+order with no campaign at all, and the staff-only guard.

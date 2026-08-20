@@ -15,7 +15,9 @@ import { renderReport } from "../../engine/render.js";
 import { putReportPdf } from "../../utilities/storage.js";
 import * as Loc from "../location/location.service.js";
 import * as RZ from "../payment/razorpay.js";
+import { isSellable } from "../catalog/status.service.js";
 import * as Notify from "../messaging/notify.service.js";
+import { orderAttribution } from "./attribution.js";
 
 const GST_RATE = 0.18;
 const publicId = () => randomBytes(6).toString("base64url").slice(0, 10).toUpperCase();
@@ -34,7 +36,9 @@ function houseBranding() {
 
 export async function quote(reportType) {
   const type = getReportType(reportType);
-  if (!type || !type.ready) throw Object.assign(new Error("UNKNOWN_REPORT"), { code: 400 });
+  // Checked against the live override, not the compile-time flag: a buyer with
+  // the checkout already open must not be able to pay for something we pulled.
+  if (!type || !(await isSellable(reportType))) throw Object.assign(new Error("UNKNOWN_REPORT"), { code: 400 });
   const price = await Pricing.priceOf(type.code);
   const base = Math.round(price / (1 + GST_RATE));
   return { code: type.code, chapters: type.chapters, price_paise: price,
@@ -82,6 +86,11 @@ export async function createOrder(input) {
       city: input.pob || null,
       rooms: input.rooms && typeof input.rooms === "object" ? input.rooms : {}
     } : null,
+    // Stamped at creation, so the answer to "where did this order come from"
+    // lives on the order forever — not reconstructed later from a browser id
+    // that a cleared cache would have broken.
+    ...orderAttribution(input.attribution),
+
     list_paise: q.price_paise,
     coupon_code: input.coupon || null,
     discount_paise: input.discount_paise || 0,
