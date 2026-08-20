@@ -1,7 +1,9 @@
+import { LEGAL } from "../lib/legal";
+import Link from "../components/Link";
 import { SUPPORT, waLink, mailLink, prettyPhone } from "../lib/support";
 import Logo from "../components/Logo";
-export default function Footer({ onAstrologers, onGo }: {
-  onAstrologers: () => void; onGo: (path: string) => void;
+export default function Footer({ onAstrologers }: {
+  onAstrologers: () => void;
 }) {
   return (
     <footer className="shell py-10">
@@ -21,16 +23,18 @@ export default function Footer({ onAstrologers, onGo }: {
               WhatsApp {prettyPhone()}
             </a>
             <span className="text-faint"> · </span>
-            <a href={mailLink("Pothi — a question")} className="text-brass hover:underline">
+            <a href={mailLink("astropothi — a question")} className="text-brass hover:underline">
               {SUPPORT.email}
             </a>
           </p>
           <p className="text-[12px] text-faint mt-1">{SUPPORT.hours}</p>
         </div>
         <nav className="flex flex-wrap gap-x-7 gap-y-2 text-[13.5px] text-muted">
-          <button onClick={() => onGo("/reports")} className="hover:text-fg">Reports</button>
-          <button onClick={() => onGo("/faq")} className="hover:text-fg">Questions</button>
-          <button onClick={() => onGo("/profile")} className="hover:text-fg">Your reports</button>
+          <Link to="/reports" className="hover:text-fg">Reports</Link>
+          <Link to="/methodology" className="hover:text-fg">How it is computed</Link>
+          <Link to="/faq" className="hover:text-fg">Questions</Link>
+          <Link to="/about" className="hover:text-fg">About</Link>
+          <Link to="/profile" className="hover:text-fg">Your reports</Link>
           <button onClick={onAstrologers} className="hover:text-fg">For astrologers</button>
         </nav>
       </div>
@@ -42,7 +46,7 @@ export default function Footer({ onAstrologers, onGo }: {
         {[["/terms", "Terms of Service"], ["/privacy", "Privacy Policy"],
           ["/refunds", "Refunds & Cancellation"], ["/contact", "Contact & Grievance"]]
           .map(([to, label]) => (
-            <button key={to} onClick={() => onGo(to)} className="hover:text-fg transition">{label}</button>
+            <Link key={to} to={to} className="hover:text-fg transition">{label}</Link>
           ))}
       </nav>
       <p className="text-[12px] text-faint leading-relaxed max-w-3xl">
@@ -50,7 +54,11 @@ export default function Footer({ onAstrologers, onGo }: {
         medical, legal, financial or psychiatric advice. Prices include GST. Not satisfied?
         We refund in full, no questions asked.
       </p>
-      <p className="text-[12px] text-faint mt-4">© {new Date().getFullYear()} Pothi</p>
+      {/* The brand and the entity behind it. "Pothi" here was left over from the
+          rename and appeared on every indexed page, contradicting both. */}
+      <p className="text-[12px] text-faint mt-4">
+        © {new Date().getFullYear()} {LEGAL.brand} · operated by {LEGAL.entity}
+      </p>
     </footer>
   );
 }

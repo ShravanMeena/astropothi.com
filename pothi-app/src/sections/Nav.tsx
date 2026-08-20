@@ -2,29 +2,31 @@ import { useState } from "react";
 import ThemeToggle from "../components/ThemeToggle";
 import type { Theme } from "../lib/theme";
 import Logo from "../components/Logo";
+import Link from "../components/Link";
 
-export default function Nav({ onAstrologers, onGo, signedIn, onSignIn, onProfile, theme, setTheme }: {
-  onAstrologers: () => void; onGo: (path: string) => void;
+export default function Nav({ onAstrologers, signedIn, onSignIn, onProfile, theme, setTheme }: {
+  onAstrologers: () => void;
   signedIn: boolean; onSignIn: () => void; onProfile: () => void;
   theme: Theme; setTheme: (t: Theme) => void;
 }) {
   // Reports and Questions are their own pages now, so they must navigate rather
   // than jump to an anchor that only exists on the home page.
   const [menu, setMenu] = useState(false);
+  // A real <a href>, so the header is a crawl path and cmd-click works.
   const link = (path: string, label: string) => (
-    <button onClick={() => onGo(path)} className="hover:text-fg transition">{label}</button>
+    <Link to={path} className="hover:text-fg transition">{label}</Link>
   );
   return (
     <header className="sticky top-0 z-40 bg-surface/80 backdrop-blur-xl border-b border-line">
       <div className="shell h-16 flex items-center justify-between gap-4">
-        <button onClick={() => onGo("/")} className="flex items-baseline gap-2 shrink-0">
+        <Link to="/" aria-label="astropothi home" className="flex items-baseline gap-2 shrink-0">
           <Logo size={20} />
           <span className="deva text-[13px] text-brass hidden lg:inline">पोथी</span>
-        </button>
+        </Link>
 
         <nav className="hidden md:flex items-center gap-8 text-[14.5px] text-muted">
           {link("/reports", "Reports")}
-          {link("/#how", "How it works")}
+          {link("/methodology", "How it works")}
           {link("/faq", "Questions")}
         </nav>
 
@@ -75,11 +77,11 @@ export default function Nav({ onAstrologers, onGo, signedIn, onSignIn, onProfile
       {menu && (
         <div className="md:hidden border-t border-line bg-surface">
           <div className="shell py-3 flex flex-col">
-            {[["/reports", "Reports"], ["/#how", "How it works"], ["/faq", "Questions"]].map(([to, label]) => (
-              <button key={to} onClick={() => { setMenu(false); onGo(to); }}
-                      className="py-3 text-left text-[15px] text-fg border-b border-line">
+            {[["/reports", "Reports"], ["/methodology", "How it works"], ["/faq", "Questions"], ["/about", "About"]].map(([to, label]) => (
+              <Link key={to} to={to} onClick={() => setMenu(false)}
+                    className="py-3 text-left text-[15px] text-fg border-b border-line">
                 {label}
-              </button>
+              </Link>
             ))}
             {!signedIn && (
               <button onClick={() => { setMenu(false); onSignIn(); }}

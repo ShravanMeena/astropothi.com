@@ -68,7 +68,9 @@ export default function OrderPage({ id, onHome, onProfile }: {
   useEffect(() => {
     if (o?.status !== "ready" || announced) return;
     setAnnounced(true);
-    track("order_ready", { order_id: id, code: o.report_type });
+    // amount_paise makes this a *valued* Purchase for the Meta Pixel, so the
+    // auction can optimize for higher-value buyers, not just any conversion.
+    track("order_ready", { order_id: id, code: o.report_type, amount_paise: o.amount_paise });
   }, [o?.status, announced, id]);
 
   // The pages are rasterised on the server the first time anyone asks, which

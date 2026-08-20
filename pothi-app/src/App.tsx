@@ -10,7 +10,15 @@ import Footer from "./sections/Footer";
 import Engine from "./sections/Engine";
 import ReportPage from "./pages/ReportPage";
 import ReportsPage from "./pages/ReportsPage";
-import FaqPage from "./pages/FaqPage";
+import FaqPage, { FAQ_FLAT } from "./pages/FaqPage";
+import MethodologyPage from "./pages/MethodologyPage";
+import AboutPage from "./pages/AboutPage";
+import NotFoundPage from "./pages/NotFoundPage";
+import Seo from "./components/Seo";
+import {
+  homeMeta, reportsMeta, reportMeta, faqMeta, methodologyMeta, aboutMeta,
+  legalMeta, privateMeta, type Meta
+} from "./lib/seo";
 import TermsPage from "./pages/legal/TermsPage";
 import PrivacyPage from "./pages/legal/PrivacyPage";
 import RefundsPage from "./pages/legal/RefundsPage";
@@ -25,6 +33,33 @@ import { useSignedIn } from "./lib/account";
 import { useTheme } from "./lib/theme";
 import Support from "./components/Support";
 import { startTracking, pageView, track } from "./lib/track";
+
+/**
+ * One route in, one head out.
+ *
+ * Kept beside the routing rather than inside each page so a new screen cannot
+ * be added and quietly inherit the previous page's title and canonical — the
+ * same reason pageView() lives here.
+ */
+function metaFor(route: ReturnType<typeof useRoute>["route"], items: ReportItem[]): Meta {
+  switch (route.name) {
+    case "home":        return homeMeta();
+    case "reports":     return reportsMeta(items);
+    case "faq":         return faqMeta(FAQ_FLAT);
+    case "methodology": return methodologyMeta();
+    case "about":       return aboutMeta();
+    case "legal":       return legalMeta(route.page);
+    case "report":      return reportMeta(items.find((i) => i.code === route.code), route.code);
+    // Checkout, a paid order and an account are all either thin, duplicated or
+    // private. None of them should ever appear in a result page.
+    case "buy":         return privateMeta(`/buy/${route.code}`, "Checkout");
+    case "order":       return privateMeta(`/order/${route.id}`, "Your report");
+    case "profile":     return privateMeta("/profile", "Your account");
+    case "dashboard":   return privateMeta("/astrologers", "Console");
+    default:            return { path: route.path, title: "Page not found | astropothi",
+                                 description: "", noindex: true };
+  }
+}
 
 export default function App() {
   const { route, go } = useRoute();
@@ -87,11 +122,13 @@ export default function App() {
   const openReport = (code: string) => go(`/report/${code}`);
   const openBuy = (code: string) => { track("buy_clicked", { code, from: route.name }); go(`/buy/${code}`); };
   // The guide belongs where someone is still choosing, not mid-checkout.
-  const guideWelcome = route.name === "home" || route.name === "reports" || route.name === "faq";
+  const guideWelcome = route.name === "home" || route.name === "reports" || route.name === "faq" ||
+                       route.name === "methodology" || route.name === "about";
 
   return (
     <>
-      <Nav onAstrologers={() => go("/astrologers")} onGo={nav}
+      <Seo meta={metaFor(route, items)} />
+      <Nav onAstrologers={() => go("/astrologers")}
            signedIn={signedIn} onSignIn={() => { track("signin_opened", { from: route.name }); setSignIn(true); }} onProfile={() => go("/profile")}
            theme={theme} setTheme={setTheme} />
       <main>
@@ -130,6 +167,12 @@ export default function App() {
         {route.name === "faq" && (
           <FaqPage onBuy={() => go("/reports")} onAskGuide={() => setGuide(true)} />
         )}
+
+        {route.name === "methodology" && <MethodologyPage onGo={nav} />}
+
+        {route.name === "about" && <AboutPage onGo={nav} />}
+
+        {route.name === "notfound" && <NotFoundPage path={route.path} onGo={nav} />}
 
         {route.name === "legal" && (
           route.page === "terms"   ? <TermsPage onGo={nav} />
@@ -176,7 +219,7 @@ export default function App() {
       {/* No footer on a report page either — twelve links and a disclaimer at
           the end of a sales page is a set of exits. The report page closes with
           its own buy button. */}
-      {route.name !== "report" && <Footer onAstrologers={() => go("/astrologers")} onGo={nav} />}
+      {route.name !== "report" && <Footer onAstrologers={() => go("/astrologers")} />}
 
       <GuideButton onClick={() => { track("guide_opened", { from: route.name }); setGuide(true); }} hidden={!guideWelcome || guide} />
       <Guide items={items} open={guide} onClose={() => setGuide(false)}

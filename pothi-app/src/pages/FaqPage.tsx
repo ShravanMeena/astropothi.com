@@ -49,6 +49,15 @@ const GROUPS: { group: string; qa: [string, string][] }[] = [
   }
 ];
 
+/**
+ * The same questions, flat, for the FAQPage schema in lib/seo.ts. Exported
+ * rather than duplicated so the structured data can only ever describe answers
+ * that are really on the page — schema that promises text a visitor cannot
+ * find is what earns a manual action.
+ */
+export const FAQ_FLAT: { q: string; a: string }[] =
+  GROUPS.flatMap((g) => g.qa.map(([q, a]) => ({ q, a })));
+
 export default function FaqPage({ onBuy, onAskGuide }: { onBuy: () => void; onAskGuide: () => void }) {
   const [open, setOpen] = useState<string | null>("0-0");
 

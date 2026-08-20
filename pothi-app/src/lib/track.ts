@@ -74,6 +74,53 @@ export function flush(useBeacon = false) {
   }).catch(() => { /* never surfaced */ });
 }
 
+
+// ── Meta Pixel bridge ────────────────────────────────────────────────────────
+// Every event the site already tracks is ALSO sent to the Meta Pixel from one
+// place, so the two never drift and nothing is fired twice. Only the handful of
+// events Meta can optimize a campaign on are mapped to its *standard* events
+// (ViewContent → InitiateCheckout → Purchase); the rest go as custom events,
+// visible in Events Manager without cluttering the conversion columns.
+//
+// value + currency are attached wherever an amount is known, because Meta cannot
+// optimize for "purchases worth more" without them — and a ₹99 and a ₹999 buyer
+// should not look identical to the auction.
+type FbAmount = { value?: number; currency?: string; content_name?: string; content_ids?: string[]; content_type?: string };
+
+function fbq(...args: unknown[]) {
+  try { (window as unknown as { fbq?: (...a: unknown[]) => void }).fbq?.(...args); } catch { /* pixel not loaded */ }
+}
+
+// site event name → { fb standard event, or custom }
+const STANDARD: Record<string, string> = {
+  report_viewed:      "ViewContent",     // looked at a report's page
+  sample_opened:      "ViewContent",     // opened the sample pages — real intent
+  pay_clicked:        "InitiateCheckout",
+  payment_redirected: "InitiateCheckout",
+  order_ready:        "Purchase",        // the money actually landed and the book rendered
+  coupon_applied:     "AddPaymentInfo",
+  signed_in:          "Lead",            // gave us a real phone number
+};
+
+const paise = (p: Record<string, unknown> | undefined) => {
+  const n = Number(p?.amount_paise ?? p?.discount_paise);
+  return Number.isFinite(n) && n > 0 ? n / 100 : undefined;
+};
+
+function toPixel(name: string, props?: Record<string, unknown>) {
+  const std = STANDARD[name];
+  const money: FbAmount = {};
+  const v = paise(props);
+  if (v !== undefined) { money.value = v; money.currency = "INR"; }
+  const code = props?.code ?? props?.report_type;
+  if (typeof code === "string") { money.content_ids = [code]; money.content_type = "product"; money.content_name = code; }
+
+  if (std) fbq("track", std, money);
+  // Always also emit the raw event as a custom one, so the full funnel is in
+  // Events Manager even for steps Meta has no standard event for.
+  else fbq("trackCustom", name, money);
+}
+
 export function track(name: string, properties?: Record<string, unknown>) {
   try {
     const utm = currentCampaign();
@@ -88,6 +135,8 @@ export function track(name: string, properties?: Record<string, unknown>) {
       session_id: sessionId(),
       occurred_at: new Date().toISOString()
     });
+    // Mirror to the Meta Pixel from the same call — one place, no drift.
+    toPixel(name, properties);
     if (queue.length >= MAX_BATCH) return flush();
     timer ||= setTimeout(() => flush(), FLUSH_MS);
   } catch { /* analytics must never break a click */ }

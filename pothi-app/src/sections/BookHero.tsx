@@ -98,7 +98,7 @@ export default function BookHero({ onOpen, items, onPick }: {
         </div>
         <div className="shell relative z-10 pt-16 pb-20 grid lg:grid-cols-2 gap-12 items-center">
           <div><Copy onOpen={onOpen} /></div>
-          <img src="/covers/heritage.png" alt="A Pothi report"
+          <img src="/covers/heritage.png" alt="A printed astropothi Vedic report, open at a chapter page"
                className="rounded-[2px] border border-line shadow-book w-[72%] mx-auto" />
         </div>
       </section>
@@ -141,7 +141,7 @@ export default function BookHero({ onOpen, items, onPick }: {
               <motion.div
                 style={{ rotateY: coverRotate, transformOrigin: "left center", transformStyle: "preserve-3d" }}
                 className="absolute inset-0 rounded-lg shadow-book will-change-transform">
-                <img src="/covers/heritage.png" alt="A Pothi report" className="h-full w-full rounded-lg" />
+                <img src="/covers/heritage.png" alt="A printed astropothi Vedic report, open at a chapter page" className="h-full w-full rounded-lg" />
                 {/* the page darkens as it swings past the light */}
                 <motion.div style={{ opacity: coverShade }}
                             className="absolute inset-0 rounded-lg bg-black pointer-events-none" />

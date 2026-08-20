@@ -259,12 +259,27 @@ On the Mac:
 
 ```bash
 cd pothi-app
-SITE_ORIGIN=https://astropothi.com npm run build     # prebuild writes sitemap + robots
+SITE_ORIGIN=https://astropothi.com npm run build:deploy
 gcloud compute scp --recurse dist pothi-api:/tmp/dist
 ```
 
-`npm run build` refuses to guess the domain: with no `SITE_ORIGIN` it writes no sitemap and
-a `robots.txt` that disallows everything. Use `npm run sitemap -- --strict` in CI.
+`build:deploy` is four steps, and none of them is optional:
+
+| step | what it does | why it must not be skipped |
+|---|---|---|
+| `build_og.js` | renders `public/og/astropothi-og.png` in headless Chrome | a missing og:image is a grey box in every WhatsApp forward |
+| `npm run build` | `prebuild` writes sitemap + robots, then vite builds | with no `SITE_ORIGIN` it writes no sitemap and a Disallow-all robots.txt, on purpose |
+| `prerender.js --strict` | loads all 18 public routes in Chrome and writes real HTML | **this is the whole point.** Bing barely runs JavaScript and GPTBot, PerplexityBot and ClaudeBot do not run it at all — without this they see a 1.3KB empty `<div id="root">` |
+| `seo_check.js --strict` | 580+ assertions against `dist/` | a dropped route, a stale canonical or a placeholder price all still return 200; nothing else notices |
+
+`postbuild` runs the prerenderer after a plain `npm run build` too, so a build is
+never accidentally shipped as a bare shell. `--strict` is what makes it fail the
+deploy rather than warn.
+
+The prerenderer needs a Chrome. It looks in the Playwright and Puppeteer caches
+and in `/Applications`; set `PUPPETEER_EXECUTABLE_PATH` if it cannot find one. It
+also needs the catalogue API for prices and chapter counts — it tries
+`localhost:4050` first, then the live site. Override with `PRERENDER_API`.
 
 On the VM:
 
@@ -272,27 +287,28 @@ On the VM:
 sudo rm -rf /var/www/pothi && sudo mkdir -p /var/www/pothi
 sudo cp -r /tmp/dist/* /var/www/pothi/
 
-sudo tee /etc/caddy/Caddyfile >/dev/null <<'CADDY'
-astropothi.com, www.astropothi.com {
-	encode gzip zstd
-
-	# `handle` takes ONE matcher, so the API namespaces need a named one —
-	# listing the paths inline is a config-parse error, not a subtle bug.
-	@api path /api/* /user-api/* /admin-api/* /noauth-api/* /files/* /health
-	handle @api {
-		reverse_proxy localhost:4050
-	}
-
-	handle {
-		root * /var/www/pothi
-		try_files {path} /index.html
-		file_server
-	}
-}
-CADDY
+# The Caddyfile lives in the repo at deploy/Caddyfile — copy it, do not retype it.
+gcloud compute scp deploy/Caddyfile pothi-api:/tmp/Caddyfile   # from the Mac
+sudo cp /tmp/Caddyfile /etc/caddy/Caddyfile
 sudo caddy validate --config /etc/caddy/Caddyfile
-sudo systemctl restart caddy
+sudo systemctl reload caddy
 ```
+
+Four things in that config are load-bearing:
+
+- `try_files {path} {path}/index.html` — serves the prerendered page. With the
+  old `try_files {path} /index.html` every URL got the SPA shell and the
+  prerendering did nothing.
+- `handle_errors` → `404.html` — an unknown path returns a real 404. It used to
+  return the homepage with a 200, which is a soft 404 and an unbounded set of
+  duplicates.
+- The `@private` block serves `app.html` for `/buy/*`, `/order/*`, `/profile`
+  and `/astrologers`. Those are never prerendered — an order page snapshot
+  would put a buyer's birth details in a file on a public web root — and
+  `app.html` carries no canonical, so they cannot claim to be the homepage.
+- `www.astropothi.com` redirects to the apex instead of serving it, so the two
+  hostnames are not indexed as competing copies.
+
 
 DNS: `A` records for `astropothi.com` and `www` → the Step 5 address. Caddy fetches the
 certificate itself once the record resolves.

@@ -12,7 +12,12 @@
     "sitemap": "node scripts/build_sitemap.js",
     "prebuild": "node scripts/build_sitemap.js && node scripts/legal_check.js",
     "legal:check": "node scripts/legal_check.js",
-    "predeploy": "node scripts/build_sitemap.js --strict && node scripts/legal_check.js --strict"
+    "predeploy": "node scripts/build_sitemap.js --strict && node scripts/legal_check.js --strict",
+    "og": "node scripts/build_og.js",
+    "prerender": "node scripts/prerender.js",
+    "seo:check": "node scripts/seo_check.js",
+    "postbuild": "node scripts/prerender.js $PRERENDER_ARGS",
+    "build:deploy": "node scripts/build_og.js && PRERENDER_ARGS=--strict npm run build && node scripts/seo_check.js --strict"
   },
   "dependencies": {
     "framer-motion": "^13.1.0",
@@ -27,6 +32,7 @@
     "autoprefixer": "^10.5.4",
     "oxlint": "^1.75.0",
     "postcss": "^8.5.26",
+    "puppeteer-core": "^25.8.0",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"

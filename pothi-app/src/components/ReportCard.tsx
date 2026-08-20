@@ -1,3 +1,4 @@
+import Link from "./Link";
 import ReportCover from "./ReportCover";
 import { rupees, type ReportItem } from "../lib/api";
 
@@ -40,7 +41,10 @@ export default function ReportCard({ item, onPick, featured = false }: {
   const c = REPORT_COPY[item.code];
 
   return (
-    <button onClick={() => onPick(item.code)}
+    // A real <a href="/report/…">, not a button. These nine cards are the main
+    // crawl path from the homepage into the pages that actually sell, and as
+    // buttons they carried no href, no anchor text and no cmd-click.
+    <Link to={`/report/${item.code}`} onClick={() => onPick(item.code)}
       // Horizontal on a phone, poster on a desktop. The poster is the right
       // shape when three sit side by side and the wrong one stacked: nine of
       // them full-width is 3,000px of scrolling to see a list.
@@ -92,6 +96,6 @@ export default function ReportCard({ item, onPick, featured = false }: {
           </span>
         </span>
       </div>
-    </button>
+    </Link>
   );
 }

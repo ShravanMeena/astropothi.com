@@ -1,0 +1,76 @@
+# astropothi — the live Caddyfile.
+#
+# Kept in the repo so the server's config is reviewable and restorable; copy to
+# /etc/caddy/Caddyfile on the VM (see docs/10-deploy.md).
+
+# One canonical host. www is redirected rather than served, so the two cannot
+# be indexed as separate sites competing with each other.
+www.astropothi.com {
+	redir https://astropothi.com{uri} permanent
+}
+
+astropothi.com {
+	encode gzip zstd
+
+	# Both the API and the client answer on one hostname. Every fetch in
+	# pothi-app is a relative path — there is no API base URL to configure — so
+	# a separately hosted client would fetch its own static host and be handed
+	# index.html with a 200. Same origin is not a preference here, it is the
+	# contract.
+	#
+	# `handle` takes ONE matcher, so the API namespaces need a named one —
+	# listing the paths inline is a config-parse error, not a subtle bug.
+	@api path /api/* /user-api/* /admin-api/* /noauth-api/* /files/* /health
+	handle @api {
+		reverse_proxy localhost:4050
+	}
+
+	root * /var/www/pothi
+
+	# Checkout, a paid order, an account and the staff console. These are never
+	# prerendered — an order page snapshot would put a buyer's birth details in
+	# a file on a public web root — so they are served the empty shell and the
+	# app renders them in the browser. app.html carries no canonical, so none of
+	# them can claim to be the homepage.
+	@private path /buy/* /order/* /profile /profile/* /astrologers /astrologers/*
+	handle @private {
+		rewrite * /app.html
+		header X-Robots-Tag "noindex, nofollow"
+		file_server
+	}
+
+	# Hashed filenames, so they can be cached forever. This is where most of a
+	# repeat visit's load time goes if you let it.
+	@immutable path /assets/*
+	header @immutable Cache-Control "public, max-age=31536000, immutable"
+
+	# HTML is not hashed. A day of stale pages after a deploy is not acceptable,
+	# and revalidation is cheap.
+	@html path / *.html /report/* /reports /faq /about /methodology /terms /privacy /refunds /contact
+	header @html Cache-Control "public, max-age=0, must-revalidate"
+
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	handle {
+		# The prerendered page first — /report/career -> /report/career/index.html.
+		# Without the second pattern a crawler gets the SPA shell and the whole
+		# point of scripts/prerender.js is lost silently.
+		try_files {path} {path}/index.html
+		file_server
+	}
+
+	# A real status code. Falling back to index.html here is what made every
+	# typo and every stale inbound link render the homepage with a 200 — a soft
+	# 404 to Google and an unbounded set of duplicate pages.
+	handle_errors {
+		@notfound expression {err.status_code} == 404
+		handle @notfound {
+			rewrite * /404.html
+			file_server
+		}
+		respond "{err.status_code} {err.status_text}"
+	}
+}
