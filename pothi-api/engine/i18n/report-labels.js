@@ -286,6 +286,7 @@ const EN = {
 
   "DOSHA_STAT_ACTIVE":             "Active",
   "DOSHA_STAT_SEVERE":             "Severe",
+  "DOSHA_STAT_HIGH":               "High",
   "DOSHA_STAT_MODERATE":           "Moderate",
   "DOSHA_STAT_MILD":               "Mild",
   "DOSHA_STAT_CHECKED":            "Checked",
@@ -297,6 +298,7 @@ const EN = {
   "DOSHA_LBL_NAKSHATRA":           "Nakshatra",
   "DOSHA_LBL_ASCENDANT":           "Ascendant",
   "DOSHA_FLAGGED_HEADER":          "Flagged in this chart",
+  "DOSHA_CLEAR_HEADER":            "Checked and clear",
   "DOSHA_CLEAR_TITLE":             "Clear chart — no doshas detected",
   "DOSHA_CLEAR_BODY":              "All five major doshas are absent.",
 
@@ -602,6 +604,7 @@ const HI = {
 
   "DOSHA_STAT_ACTIVE":             "सक्रिय",
   "DOSHA_STAT_SEVERE":             "गंभीर",
+  "DOSHA_STAT_HIGH":               "प्रबल",
   "DOSHA_STAT_MODERATE":           "मध्यम",
   "DOSHA_STAT_MILD":               "हल्का",
   "DOSHA_STAT_CHECKED":            "जांचे गए",
@@ -613,6 +616,7 @@ const HI = {
   "DOSHA_LBL_NAKSHATRA":           "नक्षत्र",
   "DOSHA_LBL_ASCENDANT":           "लग्न",
   "DOSHA_FLAGGED_HEADER":          "इस कुंडली में पाए गए दोष",
+  "DOSHA_CLEAR_HEADER":            "जाँचे गए — इनसे कुंडली मुक्त है",
   "DOSHA_CLEAR_TITLE":             "स्वच्छ कुंडली — कोई दोष नहीं मिला",
   "DOSHA_CLEAR_BODY":              "पाँचों प्रमुख दोष अनुपस्थित हैं।",
 

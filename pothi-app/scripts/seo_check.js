@@ -64,7 +64,15 @@ for (const p of paths) {
   ok(!titles.has(t), `${p}: title is unique`, `also on ${titles.get(t)}`);
   titles.set(t, p);
 
-  ok(d.length >= 70 && d.length <= 175, `${p}: description length`, `${d.length} chars`);
+  // Devanagari is measured on a different scale. Google truncates a snippet on
+  // rendered width, not character count, and Devanagari glyphs are wider while
+  // Hindi says more per character than English does — so the same character
+  // bounds would demand a description that is both less informative and too
+  // wide to display. These bounds were set from what the rendered snippets
+  // actually fit.
+  const hindi = /[\u0900-\u097F]/.test(d);
+  const [lo, hi] = hindi ? [55, 140] : [70, 175];
+  ok(d.length >= lo && d.length <= hi, `${p}: description length`, `${d.length} chars (${hindi ? "hi" : "en"})`);
   ok(!descs.has(d), `${p}: description is unique`, `also on ${descs.get(d)}`);
   descs.set(d, p);
 

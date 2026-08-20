@@ -135,9 +135,32 @@ export function DateField({ value, onChange, minYear = 1920 }: {
 
   const years = Array.from({ length: today.getFullYear() - minYear + 1 },
                            (_, i) => today.getFullYear() - i);
+
+  /**
+   * Move the view, and move the chosen date with it.
+   *
+   * Changing the year used to browse only. Somebody who had picked 2 Jan 1999
+   * and then corrected the year to 2000 saw the calendar jump to 2000 while the
+   * field still read 1999 — and because the effect above re-seeds the view from
+   * the value, reopening the panel silently threw the correction away. The only
+   * way to actually change a year was to re-pick the day, and the only clue
+   * that you had to was the field not changing.
+   *
+   * So once a date exists, retargeting the month or the year retargets that
+   * date. The day is clamped (31 Jan → Feb becomes the 28th or 29th) and a move
+   * into the future is refused, since a birth date cannot be one.
+   */
+  const retarget = (y: number, m: number) => {
+    setView((v) => ({ ...v, y, m }));
+    if (!parsed) return;                       // still choosing — just browsing
+    const d = Math.min(parsed.d, daysIn(y, m));
+    if (new Date(Date.UTC(y, m, d)) > today) return;
+    onChange(iso(y, m, d));
+  };
+
   const shift = (by: number) => {
     const m = view.m + by;
-    setView({ ...view, y: view.y + Math.floor(m / 12), m: ((m % 12) + 12) % 12 });
+    retarget(view.y + Math.floor(m / 12), ((m % 12) + 12) % 12);
   };
 
   const total = daysIn(view.y, view.m);
@@ -158,12 +181,12 @@ export function DateField({ value, onChange, minYear = 1920 }: {
                 className="h-8 w-8 rounded-full grid place-items-center text-muted hover:text-brass hover:bg-sunken">←</button>
               <div className="flex-1 grid grid-cols-[1.4fr_1fr] gap-2">
                 <select value={view.m} aria-label="Month"
-                        onChange={(e) => setView({ ...view, m: +e.target.value })}
+                        onChange={(e) => retarget(view.y, +e.target.value)}
                         className="h-9 rounded-[2px] border border-line bg-surface text-[13.5px] px-2 outline-none focus:border-brass">
                   {MONTHS.map((m, n) => <option key={m} value={n}>{m}</option>)}
                 </select>
                 <select value={view.y} aria-label="Year"
-                        onChange={(e) => setView({ ...view, y: +e.target.value })}
+                        onChange={(e) => retarget(+e.target.value, view.m)}
                         className="h-9 rounded-[2px] border border-line bg-surface text-[13.5px] px-2 outline-none focus:border-brass">
                   {years.map((y) => <option key={y} value={y}>{y}</option>)}
                 </select>
@@ -199,32 +222,18 @@ export function DateField({ value, onChange, minYear = 1920 }: {
   );
 }
 
-/* ── Time of birth ────────────────────────────────────────────────────────── */
-
-export function TimeField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const ref = useDismiss(open, () => setOpen(false));
-  const ok = /^\d{2}:\d{2}$/.test(value);
-  const H = ok ? +value.slice(0, 2) : 9;
-  const M = ok ? +value.slice(3, 5) : 0;
-  const pm = H >= 12;
-  const h12 = H % 12 === 0 ? 12 : H % 12;
-
-  const emit = (nh12: number, nm: number, npm: boolean) =>
-    onChange(`${pad(npm ? (nh12 % 12) + 12 : nh12 % 12)}:${pad(nm)}`);
-
-  // Bring the current value into view when the panel opens — scrolling to 47
-  // through a 60-row list is not something a buyer should have to do.
-  const cols = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!open) return;
-    cols.current?.querySelectorAll<HTMLElement>("[data-on='1']")
-      .forEach((el) => el.scrollIntoView({ block: "center" }));
-  }, [open]);
-
-  const Col = ({ items, active, onPick, label }: {
-    items: number[]; active: number; onPick: (n: number) => void; label: string;
-  }) => (
+/**
+ * One scrolling column of the time picker.
+ *
+ * Defined here rather than inside TimeField. A component declared in a render
+ * body is a brand-new type on every render, so React threw away all three
+ * columns and rebuilt them after each tap — which reset the scroll position of
+ * the sixty-row minute list every single time somebody adjusted the hour.
+ */
+function TimeCol({ items, active, onPick, label }: {
+  items: number[]; active: number; onPick: (n: number) => void; label: string;
+}) {
+  return (
     <div className="flex-1 min-w-0">
       <div className="caps text-faint text-center pb-2 border-b border-line">{label}</div>
       <div className="h-[188px] overflow-y-auto py-1 scroll-smooth">
@@ -238,6 +247,38 @@ export function TimeField({ value, onChange }: { value: string; onChange: (v: st
       </div>
     </div>
   );
+}
+
+/* ── Time of birth ────────────────────────────────────────────────────────── */
+
+export function TimeField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useDismiss(open, () => setOpen(false));
+  const ok = /^\d{2}:\d{2}$/.test(value);
+  const H = ok ? +value.slice(0, 2) : 9;
+  const M = ok ? +value.slice(3, 5) : 0;
+  const pm = H >= 12;
+  const h12 = H % 12 === 0 ? 12 : H % 12;
+  // With no value yet, H/M above are display fallbacks, not the buyer's answer.
+  // Highlighting them made 9:00 AM look already chosen, so tapping a minute
+  // produced "09:15 AM" from a column the buyer had never touched and had no
+  // reason to check. Highlight nothing until there is something to highlight —
+  // the first tap then commits and the hour lights up, which is the moment it
+  // becomes true.
+  const hOn = ok ? h12 : -1;
+  const mOn = ok ? M : -1;
+
+  const emit = (nh12: number, nm: number, npm: boolean) =>
+    onChange(`${pad(npm ? (nh12 % 12) + 12 : nh12 % 12)}:${pad(nm)}`);
+
+  // Bring the current value into view when the panel opens — scrolling to 47
+  // through a 60-row list is not something a buyer should have to do.
+  const cols = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    cols.current?.querySelectorAll<HTMLElement>("[data-on='1']")
+      .forEach((el) => el.scrollIntoView({ block: "center" }));
+  }, [open]);
 
   return (
     <div className="relative" ref={ref}>
@@ -249,17 +290,17 @@ export function TimeField({ value, onChange }: { value: string; onChange: (v: st
           <motion.div {...anim} className={`${panel} left-0 w-[290px] p-4`} role="dialog"
                       aria-label="Choose time of birth">
             <div ref={cols} className="flex gap-3">
-              <Col label="Hour" items={Array.from({ length: 12 }, (_, n) => n + 1)}
-                   active={h12} onPick={(n) => emit(n, M, pm)} />
-              <Col label="Min" items={Array.from({ length: 60 }, (_, n) => n)}
-                   active={M} onPick={(n) => emit(h12, n, pm)} />
+              <TimeCol label="Hour" items={Array.from({ length: 12 }, (_, n) => n + 1)}
+                       active={hOn} onPick={(n) => emit(n, M, pm)} />
+              <TimeCol label="Min" items={Array.from({ length: 60 }, (_, n) => n)}
+                       active={mOn} onPick={(n) => emit(h12, n, pm)} />
               <div className="w-[62px] shrink-0">
                 <div className="caps text-faint text-center pb-2 border-b border-line">&nbsp;</div>
                 <div className="py-1 space-y-1">
                   {[["AM", false], ["PM", true]].map(([t, v]) => (
                     <button key={t as string} type="button" onClick={() => emit(h12, M, v as boolean)}
                       className={`w-full h-9 text-[13.5px] rounded-[2px] transition
-                        ${pm === v ? "bg-brass text-surface font-medium" : "text-fg hover:bg-sunken"}`}>
+                        ${ok && pm === v ? "bg-brass text-surface font-medium" : "text-fg hover:bg-sunken"}`}>
                       {t as string}
                     </button>
                   ))}

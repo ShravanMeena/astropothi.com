@@ -27,6 +27,7 @@ export default function Nav({ onAstrologers, signedIn, onSignIn, onProfile, them
         <nav className="hidden md:flex items-center gap-8 text-[14.5px] text-muted">
           {link("/reports", "Reports")}
           {link("/methodology", "How it works")}
+          {link("/learn", "Doshas")}
           {link("/faq", "Questions")}
         </nav>
 
@@ -77,7 +78,7 @@ export default function Nav({ onAstrologers, signedIn, onSignIn, onProfile, them
       {menu && (
         <div className="md:hidden border-t border-line bg-surface">
           <div className="shell py-3 flex flex-col">
-            {[["/reports", "Reports"], ["/methodology", "How it works"], ["/faq", "Questions"], ["/about", "About"]].map(([to, label]) => (
+            {[["/reports", "Reports"], ["/methodology", "How it works"], ["/learn", "Doshas"], ["/faq", "Questions"], ["/about", "About"]].map(([to, label]) => (
               <Link key={to} to={to} onClick={() => setMenu(false)}
                     className="py-3 text-left text-[15px] text-fg border-b border-line">
                 {label}

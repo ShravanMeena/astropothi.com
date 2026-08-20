@@ -21,6 +21,24 @@ const ROUTES = path.join(APP, "src/lib/route.ts");
 /** Static pages, in the order a person would meet them. */
 export const STATIC_PATHS = ["/", "/reports", "/methodology", "/faq", "/about"];
 
+/**
+ * The learn slugs, read out of the generated content module rather than
+ * retyped. It is generated from the engine, so this is still one source: add a
+ * dosha to the engine, run `npm run content`, and the page, the sitemap and the
+ * prerender list all pick it up together.
+ */
+async function learnPaths() {
+  const src = await readFile(path.join(APP, "src/content/doshas.generated.ts"), "utf8");
+  const m = src.match(/export const SLUGS: string\[\] = (\[[\s\S]*?\]);/);
+  if (!m) throw new Error("SLUGS not found in src/content/doshas.generated.ts — run `npm run content`");
+  const slugs = JSON.parse(m[1]);
+  return [
+    "/learn", "/hi/learn",
+    ...slugs.map((s) => `/learn/${s}`),
+    ...slugs.map((s) => `/hi/learn/${s}`)
+  ];
+}
+
 export async function publicPaths() {
   let SELLABLE;
   try {
@@ -40,6 +58,7 @@ export async function publicPaths() {
 
   return [
     ...STATIC_PATHS,
+    ...(await learnPaths()),
     ...SELLABLE.map((r) => `/report/${r.code}`),
     ...legal.map((l) => `/${l}`)
   ];

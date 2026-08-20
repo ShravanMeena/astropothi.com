@@ -58,7 +58,11 @@ export default function Seo({ meta: m }: { meta: Meta }) {
     const url = abs(m.path);
 
     document.title = m.title;
-    document.documentElement.lang = "en";
+    // Set from the page, not hardcoded: a Hindi article served with lang="en"
+    // gets the wrong hyphenation and, more importantly, tells Google the page
+    // is English — which is how a translated page ends up competing with its
+    // own twin instead of ranking in its own language.
+    document.documentElement.lang = m.lang || "en";
 
     meta("name", "description", m.description);
 
@@ -79,12 +83,35 @@ export default function Seo({ meta: m }: { meta: Meta }) {
     meta("property", "og:description", m.description);
     meta("property", "og:url", url);
     meta("property", "og:image", `${SITE.origin}${OG_IMAGE}`);
-    meta("property", "og:locale", "en_IN");
+    meta("property", "og:locale", m.lang === "hi" ? "hi_IN" : "en_IN");
 
     meta("name", "twitter:card", "summary_large_image");
     meta("name", "twitter:title", m.title);
     meta("name", "twitter:description", m.description);
     meta("name", "twitter:image", `${SITE.origin}${OG_IMAGE}`);
+
+    // hreflang. Only the learn pages have a twin, so most routes emit none —
+    // and a self-referencing hreflang on a page with no alternate is noise that
+    // Search Console reports as an error.
+    document.head.querySelectorAll('link[rel="alternate"][data-seo]').forEach((n) => n.remove());
+    if (m.altLangPath) {
+      const other: "en" | "hi" = m.lang === "hi" ? "en" : "hi";
+      const pairs: [string, string][] = [
+        [m.lang || "en", url],
+        [other, abs(m.altLangPath)],
+        // x-default points at the English URL: it is what a reader with no
+        // matching language preference should land on.
+        ["x-default", m.lang === "hi" ? abs(m.altLangPath) : url]
+      ];
+      for (const [hl, href] of pairs) {
+        const l = document.createElement("link");
+        l.rel = "alternate";
+        l.hreflang = hl;
+        l.href = href;
+        l.setAttribute("data-seo", "");
+        document.head.appendChild(l);
+      }
+    }
 
     // One graph per page. Several <script type="application/ld+json"> blocks
     // are legal, but a single @graph is what Google's own docs recommend and it

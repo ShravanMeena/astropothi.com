@@ -25,7 +25,11 @@ import { verifyDoshReport } from "../validate/verify-dosh-report.js";
 import { buildDoshaPdf } from "../reporting/render-dosha-pdfkit.js";
 
 const MAJOR_DOSHA_KEYS = new Set(["manglik", "kaal_sarp", "sade_sati", "pitra_dosha", "guru_chandal"]);
-const SEVERITY_RANK = { severe: 0, moderate: 1, mild: 2, none: 3 };
+// Must list every band labelForScore() can return. "high" was missing, so
+// SEVERITY_RANK.high was undefined, `undefined - 1` was NaN, and a comparator
+// that returns NaN leaves the array in whatever order it started in — the most
+// serious dosha in the chart could be listed last.
+const SEVERITY_RANK = { severe: 0, high: 1, moderate: 2, mild: 3, none: 4 };
 
 const pad = (n) => String(n).padStart(2, "0");
 
@@ -146,8 +150,15 @@ export async function generateInhouseDoshReport(input) {
     total: entries.length,
     present: active.length,
     severe: active.filter((d) => d.severity === "severe").length,
+    // Counted, and printed. Leaving "high" out of the band row is why a chart
+    // with five active doshas showed 0 severe + 3 moderate + 1 mild — four —
+    // and the reader was left to wonder which one had gone missing.
+    high: active.filter((d) => d.severity === "high").length,
     moderate: active.filter((d) => d.severity === "moderate").length,
     mild: active.filter((d) => d.severity === "mild").length,
+    // Everything checked and found clear, so the page can show the good news
+    // rather than only the flags.
+    clear: entries.filter((d) => !d.present).map((d) => ({ key: d.key, name: d.name, name_hi: d.name_hi }))
   };
 
   // The PDF prints `d.reason`, which comes straight from the detector and is a
@@ -173,8 +184,13 @@ export async function generateInhouseDoshReport(input) {
     if (measured) d.reason = measured;
   });
   if (manglik) {
-    const mangalChapter = chapterById.mangal_dosh;
-    if (mangalChapter?.short_description) manglik.summary = mangalChapter.short_description;
+    // manglik.summary is deliberately NOT overwritten with the chapter's
+    // short_description. reasonFor("manglik") already returns that exact
+    // string for d.reason, so assigning it here printed the same paragraph
+    // twice on the Manglik page — once under "Why it applies in your chart"
+    // and again under "Classical cancellations". The renderer now draws the
+    // verdict pill and the clause cards without a summary line, which is the
+    // part that was actually carrying information.
     const byClause = Object.fromEntries(
       (doshReport.cancellations || []).filter((x) => x.clause_key).map((x) => [x.clause_key, x])
     );

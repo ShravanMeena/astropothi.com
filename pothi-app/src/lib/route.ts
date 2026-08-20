@@ -10,6 +10,10 @@ import { useEffect, useState } from "react";
  *   /methodology       how a chart is computed — the page a careful buyer and
  *                      an answer engine both ask for before trusting a number
  *   /about             who operates this
+ *   /learn             the dosha explainers, English
+ *   /learn/:slug       one dosha, explained from the engine's own rules
+ *   /hi/learn          the same in Hindi — /hi is a language prefix, not a
+ *                      separate site; the two are paired with hreflang
  *   /report/:code      what is inside, sample pages, price
  *   /buy/:code         checkout
  *   /profile           your account: every order, and what you tell us
@@ -22,12 +26,17 @@ import { useEffect, useState } from "react";
 export const LEGAL_SLUGS = ["terms", "privacy", "refunds", "contact"] as const;
 export type LegalSlug = typeof LEGAL_SLUGS[number];
 
+/** Content languages. The UI chrome stays English; articles are translated. */
+export type Lang = "en" | "hi";
+
 export type Route =
   | { name: "home" }
   | { name: "reports" }
   | { name: "faq" }
   | { name: "methodology" }
   | { name: "about" }
+  | { name: "learn"; lang: Lang }
+  | { name: "article"; slug: string; lang: Lang }
   | { name: "legal"; page: LegalSlug }
   | { name: "profile" }
   | { name: "report"; code: string }
@@ -44,6 +53,19 @@ function parse(path: string): Route {
   if (p === "/faq") return { name: "faq" };
   if (p === "/methodology") return { name: "methodology" };
   if (p === "/about") return { name: "about" };
+
+  // /hi is a language prefix on the content routes only — strip it once here
+  // rather than duplicating every match below.
+  const hi = p.startsWith("/hi/") || p === "/hi";
+  const q = hi ? p.slice(3) || "/" : p;
+  const lang: Lang = hi ? "hi" : "en";
+  // Deliberately no bare "/hi". Only the learn section is translated, so a
+  // Hindi homepage does not exist to send anyone to — and a path that renders
+  // content in the app but is absent from the sitemap gets a 404 from the
+  // server and content from the browser, which is the worst of both.
+  if (q === "/learn" && (!hi || p === "/hi/learn")) return { name: "learn", lang };
+  const art = q.match(/^\/learn\/([a-z0-9-]+)$/);
+  if (art) return { name: "article", slug: art[1], lang };
   const legal = LEGAL_SLUGS.find((l) => p === `/${l}`);
   if (legal) return { name: "legal", page: legal };
   if (p === "/profile") return { name: "profile" };

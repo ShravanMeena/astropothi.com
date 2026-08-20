@@ -1,6 +1,7 @@
 import { LEGAL } from "./legal";
 import { SUPPORT } from "./support";
 import type { ReportItem } from "./api";
+import type { Article } from "../content/doshas.generated";
 
 /**
  * Every page's head, in one place.
@@ -32,6 +33,10 @@ export const SITE = {
 };
 
 export type Meta = {
+  /** Content language of the page. Sets <html lang> and og:locale. */
+  lang?: "en" | "hi";
+  /** The same page in the other language, for the hreflang pair. */
+  altLangPath?: string;
   title: string;
   description: string;
   /** Path only. The canonical is built from SITE.origin. */
@@ -334,6 +339,90 @@ export function legalMeta(slug: string): Meta {
 /** Everything a buyer or a signed-in reader touches. Never indexed. */
 export function privateMeta(path: string, title: string): Meta {
   return { path, title: suffix(title), description: "", noindex: true };
+}
+
+/* ── The learn pages ──────────────────────────────────────────────────────
+   Bilingual explainers derived from the report engine. These are the only
+   pages on the site with a Hindi twin, so they are also the only ones that
+   need hreflang. */
+
+export function learnIndexMeta(lang: "en" | "hi", count: number): Meta {
+  const path = lang === "hi" ? "/hi/learn" : "/learn";
+  const en = {
+    title: suffix("Doshas in Vedic Astrology, Explained"),
+    description:
+      `All ${count} doshas explained from the rules our reports actually run on — how each forms, what cancels it, and the classical remedies. Manglik, Kaal Sarp, Sade Sati and more.`
+  };
+  const hi = {
+    title: `वैदिक ज्योतिष के दोष, विस्तार से | ${SITE.name}`,
+    description:
+      `सभी ${count} दोष — मांगलिक, कालसर्प, साढ़े साती, पितृ दोष और अन्य। प्रत्येक कैसे बनता है, कौन-से निवारण लागू होते हैं, और उपाय क्या हैं।`
+  };
+  const c = lang === "hi" ? hi : en;
+  return {
+    path, lang, altLangPath: lang === "hi" ? "/learn" : "/hi/learn",
+    title: c.title, description: c.description,
+    crumbs: [{ name: lang === "hi" ? "दोष" : "Learn", path }],
+    jsonLd: [{
+      "@type": "CollectionPage",
+      name: c.title,
+      description: c.description,
+      url: abs(path),
+      inLanguage: lang,
+      isPartOf: { "@id": `${SITE.origin}/#website` }
+    }]
+  };
+}
+
+export function articleMeta(a: Article | undefined, slug: string, lang: "en" | "hi"): Meta {
+  const path = `${lang === "hi" ? "/hi" : ""}/learn/${slug}`;
+  if (!a) return { path, title: suffix("Not found"), description: "", noindex: true, lang };
+
+  // Trimmed to a snippet length rather than truncated mid-word: a description
+  // that ends in "…" three words early reads as broken, and Google rewrites it.
+  const desc = a.blurb.length <= 165 ? a.blurb : `${a.blurb.slice(0, 162).replace(/[\s,;—-]+$/, "")}…`;
+
+  return {
+    path, lang,
+    altLangPath: lang === "hi" ? `/learn/${slug}` : `/hi/learn/${slug}`,
+    title: suffix(a.title),
+    description: desc,
+    crumbs: [
+      { name: lang === "hi" ? "दोष" : "Learn", path: lang === "hi" ? "/hi/learn" : "/learn" },
+      { name: a.name, path }
+    ],
+    jsonLd: [
+      {
+        "@type": "Article",
+        headline: a.title,
+        description: desc,
+        url: abs(path),
+        inLanguage: lang,
+        // The publisher is the organisation. No `author` naming a person:
+        // there is no named astrologer behind these pages, and inventing a
+        // byline to satisfy an E-E-A-T checklist is exactly the kind of fake
+        // authorship that gets a site demoted rather than trusted.
+        publisher: { "@id": `${SITE.origin}/#organization` },
+        isPartOf: { "@id": `${SITE.origin}/#website` },
+        about: { "@type": "Thing", name: a.name },
+        // No datePublished / dateModified. We do not track either per article,
+        // and a date stamped from the build would claim every page was rewritten
+        // on every deploy.
+        articleSection: lang === "hi" ? "ज्योतिष" : "Vedic astrology"
+      },
+      ...(a.faqs.length
+        ? [{
+            "@type": "FAQPage",
+            inLanguage: lang,
+            mainEntity: a.faqs.map((f) => ({
+              "@type": "Question",
+              name: f.q,
+              acceptedAnswer: { "@type": "Answer", text: f.a }
+            }))
+          }]
+        : [])
+    ]
+  };
 }
 
 export function breadcrumbLd(crumbs: { name: string; path: string }[]) {

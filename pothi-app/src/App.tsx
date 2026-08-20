@@ -14,10 +14,13 @@ import FaqPage, { FAQ_FLAT } from "./pages/FaqPage";
 import MethodologyPage from "./pages/MethodologyPage";
 import AboutPage from "./pages/AboutPage";
 import NotFoundPage from "./pages/NotFoundPage";
+import LearnIndexPage from "./pages/learn/LearnIndexPage";
+import ArticlePage from "./pages/learn/ArticlePage";
+import { findArticle, SLUGS } from "./content/doshas.generated";
 import Seo from "./components/Seo";
 import {
   homeMeta, reportsMeta, reportMeta, faqMeta, methodologyMeta, aboutMeta,
-  legalMeta, privateMeta, type Meta
+  legalMeta, privateMeta, learnIndexMeta, articleMeta, type Meta
 } from "./lib/seo";
 import TermsPage from "./pages/legal/TermsPage";
 import PrivacyPage from "./pages/legal/PrivacyPage";
@@ -49,6 +52,8 @@ function metaFor(route: ReturnType<typeof useRoute>["route"], items: ReportItem[
     case "methodology": return methodologyMeta();
     case "about":       return aboutMeta();
     case "legal":       return legalMeta(route.page);
+    case "learn":       return learnIndexMeta(route.lang, SLUGS.length);
+    case "article":     return articleMeta(findArticle(route.slug, route.lang), route.slug, route.lang);
     case "report":      return reportMeta(items.find((i) => i.code === route.code), route.code);
     // Checkout, a paid order and an account are all either thin, duplicated or
     // private. None of them should ever appear in a result page.
@@ -174,6 +179,13 @@ export default function App() {
 
         {route.name === "notfound" && <NotFoundPage path={route.path} onGo={nav} />}
 
+        {route.name === "learn" && <LearnIndexPage lang={route.lang} />}
+
+        {route.name === "article" && (
+          <ArticlePage slug={route.slug} lang={route.lang}
+            notFound={<NotFoundPage path={`/learn/${route.slug}`} onGo={nav} />} />
+        )}
+
         {route.name === "legal" && (
           route.page === "terms"   ? <TermsPage onGo={nav} />
           : route.page === "privacy" ? <PrivacyPage onGo={nav} />
@@ -211,7 +223,7 @@ export default function App() {
             is a sales page: it gets the one-line version instead, placed by the
             page itself, because a support card under a price competes with the
             buy button for the same glance. */}
-        {!["order", "profile", "legal", "report"].includes(route.name) && (
+        {!["order", "profile", "legal", "report", "article"].includes(route.name) && (
           <div className="shell pb-16"><Support where={route.name} /></div>
         )}
       </main>

@@ -32,6 +32,8 @@ export default function Footer({ onAstrologers }: {
         <nav className="flex flex-wrap gap-x-7 gap-y-2 text-[13.5px] text-muted">
           <Link to="/reports" className="hover:text-fg">Reports</Link>
           <Link to="/methodology" className="hover:text-fg">How it is computed</Link>
+          <Link to="/learn" className="hover:text-fg">Doshas explained</Link>
+          <Link to="/hi/learn" className="hover:text-fg" hrefLang="hi">दोष — हिन्दी में</Link>
           <Link to="/faq" className="hover:text-fg">Questions</Link>
           <Link to="/about" className="hover:text-fg">About</Link>
           <Link to="/profile" className="hover:text-fg">Your reports</Link>

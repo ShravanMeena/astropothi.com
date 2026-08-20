@@ -54,9 +54,18 @@ const C = {
   tint:   "#f7f1e3"
 };
 
+/**
+ * Colour for a severity band.
+ *
+ * Every band labelForScore() can return must appear here. "high" did not, so it
+ * fell through to the default — green, the colour this report uses for "not
+ * present". A Sade Sati scoring 67 was printed in the same green as a dosha the
+ * chart does not have, which is the one mistake a colour code must never make.
+ */
 function severityColor(s) {
   switch (s) {
     case "severe":   return C.red;
+    case "high":     return C.red;
     case "moderate": return C.orange;
     case "mild":     return C.gold;
     default:         return C.green;
@@ -66,6 +75,7 @@ function severityColor(s) {
 function severityLabel(s, lang) {
   switch (s) {
     case "severe":   return t("DOSHA_STAT_SEVERE", lang);
+    case "high":     return t("DOSHA_STAT_HIGH", lang);
     case "moderate": return t("DOSHA_STAT_MODERATE", lang);
     case "mild":     return t("DOSHA_STAT_MILD", lang);
     default:         return s.charAt(0).toUpperCase() + s.slice(1);
@@ -182,13 +192,15 @@ function renderSummary(doc, input) {
   pageHeader(doc, t("DOSHA_PAGE_SUMMARY", lang), t("DOSHA_KICKER_OVERVIEW", lang));
   let y = 90;
 
-  // Stat band (5 columns)
+  // Stat band. Every band gets a column, so the numbers add up: active must
+  // equal severe + high + moderate + mild, and a reader who checks will.
   const stats = [
-    [String(input.summary.present),  t("DOSHA_STAT_ACTIVE", lang),   C.red],
-    [String(input.summary.severe),   t("DOSHA_STAT_SEVERE", lang),   C.red],
-    [String(input.summary.moderate), t("DOSHA_STAT_MODERATE", lang), C.orange],
-    [String(input.summary.mild),     t("DOSHA_STAT_MILD", lang),     C.gold],
-    [String(input.summary.total),    t("DOSHA_STAT_CHECKED", lang),  C.navy]
+    [String(input.summary.present),            t("DOSHA_STAT_ACTIVE", lang),   C.red],
+    [String(input.summary.severe),             t("DOSHA_STAT_SEVERE", lang),   C.red],
+    [String(input.summary.high ?? 0),          t("DOSHA_STAT_HIGH", lang),     C.red],
+    [String(input.summary.moderate),           t("DOSHA_STAT_MODERATE", lang), C.orange],
+    [String(input.summary.mild),               t("DOSHA_STAT_MILD", lang),     C.gold],
+    [String(input.summary.total),              t("DOSHA_STAT_CHECKED", lang),  C.navy]
   ];
   const cellW = (W - M * 2) / stats.length;
   doc.save();
@@ -254,6 +266,43 @@ function renderSummary(doc, input) {
         .text(severityLabel(d.severity, lang), W - M - 80, y + 10, { width: 70, align: "right" });
       y += 36;
     });
+  }
+
+  /*
+   * The doshas the chart is clear of.
+   *
+   * The band above says "14 checked" and the list under it named five, leaving
+   * a reader to guess what happened to the other nine — and leaving out the
+   * only genuinely reassuring thing on the page. Someone who bought this report
+   * because they were told they are Manglik wants to see Kaal Sarp and Pitru
+   * printed in green as much as they want to see the flags in red.
+   *
+   * Two per row, ticked, at the bottom of a page that was otherwise half empty.
+   */
+  const clear = input.summary?.clear || [];
+  if (clear.length) {
+    y = ensureSpace(doc, 70, y, t("DOSHA_PAGE_SUMMARY", lang), lang);
+    y += 8;
+    doc.font("Helvetica-Bold").fontSize(13).fillColor(C.navy).text(t("DOSHA_CLEAR_HEADER", lang), M, y);
+    y += 20;
+
+    const detailsForLang = pickDoshaDetails(lang);
+    const colW = (W - M * 2) / 2;
+    clear.forEach((d, i) => {
+      const cx = M + (i % 2) * colW;
+      if (i % 2 === 0) y = ensureSpace(doc, 26, y, t("DOSHA_PAGE_SUMMARY", lang), lang);
+      const nm = (lang !== "en" && d.name_hi)
+        || (detailsForLang && detailsForLang[d.key] && detailsForLang[d.key].name)
+        || d.name;
+      // A tick, drawn rather than typed: the Helvetica the rest of this page
+      // uses has no check glyph, and the Devanagari face substitutes a box.
+      doc.save().lineWidth(1.4).strokeColor(C.green)
+        .moveTo(cx + 4, y + 9).lineTo(cx + 7.5, y + 12.5).lineTo(cx + 13, y + 5).stroke().restore();
+      doc.font("Helvetica").fontSize(10).fillColor(C.mute)
+        .text(nm, cx + 20, y + 4, { width: colW - 28, lineBreak: false, ellipsis: true });
+      if (i % 2 === 1 || i === clear.length - 1) y += 22;
+    });
+    y += 6;
   }
 
   pageFooter(doc, t("DOSHA_PAGE_SUMMARY", lang), lang);
@@ -397,9 +446,10 @@ function renderDoshaPage(doc, item, detail, index, input) {
       .text(v.label, M, y + 6, { width: vw, align: "center" });
     y += vh + 8;
 
-    y = drawWrappedText(doc, m.summary, M, y, W - M * 2, { size: 10, lineGap: 3 });
-    y += 6;
-
+    // No summary paragraph here. It was assigned the same string as the
+    // "why it applies" section above, so the page printed one paragraph twice.
+    // The verdict pill states the outcome and the cards below state the
+    // evidence; a restatement between them added nothing. See dosh.js.
     const allChecks = [
       ...m.cancellations.map(c => ({ ...c, kind: "cancellation" })),
       ...m.mitigators.map(c => ({ ...c, kind: "mitigator" }))

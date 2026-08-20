@@ -10,14 +10,16 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
     "sitemap": "node scripts/build_sitemap.js",
-    "prebuild": "node scripts/build_sitemap.js && node scripts/legal_check.js",
+    "prebuild": "node scripts/build_content.js && node scripts/build_sitemap.js && node scripts/legal_check.js",
     "legal:check": "node scripts/legal_check.js",
     "predeploy": "node scripts/build_sitemap.js --strict && node scripts/legal_check.js --strict",
     "og": "node scripts/build_og.js",
     "prerender": "node scripts/prerender.js",
     "seo:check": "node scripts/seo_check.js",
     "postbuild": "node scripts/prerender.js $PRERENDER_ARGS",
-    "build:deploy": "node scripts/build_og.js && PRERENDER_ARGS=--strict npm run build && node scripts/seo_check.js --strict"
+    "build:deploy": "node scripts/build_og.js && PRERENDER_ARGS=--strict npm run build && node scripts/seo_check.js --strict",
+    "content": "node scripts/build_content.js",
+    "content:check": "node scripts/build_content.js --check"
   },
   "dependencies": {
     "framer-motion": "^13.1.0",
