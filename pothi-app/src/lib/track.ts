@@ -93,20 +93,36 @@ function fbq(...args: unknown[]) {
 }
 
 // site event name → { fb standard event, or custom }
+/**
+ * Our event names → Meta's standard events.
+ *
+ * An event only appears as "Active" in the ad set's conversion dropdown once
+ * the pixel has actually sent it, so this table decides what can be optimised
+ * on at all. Three things were wrong with it:
+ *
+ *   · checkout_started was not here. Meta defines InitiateCheckout as entering
+ *     the checkout flow, which is exactly what landing on /buy is — and it has
+ *     three times the volume of pay_clicked (9 devices against 3 in thirty
+ *     days), so the more optimisable half of the funnel was never reported.
+ *   · pay_clicked AND payment_redirected both fired InitiateCheckout, so one
+ *     journey counted twice and the number meant nothing.
+ *   · welcome_submitted — somebody handing over a phone number — is the
+ *     clearest Lead the site has, and it was going up as a custom event.
+ *
+ * NOT report_viewed: that fires the moment a report page mounts, so every
+ * one-second bounce was being reported as a success and Meta went looking for
+ * more of them. report_engaged fires instead, once the visitor has stayed,
+ * scrolled or acted — see lib/qualify.ts. report_viewed still goes up as a
+ * custom event, so the funnel keeps its "opened a report page" step.
+ */
 const STANDARD: Record<string, string> = {
-  // NOT report_viewed. That fires the moment a report page mounts, and the ad
-  // set optimises on ViewContent — so every one-second bounce was reported to
-  // Meta as a success, and Meta went and found more of them. report_engaged
-  // fires instead, once the visitor has stayed, scrolled, or acted. See
-  // lib/qualify.ts. report_viewed still goes up as a custom event, so the
-  // funnel keeps its "opened a report page" step.
-  report_engaged:     "ViewContent",     // actually read a report's page
-  sample_opened:      "ViewContent",     // opened the sample pages — real intent
-  pay_clicked:        "InitiateCheckout",
-  payment_redirected: "InitiateCheckout",
-  order_ready:        "Purchase",        // the money actually landed and the book rendered
-  coupon_applied:     "AddPaymentInfo",
-  signed_in:          "Lead",            // gave us a real phone number
+  report_engaged:     "ViewContent",       // actually read a report page
+  sample_opened:      "ViewContent",       // opened the sample — real intent
+  checkout_started:   "InitiateCheckout",  // reached /buy
+  pay_clicked:        "AddPaymentInfo",    // pressed pay, about to hand over money
+  order_ready:        "Purchase",          // paid, and the book rendered
+  signed_in:          "Lead",              // a real phone number, verified
+  welcome_submitted:  "Lead"               // a real phone number, volunteered
 };
 
 const paise = (p: Record<string, unknown> | undefined) => {
@@ -122,11 +138,75 @@ function toPixel(name: string, props?: Record<string, unknown>) {
   const code = props?.code ?? props?.report_type;
   if (typeof code === "string") { money.content_ids = [code]; money.content_type = "product"; money.content_name = code; }
 
-  if (std) fbq("track", std, money);
+  if (std) {
+    /*
+     * An event id, so the same conversion cannot be counted twice.
+     *
+     * Purchase fires from the order page whenever it is opened, and `announced`
+     * is component state — it resets on every mount. A buyer who revisits
+     * /order/ABC123, or just refreshes, sent Meta a second Purchase. Keying the
+     * id to the order makes every one of those the same event, which Meta then
+     * collapses. It is also the id a server-side Conversions API call would
+     * have to use to deduplicate against this one.
+     */
+    const id = props?.order_id ?? props?.code ?? props?.public_id;
+    fbq("track", std, money, typeof id === "string" ? { eventID: `${name}:${id}` } : undefined);
+  }
   // Always also emit the raw event as a custom one, so the full funnel is in
   // Events Manager even for steps Meta has no standard event for.
   else fbq("trackCustom", name, money);
 }
+
+// ── Google (GA4 + GTM dataLayer) bridge ──────────────────────────────────────
+// The same events, mirrored to GA4 as its ecommerce events and pushed to the
+// GTM dataLayer. GA4 gets `purchase` with a value so its reports and any Google
+// Ads conversion can optimise on revenue; GTM sees every event by its own name
+// in the dataLayer, so a tag can be built there without another code change.
+const GA4: Record<string, string> = {
+  report_viewed:      "view_item",
+  sample_opened:      "view_item",
+  pay_clicked:        "begin_checkout",
+  payment_redirected: "begin_checkout",
+  coupon_applied:     "add_payment_info",
+  signed_in:          "generate_lead",
+  order_ready:        "purchase",
+};
+
+function gtagFn(...args: unknown[]) {
+  try { (window as unknown as { gtag?: (...a: unknown[]) => void }).gtag?.(...args); } catch { /* not loaded */ }
+}
+function dlPush(obj: Record<string, unknown>) {
+  try {
+    const w = window as unknown as { dataLayer?: unknown[] };
+    (w.dataLayer ||= []).push(obj);
+  } catch { /* not loaded */ }
+}
+
+function toGoogle(name: string, props?: Record<string, unknown>) {
+  const value = paise(props);
+  const code = (props?.code ?? props?.report_type) as string | undefined;
+  const id = (props?.order_id ?? props?.public_id ?? code) as string | undefined;
+
+  // 1) GTM dataLayer — every event, by its own name, with the money attached.
+  dlPush({
+    event: name,
+    ...(value !== undefined ? { value, currency: "INR" } : {}),
+    ...(code ? { report_type: code } : {}),
+    ...(id ? { order_id: id } : {}),
+  });
+
+  // 2) GA4 standard ecommerce event, when this maps to one.
+  const ev = GA4[name];
+  if (!ev) return;
+  const params: Record<string, unknown> = {};
+  if (value !== undefined) { params.value = value; params.currency = "INR"; }
+  if (code) params.items = [{ item_id: code, item_name: code }];
+  // purchase needs a transaction_id, and GA4 dedupes repeats of the same one —
+  // the same protection the Meta eventID gives, for a refreshed order page.
+  if (ev === "purchase" && id) params.transaction_id = String(id);
+  gtagFn("event", ev, params);
+}
+
 
 export function track(name: string, properties?: Record<string, unknown>) {
   try {
@@ -145,8 +225,9 @@ export function track(name: string, properties?: Record<string, unknown>) {
       session_id: sessionId(),
       occurred_at: new Date().toISOString()
     });
-    // Mirror to the Meta Pixel from the same call — one place, no drift.
+    // Mirror to Meta Pixel and to Google (GA4 + GTM) from the same call.
     toPixel(name, properties);
+    toGoogle(name, properties);
     if (queue.length >= MAX_BATCH) return flush();
     timer ||= setTimeout(() => flush(), FLUSH_MS);
   } catch { /* analytics must never break a click */ }

@@ -2,6 +2,7 @@ import { LEGAL } from "./legal";
 import { SUPPORT } from "./support";
 import type { ReportItem } from "./api";
 import type { Article } from "../content/doshas.generated";
+import { REPORT_FAQ, DOSH_FAQ_HI } from "../content/reportFaq";
 
 /**
  * Every page's head, in one place.
@@ -158,7 +159,7 @@ const REPORT_SEO: Record<string, { title: string; description: string; question:
 
 const suffix = (t: string) => `${t} | ${SITE.name}`;
 
-export function homeMeta(): Meta {
+export function homeMeta(faq: { q: string; a: string }[] = []): Meta {
   return {
     path: "/",
     title: suffix("Vedic Astrology Reports from Your Birth Chart"),
@@ -171,8 +172,25 @@ export function homeMeta(): Meta {
         url: SITE.origin,
         name: suffix("Vedic Astrology Reports"),
         isPartOf: { "@id": `${SITE.origin}/#website` },
-        about: { "@id": `${SITE.origin}/#organization` }
-      }
+        about: { "@id": `${SITE.origin}/#organization` },
+        // The entity paragraph that is actually printed in the "What is
+        // astropothi?" section, so the description a crawler reads here is the
+        // one a reader sees there.
+        description:
+          "astropothi creates personalised Vedic astrology reports from your birth details — date of birth, exact birth time and birthplace. It computes the relevant birth-chart data from an astronomical ephemeris and explains what it found in clear language."
+      },
+      // Built from the same array the homepage renders. Schema describing
+      // answers a visitor cannot find on the page is what earns a manual action.
+      ...(faq.length
+        ? [{
+            "@type": "FAQPage",
+            mainEntity: faq.map((f) => ({
+              "@type": "Question",
+              name: f.q,
+              acceptedAnswer: { "@type": "Answer", text: f.a }
+            }))
+          }]
+        : [])
     ]
   };
 }
@@ -202,10 +220,13 @@ export function reportsMeta(items: ReportItem[]): Meta {
   };
 }
 
-export function reportMeta(item: ReportItem | undefined, code: string, pages?: number): Meta {
+export function reportMeta(item: ReportItem | undefined, code: string, lang: "en" | "hi" = "en"): Meta {
   const s = REPORT_SEO[code];
   const name = item?.name_en || code;
   const path = `/report/${code}`;
+
+  // Whatever the page will actually render, in the language it will render it.
+  const faqSource = code === "dosh" && lang === "hi" ? DOSH_FAQ_HI : REPORT_FAQ[code];
 
   const product = item
     ? [
@@ -248,22 +269,24 @@ export function reportMeta(item: ReportItem | undefined, code: string, pages?: n
     ],
     jsonLd: [
       ...product,
-      ...(s
-        ? [
-            {
-              "@type": "FAQPage",
-              mainEntity: [
-                {
-                  "@type": "Question",
-                  name: s.question,
-                  acceptedAnswer: { "@type": "Answer", text: s.description }
-                }
-              ]
-            }
-          ]
+      // Built from the questions the page actually renders — see
+      // content/reportFaq.ts. This used to declare a single question that
+      // appeared nowhere on the page, which is schema describing content a
+      // visitor cannot reach.
+      // …and in the language the page will render them in, not always Hindi:
+      // an English reader on /report/dosh sees the English set, and schema that
+      // names the other one describes questions they cannot find.
+      ...(faqSource?.faqs?.length
+        ? [{
+            "@type": "FAQPage",
+            mainEntity: faqSource.faqs.map((f) => ({
+              "@type": "Question",
+              name: f.q,
+              acceptedAnswer: { "@type": "Answer", text: f.a }
+            }))
+          }]
         : [])
-    ],
-    ...(pages ? {} : {})
+    ]
   };
 }
 
@@ -297,7 +320,21 @@ export function methodologyMeta(): Meta {
     title: suffix("How a Report Is Computed"),
     description:
       "The ephemeris, the Lahiri ayanamsa, whole-sign houses, the 480 invariants every chart is checked against, and exactly where language is written rather than computed.",
-    crumbs: [{ name: "Methodology", path: "/methodology" }]
+    crumbs: [{ name: "Methodology", path: "/methodology" }],
+    jsonLd: [{
+      "@type": "TechArticle",
+      headline: "How a report is computed",
+      description:
+        "The ephemeris, the Lahiri ayanamsa, whole-sign houses, the invariants every chart is checked against, and where language is written rather than computed.",
+      url: abs("/methodology"),
+      // A real date, maintained by hand when the methodology changes — see the
+      // note on UPDATED in pages/MethodologyPage.tsx. Not stamped from the
+      // build, which would claim a rewrite on every deploy.
+      dateModified: "2026-08-21",
+      publisher: { "@id": `${SITE.origin}/#organization` },
+      isPartOf: { "@id": `${SITE.origin}/#website` },
+      inLanguage: "en"
+    }]
   };
 }
 

@@ -3,6 +3,8 @@ import { api, type ReportItem, type Design, type Palette } from "./lib/api";
 import { useRoute } from "./lib/route";
 import Nav from "./sections/Nav";
 import WelcomeSheet from "./components/WelcomeSheet";
+import ChartCheck from "./sections/ChartCheck";
+import WhatIsAstropothi from "./sections/WhatIsAstropothi";
 import { useLang } from "./lib/lang";
 import { homeUi } from "./lib/homeStrings";
 import BookHero from "./sections/BookHero";
@@ -20,6 +22,7 @@ import NotFoundPage from "./pages/NotFoundPage";
 import LearnIndexPage from "./pages/learn/LearnIndexPage";
 import ArticlePage from "./pages/learn/ArticlePage";
 import { findArticle, SLUGS } from "./content/doshas.generated";
+import { SITE_FAQ } from "./content/siteFaq";
 import Seo from "./components/Seo";
 import {
   homeMeta, reportsMeta, reportMeta, faqMeta, methodologyMeta, aboutMeta,
@@ -48,9 +51,9 @@ import { useQualifyWatcher } from "./lib/qualify";
  * be added and quietly inherit the previous page's title and canonical — the
  * same reason pageView() lives here.
  */
-function metaFor(route: ReturnType<typeof useRoute>["route"], items: ReportItem[]): Meta {
+function metaFor(route: ReturnType<typeof useRoute>["route"], items: ReportItem[], lang: "en" | "hi"): Meta {
   switch (route.name) {
-    case "home":        return homeMeta();
+    case "home":        return homeMeta(SITE_FAQ);
     case "reports":     return reportsMeta(items);
     case "faq":         return faqMeta(FAQ_FLAT);
     case "methodology": return methodologyMeta();
@@ -58,7 +61,7 @@ function metaFor(route: ReturnType<typeof useRoute>["route"], items: ReportItem[
     case "legal":       return legalMeta(route.page);
     case "learn":       return learnIndexMeta(route.lang, SLUGS.length);
     case "article":     return articleMeta(findArticle(route.slug, route.lang), route.slug, route.lang);
-    case "report":      return reportMeta(items.find((i) => i.code === route.code), route.code);
+    case "report":      return reportMeta(items.find((i) => i.code === route.code), route.code, lang);
     // Checkout, a paid order and an account are all either thin, duplicated or
     // private. None of them should ever appear in a result page.
     case "buy":         return privateMeta(`/buy/${route.code}`, "Checkout");
@@ -79,6 +82,11 @@ export default function App() {
   const [guide, setGuide] = useState(false);
   const [signIn, setSignIn] = useState(false);
   const signedIn = useSignedIn();
+  // Above the `dashboard` early return below. Called after it, this hook ran on
+  // every route except /astrologers — so opening the console and coming back
+  // changed the hook count between renders and React threw "rendered more hooks
+  // than during the previous render", taking the whole app down.
+  const [lang] = useLang();
   // Design chosen on the report page is carried into checkout.
   const [pick, setPick] = useState({ design: "heritage", palette: "gold" });
 
@@ -134,8 +142,6 @@ export default function App() {
 
   const openReport = (code: string) => go(`/report/${code}`);
   const openBuy = (code: string) => { track("buy_clicked", { code, from: route.name }); go(`/buy/${code}`); };
-  // The guide belongs where someone is still choosing, not mid-checkout.
-  const [lang] = useLang();
   const h = homeUi(lang);
 
   const guideWelcome = route.name === "home" || route.name === "reports" || route.name === "faq" ||
@@ -143,7 +149,7 @@ export default function App() {
 
   return (
     <>
-      <Seo meta={metaFor(route, items)} />
+      <Seo meta={metaFor(route, items, lang)} />
       {/* Every page, not just the home page: an ad lands straight on
           /report/kundli, and that visitor should get the code too. It shows
           once a visit and never to somebody already signed in. */}
@@ -155,8 +161,17 @@ export default function App() {
         {route.name === "home" && (
           <>
             <BookHero onOpen={() => go("/reports")} items={items} onPick={openReport} />
+            {/* A real answer about the visitor's own chart, straight after the
+                hero. It asks the question people arrive with, and answers it
+                from the same detector the paid report runs — which is the one
+                thing on this page that is about them rather than about us.
+                Sends them to the dosh report, not to checkout: they should see
+                what they are buying, and their birth details are already
+                carried over so nothing has to be typed twice. */}
+            <ChartCheck code="dosh" onBuy={() => { track("buy_clicked", { code: "dosh", from: "chart_check" }); go("/report/dosh"); }} />
             <Reports items={items} onPick={openReport} onAll={() => go("/reports")}
                      onAskGuide={() => setGuide(true)} />
+            <WhatIsAstropothi items={items} />
             <Engine />
             <How />
             <Designs />
@@ -210,7 +225,6 @@ export default function App() {
 
         {route.name === "report" && (
           <ReportPage code={route.code} designs={designs} palettes={palettes}
-            onHome={() => go("/reports")}
             onBuy={(code, design, palette) => {
               track("buy_clicked", { code, design, palette, from: "report" });
               setPick({ design, palette }); go(`/buy/${code}`);

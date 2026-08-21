@@ -17,9 +17,12 @@
     "prerender": "node scripts/prerender.js",
     "seo:check": "node scripts/seo_check.js",
     "postbuild": "node scripts/prerender.js $PRERENDER_ARGS",
-    "build:deploy": "node scripts/build_og.js && PRERENDER_ARGS=--strict npm run build && node scripts/seo_check.js --strict",
+    "build:deploy": "node scripts/events_check.js && node scripts/build_og.js && PRERENDER_ARGS=--strict npm run build && node scripts/seo_check.js --strict",
     "content": "node scripts/build_content.js",
-    "content:check": "node scripts/build_content.js --check"
+    "content:check": "node scripts/build_content.js --check",
+    "banners": "node scripts/build_banners.js",
+    "video": "node scripts/build_video.js",
+    "events:check": "node scripts/events_check.js"
   },
   "dependencies": {
     "framer-motion": "^13.1.0",

@@ -1,18 +1,24 @@
 import { useEffect, useRef, useState } from "react";
 import { motion, useScroll, useTransform, useReducedMotion } from "framer-motion";
-import { api, rupees, type Design, type Palette } from "../lib/api";
+import { api, type Design, type Palette } from "../lib/api";
+import { priceView } from "../lib/price";
 import ChartMark from "../components/ChartMark";
 import PageTurner from "../components/PageTurner";
 import Engine from "../sections/Engine";
 import SampleModal from "../components/SampleModal";
 import { COVER_PALETTE } from "../components/ReportCover";
-import CountUp from "../components/CountUp";
 import { track } from "../lib/track";
 import WhyUs from "../sections/WhyUs";
+import PromoBanners from "../sections/PromoBanners";
+import PitchVideo from "../sections/PitchVideo";
+import DoshCRO from "../sections/DoshCRO";
 import { useLang } from "../lib/lang";
 import { ui, pitchFor } from "../lib/reportStrings";
 import { useScrollDepth, useSectionView, useQualifiedView } from "../lib/engagement";
 import Support from "../components/Support";
+import Faq from "../components/Faq";
+import Link from "../components/Link";
+import { REPORT_FAQ, DOSH_FAQ_HI } from "../content/reportFaq";
 import TrustStrip from "../components/TrustStrip";
 
 type Detail = {
@@ -77,9 +83,9 @@ function EditionCard({ code, d, palette, on, onPick }: {
   );
 }
 
-export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
+export default function ReportPage({ code, designs, palettes, onBuy }: {
   code: string; designs: Design[]; palettes: Palette[];
-  onBuy: (code: string, design: string, palette: string) => void; onHome: () => void;
+  onBuy: (code: string, design: string, palette: string) => void;
 }) {
   const [d, setD] = useState<Detail | null>(null);
   const [err, setErr] = useState("");
@@ -154,10 +160,34 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
   const pages = d?.sample?.pages ?? d?.approx_pages ?? null;
   const shown = d ? (allChapters ? d.outline : d.outline.slice(0, 14)) : [];
   const shots = d?.sample?.images ?? [];
-  const price = d ? rupees(d.price_paise) : "…";
+  const pv = priceView(d ?? undefined);
+  const price = pv.nowText;
+
+  // One trust line, used under every dosh CTA so the page reads consistently.
+  const doshTrust = (extra = "") => (
+    <p className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] sm:text-[13px] text-muted ${lang === "hi" ? "deva" : ""} ${extra}`}>
+      {(lang === "hi"
+        ? ["कोई Subscription नहीं", "1 मिनट में रिपोर्ट", "100% Money Back"]
+        : ["No subscription", "Report in 1 minute", "100% money-back"]
+      ).map((x, i) => (
+        <span key={x} className="inline-flex items-center gap-1.5">
+          {i > 0 && <span className="text-line">·</span>}
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.8"
+               strokeLinecap="round" strokeLinejoin="round" className="text-brass shrink-0" aria-hidden><path d="M20 6 9 17l-5-5" /></svg>
+          <span>{x}</span>
+        </span>
+      ))}
+    </p>
+  );
 
   return (
     <>
+      {/* ── The promo strip, first thing on the page ──────────────────────
+          Above the hero, because 4 of 77 visitors scroll past the first
+          screen and an ad click lands here. Only the dosh report has these
+          banners; they are about the fourteen doshas specifically. ── */}
+      {code === "dosh" && <PromoBanners where="report_dosh" onBuy={() => { track("report_cta_click", { code, where: "banner", language: lang }); onBuy(code, design, palette); }} />}
+
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
       <section ref={heroRef} className="relative overflow-hidden grain lamp border-b border-line">
         {/* The chart is the architecture of the page, not an ornament on it. */}
@@ -171,46 +201,101 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
           </motion.div>
         </motion.div>
 
-        <div className="shell relative z-10 pt-6 pb-16 sm:pb-24">
-          <button onClick={onHome} className="caps text-faint hover:text-fg transition">{t.back}</button>
-
-          <div className="mt-10 grid lg:grid-cols-[1.02fr_.98fr] gap-y-14 gap-x-16 items-center">
+        <div className="shell relative z-10 pt-4 pb-5 sm:pt-6 sm:pb-24">
+          <div className="mt-0 sm:mt-10 grid lg:grid-cols-[1.02fr_.98fr] gap-y-14 gap-x-16 items-center">
             <div>
-              <div className="flex items-center gap-3">
+              <div className="hidden sm:flex items-center gap-3">
                 <span className="h-px w-8 bg-brass" />
-                <span className="caps text-brass">
+                <span className="caps text-brass hidden sm:inline">
                   {d && pages ? t.chaptersPages(d.chapters, pages) : t.fallbackEyebrow}
                 </span>
               </div>
 
-              <h1 className="mt-6">
-                <span className="deva foil block text-[26px] sm:text-[64px] leading-[1.18] font-semibold -ml-[.02em]">
-                  {pitch?.deva}
-                </span>
-                <span className="display block text-[26px] sm:text-[64px] lg:text-[74px] leading-[.98] mt-1">
-                  {/* The book's own name. The Devanagari line above is its cover
-                      title — a different string. Printing the English name under
-                      it left the hero half-translated. */}
-                  {(lang === "hi" ? d?.name_hi : d?.name_en) || " "}
-                </span>
-              </h1>
-
-              {pitch && (
+              {code === "dosh" ? (
+                /* Message-match to the Meta ad: continue its exact psychological
+                   question rather than the generic report name. Bilingual — the
+                   toggle (default Hindi) decides which the visitor reads. */
                 <>
-                  <p className="mt-7 text-[21px] sm:text-[24px] font-serif text-fg leading-snug">{pitch.line}</p>
-                  <p className="lede mt-4 max-w-prose2">{pitch.body}</p>
+                  <h1 className={`mt-1 sm:mt-4 display text-[26px] sm:text-[46px] lg:text-[52px]
+                                 leading-[1.25] sm:leading-[1.15] font-semibold ${lang === "hi" ? "deva" : ""}`}>
+                    {lang === "hi"
+                      ? "क्या आपको भी कहा गया था कि आपकी कुंडली में दोष है?"
+                      : "Were you told your chart has a dosh?"}
+                  </h1>
+                  <p className={`mt-4 sm:mt-6 text-[16px] sm:text-[20px] text-fg leading-relaxed max-w-prose2 ${lang === "hi" ? "deva" : ""}`}>
+                    {lang === "hi"
+                      ? "पहले ख़ुद जाँचिए। हो सकता है जो दोष आपको बताया गया था, वह आपकी कुंडली में हो ही नहीं।"
+                      : "Check for yourself first. The dosh you were told about may not be in your chart at all."}
+                  </p>
+                  <p className={`mt-3 hidden sm:block text-[14.5px] text-muted leading-relaxed max-w-prose2 ${lang === "hi" ? "deva" : ""}`}>
+                    {lang === "hi"
+                      ? "आपकी जन्म कुंडली पर 14 प्रमुख दोषों की व्यक्तिगत जाँच — कौन सा वास्तव में है, कौन सा नहीं, प्रभाव कितना है, कोई योग उसे कम करता है या नहीं, और लागू होने पर सही उपाय क्या।"
+                      : "A personal check of 14 major doshas on your birth chart — which is real, which is not, how strong it is, whether a yoga reduces it, and the right remedy where one applies."}
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h1 className="mt-0 sm:mt-6">
+                    <span className="deva foil block text-[24px] sm:text-[64px] leading-[1.18] font-semibold -ml-[.02em]">
+                      {pitch?.deva}
+                    </span>
+                    <span className="display block text-[25px] sm:text-[64px] lg:text-[74px] leading-[1.02] sm:leading-[.98] mt-1">
+                      {(lang === "hi" ? d?.name_hi : d?.name_en) || " "}
+                    </span>
+                    {d && pages && (
+                      <span className="mt-1 block text-[12.5px] text-faint sm:hidden">
+                        {t.chaptersPages(d.chapters, pages)}
+                      </span>
+                    )}
+                  </h1>
+                  {pitch && (
+                    <>
+                      <p className="mt-4 sm:mt-7 text-[19px] sm:text-[24px] font-serif text-fg leading-snug">{pitch.line}</p>
+                      <p className="lede mt-4 max-w-prose2">{pitch.body}</p>
+                    </>
+                  )}
                 </>
               )}
+              {/* Four reasons to buy, and deliberately not the four the banner
+                  strip above already gives. That one covers what is checked,
+                  that it is written out in full, that it is quick, and that the
+                  remedies are usable — so repeating any of them here is the
+                  thing that made this block feel hollow. These are the ones it
+                  does not: the scoring, the chat, the chapter-per-dosh
+                  structure and the language. Every one is checked against the
+                  product: 28 chapters in the catalogue, a 0–100 severity band
+                  in detect-doshas.js, AskReport on the order page, and the full
+                  Devanagari label set in report-labels.js. */}
+              <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:hidden">
+                {t.perks.map(([label, sub]) => (
+                  <li key={label} className="flex gap-2">
+                    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+                         strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"
+                         className="text-brass shrink-0 mt-[3px]" aria-hidden>
+                      <path d="M20 6 9 17l-5-5" />
+                    </svg>
+                    <span className="min-w-0">
+                      <span className="block text-[13.5px] font-medium leading-snug">{label}</span>
+                      <span className="block text-[11.5px] text-faint leading-snug mt-0.5">{sub}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
               {err && <p className="mt-4 text-[14px] text-ember">{err}</p>}
 
               {/* Side by side, not stacked. Two full-width buttons in a column
                   read as a list of steps — "generate, then read a sample" —
                   when they are alternatives. Buy takes the wider share. */}
-              <div ref={ctaRef} className="mt-8 sm:mt-10 flex items-center gap-3">
+              <div ref={ctaRef} className="mt-5 sm:mt-10 flex items-center gap-3">
                 <button className="btn-brass h-[52px] px-5 sm:px-8 text-[15px] sm:text-[16px] flex-[1.35] sm:flex-none"
-                        onClick={() => onBuy(code, design, palette)}>
-                  <span className="sm:hidden">{t.buyShort(price)}</span>
-                  <span className="hidden sm:inline">{t.buyLong(price)}</span>
+                        onClick={() => { track("report_cta_click", { code, where: "hero", language: lang }); onBuy(code, design, palette); }}>
+                  {code === "dosh" ? (
+                    <span className={lang === "hi" ? "deva" : ""}>{lang === "hi" ? `मेरी कुंडली जांचें — ${price}` : `Check my chart — ${price}`}</span>
+                  ) : (<>
+                    <span className="sm:hidden">{t.buyShort(price)}</span>
+                    <span className="hidden sm:inline">{t.buyLong(price)}</span>
+                  </>)}
                 </button>
                 {d?.sample && (
                   <button className="btn-line h-[52px] px-4 sm:px-7 text-[15px] flex-1 sm:flex-none"
@@ -219,28 +304,32 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
                   </button>
                 )}
               </div>
-              <p className="mt-3.5 text-[12.5px] sm:text-[13px] text-faint">
-                {t.fastLine}
-              </p>
 
-              {/* Short. The long version lives on the refunds page, and a
-                  paragraph of reassurance at the top of a sales page reads as
-                  protesting too much. */}
-              <div className="mt-5 inline-flex items-center gap-2.5 rounded-full border border-brass/35
-                              bg-brassSoft/25 dark:bg-brass/10 pl-3 pr-4 py-2">
-                <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
-                     strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
-                     className="text-brass shrink-0" aria-hidden>
-                  <path d="M12 3l7.5 3v5.2c0 4.4-3 8.3-7.5 9.6-4.5-1.3-7.5-5.2-7.5-9.6V6z" />
-                  <path d="m9 12 2.2 2.2L15.5 10" />
-                </svg>
-                <p className="text-[13px] leading-tight text-fg">
-                  <strong>{t.refundStrong}</strong>
-                  <span className="text-muted">{t.refundRest}</span>
+              {/* Dosh: one small trust line under the CTA, identical everywhere. */}
+              {code === "dosh" && doshTrust("mt-4")}
+              {/* One line on a phone.
+                  This was three stacked blocks — the speed line, a refund pill
+                  and a three-badge strip — running to roughly two hundred
+                  pixels, with "100% refund, no questions" printed twice inside
+                  it. On a screen where almost nobody scrolls, that is the space
+                  the product itself needed. Desktop keeps the fuller version. */}
+              {code !== "dosh" && (<>
+                <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted sm:hidden">
+                  <span className="text-brass font-medium">{t.refundStrong}</span>
+                  <span className="text-line">·</span><span>{t.secureShort}</span>
+                  <span className="text-line">·</span><span>{t.fastShort}</span>
                 </p>
-              </div>
-
-              <TrustStrip className="mt-5" />
+                <p className="mt-3.5 text-[12.5px] sm:text-[13px] text-faint hidden sm:block">{t.fastLine}</p>
+                <div className="mt-5 hidden sm:inline-flex items-center gap-2.5 rounded-full border border-brass/35
+                                bg-brassSoft/25 dark:bg-brass/10 pl-3 pr-4 py-2">
+                  <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+                       strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="text-brass shrink-0" aria-hidden>
+                    <path d="M12 3l7.5 3v5.2c0 4.4-3 8.3-7.5 9.6-4.5-1.3-7.5-5.2-7.5-9.6V6z" /><path d="m9 12 2.2 2.2L15.5 10" />
+                  </svg>
+                  <p className="text-[13px] leading-tight text-fg"><strong>{t.refundStrong}</strong><span className="text-muted">{t.refundRest}</span></p>
+                </div>
+                <TrustStrip className="mt-5 hidden sm:flex" />
+              </>)}
             </div>
 
             {/* Desktop only. On a phone this sat directly under the refund
@@ -259,27 +348,14 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
       </section>
 
       {/* ── The three facts that decide the sale ─────────────────────────── */}
-      <section className="border-b border-line bg-sunken">
-        <div className="shell grid grid-cols-3 divide-x divide-line">
-          {[
-            [d ? String(d.chapters) : "—", t.chapters],
-            [pages ? String(pages) : "—", t.pagesLabel],
-            [price, t.oneTime]
-          ].map(([v, k], i) => (
-            <div key={i} className="py-8 sm:py-10 px-4 text-center">
-              <div className="display foil text-[38px] sm:text-[52px] leading-none">
-                <CountUp value={v} />
-              </div>
-              <div className="caps text-faint mt-3">{k}</div>
-            </div>
-          ))}
-        </div>
-      </section>
+
+      {code === "dosh" && <PitchVideo />}
+      {code === "dosh" && <DoshCRO onBuy={() => onBuy(code, design, palette)} price={price} />}
 
       {/* ── The sample, as a book you turn ──────────────────────────────── */}
       {shots.length > 1 && (
         <section ref={seenPages} className="relative overflow-hidden grain border-b border-line">
-          <div className="shell relative z-10 py-11 sm:py-24">
+          <div className="shell relative z-10 py-5 sm:py-24">
             <div className="flex items-end justify-between gap-6 flex-wrap">
               <div>
                 <p className="caps text-brass">{t.inside}</p>
@@ -302,7 +378,7 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
           price and the refund for the same glance; here it lands after the
           reader has seen what is actually in the book, which is the moment
           "what if I do not understand it" occurs to them. */}
-      <section className="shell py-11 sm:py-20">
+      <section className="shell py-5 sm:py-12">
         <div className="card p-5 sm:p-8 flex gap-4 sm:gap-6 items-start max-w-3xl mx-auto">
           <span className="shrink-0 h-11 w-11 sm:h-12 sm:w-12 rounded-full bg-brassSoft/50 dark:bg-brass/15
                            text-brass grid place-items-center">
@@ -341,7 +417,7 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
           phone — where the reader has already seen the actual sample above.
           `lg` rather than `sm`: a 700px window is not a desktop either. */}
       <section ref={seenEditions} className="hidden lg:block border-y border-line bg-sunken">
-        <div className="shell py-11 sm:py-20">
+        <div className="shell py-5 sm:py-12">
           <p className="caps text-brass">{t.chooseEdition}</p>
           <h2 className="display text-[22px] sm:text-[38px] mt-3">{t.threeTypesettings}</h2>
           <p className="lede mt-3 max-w-prose2">
@@ -371,41 +447,94 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
       </section>
 
       {/* ── The real table of contents ───────────────────────────────────── */}
-      <section ref={seenContents} className="shell py-11 sm:py-24">
+      <section ref={seenContents} className="shell py-5 sm:py-14">
         <p className="caps text-brass">{t.whatsInside}</p>
-        <h2 className="display text-[23px] sm:text-[44px] mt-3">
+        <h2 className="display text-[21px] sm:text-[36px] mt-2">
           {d ? t.allChapters(d.chapters) : t.contents}
         </h2>
-        <p className="lede mt-3 max-w-prose2">
+        <p className="mt-2 text-[14px] sm:text-[17px] leading-relaxed text-muted max-w-prose2">
           {t.contentsBody}
         </p>
 
-        <ol className="mt-12 grid md:grid-cols-2 gap-x-14">
+        {/* Tighter rows on a phone. This ran to fifteen hundred pixels — the
+            tallest block on the page — for what is a list of chapter titles.
+            The subtitles are the bulk of it, and they are detail for somebody
+            already reading, so they wait for the desktop width. */}
+        <ol className="mt-5 sm:mt-10 grid md:grid-cols-2 gap-x-14">
           {shown.map((c, i) => (
             <motion.li key={c.n}
               initial={reduce ? false : { opacity: 0, y: 14 }}
               animate={reduce ? undefined : { opacity: 1, y: 0 }}
               transition={{ duration: .45, delay: Math.min(i, 13) * .035, ease: [0.22, 0.7, 0.2, 1] }}
-              className="group flex gap-5 py-4 border-b border-line">
+              className="group flex gap-3 sm:gap-5 py-2 sm:py-4 border-b border-line">
               <span className="font-serif text-[13px] text-brass pt-[3px] w-7 shrink-0 tabular-nums">
                 {String(c.n).padStart(2, "0")}
               </span>
               <span>
-                <span className="block text-[16px] font-medium leading-snug transition-colors
+                <span className="block text-[14.5px] sm:text-[16px] font-medium leading-snug transition-colors
                                  group-hover:text-brass">{c.title}</span>
-                {c.subtitle && <span className="block text-[13.5px] text-muted mt-1">{c.subtitle}</span>}
+                {c.subtitle && (
+                  <span className="hidden sm:block text-[13.5px] text-muted mt-1">{c.subtitle}</span>
+                )}
               </span>
             </motion.li>
           ))}
         </ol>
         {d && d.outline.length > shown.length && (
-          <button className="btn-line mt-10" onClick={() => setAllChapters(true)}>
+          <button className="btn-line mt-5 sm:mt-10" onClick={() => setAllChapters(true)}>
             {t.showAll(d.outline.length)}
           </button>
         )}
       </section>
 
       {/* ── Close ────────────────────────────────────────────────────────── */}
+      {/* ── Who it is for, and the questions this report raises ──────────────
+          The FAQPage schema in lib/seo.ts is built from this same array, so the
+          structured data can only describe answers that are on the page. ── */}
+      {REPORT_FAQ[code] && (() => {
+        // Dosh in Hindi mode uses the full Hindi FAQ so the section never mixes
+        // languages; every other case keeps the existing (English) content.
+        const hiDosh = code === "dosh" && lang === "hi";
+        const faq = hiDosh ? DOSH_FAQ_HI : REPORT_FAQ[code];
+        const deva = lang === "hi" ? "deva" : "";
+        return (
+        <section className="border-t border-line">
+          <div className="shell py-5 sm:py-12 max-w-prose2">
+            <h2 className={`display text-[21px] sm:text-[28px] leading-tight ${deva}`}>
+              {lang === "hi" ? "यह रिपोर्ट किसके लिए है?" : "Who is this for?"}
+            </h2>
+            <p className={`mt-3 text-[15px] leading-relaxed text-muted ${deva}`}>{faq.forWhom}</p>
+
+            <h3 className={`display text-[18px] sm:text-[22px] mt-9 ${deva}`}>
+              {lang === "hi" ? "इस रिपोर्ट से जुड़े सवाल" : "Questions about this report"}
+            </h3>
+            <div className="mt-4">
+              <Faq items={faq.faqs} idPrefix={`faq-${code}`} />
+            </div>
+
+            <p className={`mt-6 text-[13.5px] text-muted ${deva}`}>
+              {lang === "hi" ? "कुंडली कैसे गणना होती है: " : "How the chart behind it is computed: "}
+              <Link to="/methodology" className="underline decoration-brass/50 underline-offset-4 hover:decoration-brass">
+                {lang === "hi" ? "पद्धति" : "the methodology"}
+              </Link>
+              {code === "dosh" && (
+                <>
+                  {" · "}
+                  <Link to="/learn" className="underline decoration-brass/50 underline-offset-4 hover:decoration-brass">
+                    {lang === "hi" ? "चौदहों दोष, समझाए हुए" : "all fourteen doshas, explained"}
+                  </Link>
+                </>
+              )}
+              {" · "}
+              <Link to="/reports" className="underline decoration-brass/50 underline-offset-4 hover:decoration-brass">
+                {lang === "hi" ? "बाक़ी रिपोर्ट" : "the other reports"}
+              </Link>
+            </p>
+          </div>
+        </section>
+        );
+      })()}
+
       <section ref={seenClose} className="relative overflow-hidden grain lamp border-t border-line">
         <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
                         w-[560px] max-w-[110vw] text-brass opacity-[.18]">
@@ -414,7 +543,7 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
             <ChartMark className="w-full h-auto" draw={false} weight={0.4} numerals={false} />
           </motion.div>
         </div>
-        <div className="shell relative z-10 py-12 sm:py-28 text-center">
+        <div className="shell relative z-10 py-7 sm:py-28 text-center">
           <span className="mx-auto mb-8 block h-8 w-px bg-gradient-to-b from-transparent to-brass" />
           <p className="deva foil text-[23px] sm:text-[40px] leading-[1.2] font-semibold">{pitch?.deva}</p>
           <h2 className="display text-[24px] sm:text-[46px] mt-3 max-w-[16ch] mx-auto leading-[1.05]">
@@ -422,17 +551,16 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
           </h2>
           <div className="mt-10">
             <button className="btn-brass h-[54px] px-9 text-[16px]"
-                    onClick={() => onBuy(code, design, palette)}>
-              {t.buyLong(price)}
+                    onClick={() => { track("report_cta_click", { code, where: "closing", language: lang }); onBuy(code, design, palette); }}>
+              {code === "dosh" ? <span className={lang === "hi" ? "deva" : ""}>{lang === "hi" ? `मेरी कुंडली जांचें — ${price}` : `Check my chart — ${price}`}</span> : t.buyLong(price)}
             </button>
           </div>
-          <p className="mt-4 text-[13px] text-faint">{t.allWeNeed}</p>
-          {/* Repeated at the bottom because this is where the reader who scrolled
-              the whole page decides, and they should not have to scroll back up
-              to be reminded there is nothing to lose. */}
-          <p className="mt-2 text-[13px] text-brass">
-            {t.refundLine}
-          </p>
+          {code === "dosh" ? (
+            <div className="mt-4 flex justify-center">{doshTrust()}</div>
+          ) : (<>
+            <p className="mt-4 text-[13px] text-faint">{t.allWeNeed}</p>
+            <p className="mt-2 text-[13px] text-brass">{t.refundLine}</p>
+          </>)}
           <div aria-hidden className="h-20 sm:hidden" />
         </div>
       </section>
@@ -463,14 +591,19 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
            style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div className="shell py-3 flex items-center gap-4">
           <div className="shrink-0">
-            <div className="display text-[20px] leading-none">{price}</div>
+            <div className="flex items-baseline gap-1.5">
+              {pv.discounted && (
+                <span className="text-[13px] text-faint line-through decoration-faint/70">{pv.listText}</span>
+              )}
+              <span className="display text-[20px] leading-none">{price}</span>
+            </div>
             <div className="text-[11px] text-faint mt-1">
               {d ? t.chaptersCount(d.chapters) : "\u00a0"}
             </div>
           </div>
           <button className="btn-brass flex-1 h-[50px] text-[15.5px]"
-                  onClick={() => onBuy(code, design, palette)}>
-            {t.buyBare}
+                  onClick={() => { track("report_cta_click", { code, where: "sticky", language: lang }); onBuy(code, design, palette); }}>
+            {code === "dosh" ? <span className={lang === "hi" ? "deva" : ""}>{lang === "hi" ? `मेरी कुंडली जांचें — ${price}` : `Check my chart — ${price}`}</span> : t.buyBare}
           </button>
         </div>
       </div>

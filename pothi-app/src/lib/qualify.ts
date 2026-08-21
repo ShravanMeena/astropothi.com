@@ -89,3 +89,20 @@ export function useQualifyWatcher() {
     return () => { stop(); unsub(); };
   }, []);
 }
+
+/**
+ * Stand the welcome sheet down for this visit.
+ *
+ * The sheet and the free chart check now both ask a visitor for their details,
+ * and the sheet asks by covering the page. Put one above the other and the
+ * sheet wins: it opened on top of the chart-check form, so the place-of-birth
+ * field could be seen but not tapped — measured, the element under that field's
+ * centre was a paragraph belonging to the dialog.
+ *
+ * The chart check is the better of the two anyway. It gives an answer before it
+ * asks for anything, and the details it collects are the same ones checkout
+ * needs. So once somebody starts filling it in, the sheet stops competing.
+ */
+let welcomeHeld = false;
+export const holdWelcome = () => { welcomeHeld = true; };
+export const isWelcomeHeld = () => welcomeHeld;

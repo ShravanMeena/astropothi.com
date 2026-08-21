@@ -16,10 +16,10 @@ export default function Engine() {
   const FACTS = t.engineFacts;
   return (
     <section id="engine" className="relative overflow-hidden grain lamp border-y border-line scroll-mt-20">
-      <div className="shell relative z-10 py-12 sm:py-28 grid lg:grid-cols-[.95fr_1.05fr] gap-14 items-center">
+      <div className="shell relative z-10 py-5 sm:py-14 grid lg:grid-cols-[.95fr_1.05fr] gap-8 items-center">
         <div>
           <p className="caps text-brass">{t.engineEyebrow}</p>
-          <h2 className="display text-[24px] sm:text-[46px] mt-3 leading-[1.05]">
+          <h2 className="display text-[21px] sm:text-[32px] mt-2 leading-[1.08]">
             {t.engineTitleA}<br />{t.engineTitleB}
           </h2>
           <p className="lede mt-5 max-w-prose2">

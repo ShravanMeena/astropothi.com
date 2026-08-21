@@ -1,7 +1,8 @@
+import type { Window as AdminWindow } from "../types";
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, rupees, num, when, ms } from "../api";
 import type { OrderRow, OrderDetail } from "../types";
-import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Loading, Empty, ErrorNote, Search, Segmented, Btn, Drawer, Facts, SubHead, Hint, Confirm } from "../ui";
+import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Loading, Empty, ErrorNote, Search, Segmented, Btn, Drawer, Facts, SubHead, Hint, Confirm, RangeBar } from "../ui";
 
 /** Rows per fetch. Big enough to scroll, small enough to arrive quickly. */
 const PAGE = 50;
@@ -12,7 +13,7 @@ const FILTERS = [
   { value: "refunded", label: "Refunded" }
 ];
 
-export default function Orders() {
+export default function Orders({ window: w, setWindow }: { window: AdminWindow; setWindow: (w: AdminWindow) => void }) {
   const [status, setStatus] = useState("all");
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<OrderRow[]>([]);
@@ -27,11 +28,11 @@ export default function Orders() {
 
   const load = useCallback(() => {
     setLoading(true); setErr("");
-    adminApi.get(`/orders?status=${status}&q=${encodeURIComponent(q)}&limit=${limit}`)
+    adminApi.get(`/orders?status=${status}&q=${encodeURIComponent(q)}&window=${w}&limit=${limit}`)
       .then((d) => { setRows(d.orders); setTotal(d.total); })
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
-  }, [status, q, limit]);
+  }, [status, q, limit, w]);
 
   useEffect(load, [load]);
   // A filter or a search is a new question; answering it with page four of the
@@ -40,6 +41,7 @@ export default function Orders() {
 
   return (
     <>
+      <RangeBar value={w} onChange={setWindow} />
       <Panel title="Orders" sub={`${num(total)} matching`}
              right={<div className="flex flex-wrap items-center gap-2 justify-end">
                <Segmented value={status} onChange={setStatus} options={FILTERS} />

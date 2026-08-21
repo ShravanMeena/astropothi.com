@@ -169,7 +169,10 @@ export function adminRoute() {
 
   // ── behaviour ─────────────────────────────────────────────────────────────
   r.get("/events", h(async (req, res) => ok(res, await A.listEvents(req.query))));
+  r.get("/events/sources", h(async (req, res) => ok(res, await A.eventSources(req.query))));
   r.get("/events/funnel", h(async (req, res) => ok(res, await A.funnel(req.query))));
+  r.get("/events/drop-off", h(async (req, res) => ok(res, await A.dropOff(req.query))));
+  r.get("/events/dwell", h(async (req, res) => ok(res, await A.dwell(req.query))));
   r.get("/events/by-day", h(async (req, res) => ok(res, await A.activityByDay(req.query))));
   r.get("/events/by-report", h(async (req, res) => ok(res, await A.reportInterest(req.query))));
   r.get("/events/revenue-by-source", h(async (req, res) =>

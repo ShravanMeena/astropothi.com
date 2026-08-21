@@ -109,6 +109,19 @@ for (const p of paths) {
   }
   const types = graph.map((n) => n["@type"]);
   ok(types.includes("Organization"), `${p}: Organization schema`);
+
+  // Every FAQ question in the schema must be findable in the page text.
+  // Structured data describing answers a visitor cannot reach is the most
+  // commonly penalised abuse there is, and it is invisible without this check:
+  // the page still renders, the schema still validates, and only Search Console
+  // ever complains — months later.
+  const schemaQs = graph
+    .filter((n) => n["@type"] === "FAQPage")
+    .flatMap((n) => (n.mainEntity || []).map((q) => q.name));
+  for (const q of schemaQs) {
+    const needle = q.slice(0, 38).replace(/\s+/g, " ");
+    ok(text.includes(needle), `${p}: FAQ question is on the page`, q.slice(0, 52));
+  }
   ok(types.includes("WebSite"), `${p}: WebSite schema`);
 
   if (p.startsWith("/report/")) {

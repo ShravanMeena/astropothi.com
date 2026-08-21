@@ -1,0 +1,37 @@
+# astropothi
+
+> astropothi creates personalised Vedic astrology reports from a person's date of birth,
+> exact birth time and birthplace. It computes the birth chart from an astronomical
+> ephemeris using the Lahiri (Chitrapaksha) ayanamsa and whole-sign houses, then writes
+> the result out in full — 22 to 64 chapters — in English or Hindi.
+
+Operated by DreamyHook Digital Media. Reports are for reflection and guidance; they are
+not medical, legal or financial advice.
+
+## Methodology
+- [How a report is computed](https://astropothi.com/methodology): the ephemeris, ayanamsa, house system,
+  the invariants every chart is checked against, and where language is written rather than computed.
+
+## Reports
+- [Premium Personalised Kundali](https://astropothi.com/report/kundli)
+- [Kundali Dosh Report](https://astropothi.com/report/dosh)
+- [Love & Marriage](https://astropothi.com/report/love)
+- [Health Report](https://astropothi.com/report/health)
+- [Personalised Horoscope](https://astropothi.com/report/horoscope)
+- [Laal Kitaab Report](https://astropothi.com/report/laalkitab)
+- [Varshaphal (Annual)](https://astropothi.com/report/varshaphal)
+- [Career & Livelihood](https://astropothi.com/report/career)
+- [Vastu Wheel Report](https://astropothi.com/report/vastu)
+- [Couples Challenge](https://astropothi.com/report/couples)
+
+## Reference
+- [Doshas explained](https://astropothi.com/learn) — fourteen doshas, how each forms, what cancels it.
+- [दोष, हिन्दी में](https://astropothi.com/hi/learn)
+- [Questions](https://astropothi.com/faq)
+- [About](https://astropothi.com/about)
+
+## Policies
+- [Terms](https://astropothi.com/terms)
+- [Privacy](https://astropothi.com/privacy)
+- [Refunds](https://astropothi.com/refunds) — full refund, no conditions.
+- [Contact](https://astropothi.com/contact)

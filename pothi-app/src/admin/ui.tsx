@@ -1,3 +1,4 @@
+import type { Window as AdminWindow } from "./types";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { rupees, num } from "./api";
 
@@ -92,7 +93,10 @@ export const PinnedHead = ({ children }: { children: ReactNode }) => (
 export const Td = ({ children, align = "left", mono, dim, className = "" }: {
   children?: ReactNode; align?: "left" | "right"; mono?: boolean; dim?: boolean; className?: string;
 }) => (
-  <td className={`px-3 py-2.5 align-top border-b border-line/60 ${align === "right" ? "text-right tabular-nums" : ""}
+  // break-words, so one unbroken 400-character URL cannot widen the table past
+  // the viewport and push every other column out of sight.
+  <td className={`px-3 py-2.5 align-top border-b border-line/60 break-words
+                  ${align === "right" ? "text-right tabular-nums" : ""}
                   ${mono ? "font-mono text-[11.5px]" : ""} ${dim ? "text-muted" : "text-fg"} ${className}`}>
     {children}
   </td>
@@ -706,6 +710,35 @@ export function Confirm({ open, title, body, confirmLabel = "Confirm", tone = "b
           <Btn tone={tone} busy={busy} onClick={() => onConfirm(note)}>{confirmLabel}</Btn>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+/**
+ * The date range every admin screen is read through.
+ *
+ * It used to exist only on Overview, so "how many orders" meant all orders ever
+ * on one tab and today's on another, and nothing said which. One control, one
+ * vocabulary, and it defaults to Today because the question staff actually ask
+ * of this panel is what happened today.
+ *
+ * The boundary is a real Indian day, not the last 24 hours — see windowStart()
+ * in admin.service.js.
+ */
+export const WINDOWS: { value: AdminWindow; label: string }[] = [
+  { value: "today", label: "Today" }, { value: "7d", label: "7 days" },
+  { value: "30d", label: "30 days" }, { value: "all", label: "All time" }
+];
+
+
+export function RangeBar({ value, onChange, right }: {
+  value: AdminWindow; onChange: (w: AdminWindow) => void; right?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <Segmented value={value} onChange={onChange} options={WINDOWS} />
+      {right}
     </div>
   );
 }

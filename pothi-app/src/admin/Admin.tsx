@@ -34,7 +34,9 @@ const TABS: { id: Tab; label: string; icon: ReactNode }[] = [
  */
 export default function Admin({ onSignOut }: { onSignOut: () => void }) {
   const [tab, setTab] = useState<Tab>("overview");
-  const [window_, setWindow] = useState<Window>("30d");
+  // Today by default, on every tab. The panel is read to answer "what happened
+  // today", and a 30-day default quietly answered a different question.
+  const [window_, setWindow] = useState<Window>("today");
   const [me, setMe] = useState<Me | null>(null);
   const [env, setEnv] = useState<Environment | null>(null);
   const [fatal, setFatal] = useState("");
@@ -130,10 +132,10 @@ export default function Admin({ onSignOut }: { onSignOut: () => void }) {
         {!fatal && (
           <>
             {tab === "overview" && <Overview window={window_} setWindow={setWindow} />}
-            {tab === "orders"   && <Orders />}
-            {tab === "users"    && <Users />}
-            {tab === "reports"  && <Reports />}
-            {tab === "behaviour" && <Behaviour />}
+            {tab === "orders"   && <Orders window={window_} setWindow={setWindow} />}
+            {tab === "users"    && <Users window={window_} setWindow={setWindow} />}
+            {tab === "reports"  && <Reports window={window_} setWindow={setWindow} />}
+            {tab === "behaviour" && <Behaviour window={window_} setWindow={setWindow} />}
             {tab === "pricing"  && <Pricing />}
             {tab === "pandits"  && <Pandits />}
             {tab === "ops"      && <Ops environment={env} />}

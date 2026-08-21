@@ -6,9 +6,10 @@ import { ask, suggestions } from "./ask.service.js";
 import { chat as aiChat } from "../ai/chat.service.js";
 import * as ChatLog from "./chat-log.service.js";
 import * as LLM from "../ai/llm.js";
-import { COVER_PALETTE, getReportType } from "../catalog/catalog.js";
+import { COVER_PALETTE, getReportType, LIST_PRICE_PAISE } from "../catalog/catalog.js";
 import * as Pricing from "../catalog/pricing.service.js";
 import { getPreview, getThumb } from "../catalog/preview.service.js";
+import * as ChartCheck from "./chart-check.service.js";
 import config from "../../config.js";
 import db from "../../database/index.js";
 import { consumerCatalogue } from "../catalog/catalog.js";
@@ -62,7 +63,11 @@ export function noAuth() {
       // Which edition this sample actually is, so the picker on the detail page
       // can start where the book starts rather than on its own default.
       design, palette,
-      chapters: type.chapters, price_paise: await Pricing.priceOf(type.code),
+      chapters: type.chapters,
+      price_paise: await Pricing.priceOf(type.code),
+      // The shelf price, so the detail page can strike it through. Always sent;
+      // the UI shows it only when it is higher than what is charged.
+      list_paise: LIST_PRICE_PAISE,
       // The preview is the real book in the design the reader is looking at, so
       // its page count is the true one. The outline's is a floor: it renders
       // without the AI expansion, which is what makes it fast.
@@ -85,6 +90,24 @@ export function noAuth() {
   }));
 
   /** Check a code without creating anything. */
+  /**
+   * One real answer about the visitor's own chart, before they pay.
+   *
+   * Unauthenticated and free, so it is rate limited: it is the only public
+   * endpoint here that does an ephemeris solve per call.
+   */
+  r.post("/chart-check", h(async (req, res) => {
+    const ip = (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.ip || "unknown";
+    if (ChartCheck.rateLimited(ip))
+      return fail(res, "Too many checks from this connection. Try again in a few minutes.", 429);
+    try {
+      return ok(res, await ChartCheck.chartCheck(req.body || {}));
+    } catch (e) {
+      if (e.code === 400) return fail(res, e.message, 400);
+      throw e;
+    }
+  }));
+
   r.post("/coupon", h(async (req, res) => {
     const code = String(req.body?.code || "").trim();
     const type = getReportType(req.body?.report_type);

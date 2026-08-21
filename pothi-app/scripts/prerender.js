@@ -136,7 +136,8 @@ async function proxy(req, res, url) {
 
 function startServer() {
   const server = createServer((req, res) => {
-    const url = decodeURIComponent((req.url || "/").split("?")[0]);
+    const rawUrl = req.url || "/";                       // keeps the query string
+    const url = decodeURIComponent(rawUrl.split("?")[0]);
     // Report pages get their name, price and chapter count from the API. Stub
     // those calls out and the snapshot still passes a naive "did it render"
     // check while shipping a page whose headline is blank and whose price is
@@ -144,7 +145,7 @@ function startServer() {
     // So proxy them to a real API instead: a local one if the developer has it
     // up, otherwise the live site, which serves the same public catalogue.
     if (/^\/(api|user-api|admin-api|noauth-api|files|health)\b/.test(url)) {
-      return proxy(req, res, url);
+      return proxy(req, res, rawUrl);
     }
     let file = join(DIST, url);
     // Fall back to the shell, not index.html — "/" is snapshotted into

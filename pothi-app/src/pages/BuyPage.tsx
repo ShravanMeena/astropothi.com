@@ -5,6 +5,7 @@ import { track, flush, identify } from "../lib/track";
 import { useKeyboardInset } from "../lib/keyboard";
 import { api, rupees, type ReportItem } from "../lib/api";
 import PlaceInput from "../sections/PlaceInput";
+import { savedBirthDetails } from "../lib/chartCheck";
 import { DateField, TimeField, Select } from "../components/Picker";
 import { setUserToken, useMe } from "../lib/account";
 import VastuForm, { type VastuValue } from "../components/VastuForm";
@@ -75,7 +76,7 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
     // the wrong person's chart, in a language they may not read — and both are
     // printed on every page, so the mistake is expensive and obvious only after
     // paying. Neither has a defensible default, so both are asked.
-    name: "", gender: "", dob: "", tob: "", pob: "", place_id: "",
+    name: "", gender: "", dob: "", tob: "", tob_unknown: false, pob: "", place_id: "",
     language: "", buyer_phone: "", buyer_email: "",
     // Only used by property reports; the server ignores them otherwise.
     facing: "", property_type: "home", rooms: {} as Record<string, string>,
@@ -127,6 +128,31 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
       buyer_email: prev.buyer_email || me.user.email || ""
     }));
   }, [me]);
+
+  /**
+   * Birth details carried over from the free chart check.
+   *
+   * Somebody who just typed their date, time and place to get an answer should
+   * not be asked for the same three fields again one click later. That re-entry
+   * sits exactly where the funnel leaks: nine devices reached checkout in
+   * thirty days and three pressed pay.
+   *
+   * Runs once, and never overwrites something already typed here.
+   */
+  const carried = useRef(false);
+  useEffect(() => {
+    if (carried.current) return;
+    carried.current = true;
+    const b = savedBirthDetails();
+    if (!b) return;
+    setF((prev) => ({
+      ...prev,
+      dob: prev.dob || b.dob,
+      tob: prev.tob || b.tob,
+      pob: prev.pob || b.pob,
+      place_id: prev.place_id || b.place_id
+    }));
+  }, []);
 
   const [coupon, setCoupon] = useState("");
   const [applied, setApplied] = useState<{ code: string; discount_paise: number; final_paise: number } | null>(null);
@@ -355,7 +381,29 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
                 <DateField value={f.dob} onChange={(v) => patch({ dob: v })} />
               </Field>
               <Field id="field-tob" label={b.tob} error={errors.tob}>
-                <TimeField value={f.tob} onChange={(v) => patch({ tob: v })} />
+                <div className={f.tob_unknown ? "opacity-40 pointer-events-none" : ""}>
+                  <TimeField value={f.tob} onChange={(v) => patch({ tob: v })} />
+                </div>
+                {/* Offered rather than forced. Somebody who does not know will
+                    otherwise invent a time, and an invented time is worse than
+                    a recorded one — ticking this stores tob_unknown on the
+                    order so support and the report can act on it.
+                    Deliberately no explanation underneath: a paragraph about
+                    which chapters degrade is a lecture at the moment somebody
+                    is trying to pay. It belongs in the FAQ, where it already
+                    is. */}
+                <label className="mt-2 flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" checked={!!f.tob_unknown}
+                         onChange={(e) => patch({
+                           tob_unknown: e.target.checked,
+                           // Noon: the least-wrong stand-in, and it keeps the
+                           // field valid so the form can be submitted.
+                           tob: e.target.checked ? "12:00" : ""
+                         })}
+                         className="h-4 w-4 rounded border-line text-brass focus:ring-brass/40" />
+                  <span className="text-[12.5px] text-muted">{b.tobUnknown}</span>
+                </label>
+
               </Field>
             </div>
             <Field id="field-place_id" label={b.pob} error={errors.place_id}
@@ -454,10 +502,6 @@ export default function BuyPage({ item, design, palette, onDone, onBack }: {
         </button>
         <SecureNote />
       </div>
-
-      <p className="text-[12px] text-faint mt-6 max-w-prose2 leading-relaxed">
-        {b.legal}
-      </p>
 
       {/*
         Mobile: the form is taller than the screen, so a button at the bottom of

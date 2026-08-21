@@ -8,7 +8,7 @@ export const EVENTS = {
   sample_page_turned: "browse", design_changed: "browse", guide_opened: "browse",
   guide_answered: "browse", guide_recommended: "browse",
 
-  buy_clicked: "checkout", checkout_started: "checkout", checkout_field_error: "checkout",
+  buy_clicked: "checkout", report_cta_click: "checkout", checkout_started: "checkout", checkout_field_error: "checkout",
   pay_clicked: "checkout", payment_redirected: "checkout", payment_returned: "checkout",
   order_ready: "checkout",
 
@@ -36,7 +36,30 @@ export const EVENTS = {
 
   // Which language the report page was read in. Every scroll and section event
   // carries it too, so "does Hindi sell better" is answerable rather than felt.
-  language_selected: "browse"
+  language_selected: "browse",
+
+  // Engagement, as opposed to arrival. report_viewed fires the instant a report
+  // page mounts; report_engaged waits for twelve seconds, a quarter of the page
+  // or an act of intent. The Meta Pixel's ViewContent rides on the second one,
+  // so the two must stay distinguishable here as well.
+  report_engaged: "browse",
+
+  // The promo strip and the pitch clip on the dosh page.
+  banner_viewed: "browse", banner_dot_clicked: "browse", banner_clicked: "checkout",
+  video_played: "browse", video_unmuted: "browse",
+
+  // The free chart check. `done` carries whether the verdict came back positive
+  // and whether a birth time was known, which is how we find out if giving the
+  // answer away costs the sale or wins it.
+  chart_check_started: "browse", chart_check_done: "browse",
+  chart_check_failed: "browse",
+
+  // The learn pages.
+  learn_cta_clicked: "browse",
+
+  // A URL nobody should have reached. A spike here is almost always a link we
+  // broke ourselves.
+  not_found: "browse"
 };
 
 const str = (v, n) => (v === undefined || v === null ? null : String(v).slice(0, n));

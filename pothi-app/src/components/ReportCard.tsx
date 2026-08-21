@@ -2,7 +2,8 @@ import Link from "./Link";
 import { useLang } from "../lib/lang";
 import { homeUi } from "../lib/homeStrings";
 import ReportCover from "./ReportCover";
-import { rupees, type ReportItem } from "../lib/api";
+import { priceView } from "../lib/price";
+import { type ReportItem } from "../lib/api";
 
 /**
  * One report, as a card. The only one — the home page and /reports used to
@@ -42,6 +43,7 @@ export default function ReportCard({ item, onPick, featured = false }: {
 }) {
   const [lang] = useLang();
   const c = REPORT_COPY[item.code];
+  const pv = priceView(item);
   // The Devanagari word stays in REPORT_COPY — it is the same in both
   // languages. Only the hook and the description are copy.
   const h = homeUi(lang);
@@ -90,7 +92,10 @@ export default function ReportCard({ item, onPick, featured = false }: {
         {/* mt-auto pins this to the bottom whatever the copy above did. */}
         <span className="mt-auto pt-2.5 sm:pt-4 flex items-center justify-between gap-3">
           <span className="flex items-baseline gap-2">
-            <span className="display text-[19px] text-brass">{rupees(item.price_paise)}</span>
+            {pv.discounted && (
+              <span className="text-[13px] text-faint line-through decoration-faint/70">{pv.listText}</span>
+            )}
+            <span className="display text-[19px] text-brass">{pv.nowText}</span>
             <span className="text-[11.5px] text-faint">{h.chaptersCount(item.chapters)}</span>
           </span>
           <span aria-hidden

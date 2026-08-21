@@ -1,9 +1,10 @@
+import type { Window as AdminWindow } from "../types";
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, rupees, num, when, ago } from "../api";
 import type { UserRow, UserDetail } from "../types";
-import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Search, Btn, Drawer, Facts, SubHead, Hint } from "../ui";
+import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Search, Btn, Drawer, Facts, SubHead, Hint, RangeBar } from "../ui";
 
-export default function Users() {
+export default function Users({ window: w, setWindow }: { window: AdminWindow; setWindow: (w: AdminWindow) => void }) {
   const [q, setQ] = useState("");
   const [rows, setRows] = useState<UserRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -13,16 +14,17 @@ export default function Users() {
 
   const load = useCallback(() => {
     setLoading(true); setErr("");
-    adminApi.get(`/users?q=${encodeURIComponent(q)}&limit=200`)
+    adminApi.get(`/users?q=${encodeURIComponent(q)}&window=${w}&limit=200`)
       .then((d) => { setRows(d.users); setTotal(d.total); })
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
-  }, [q]);
+  }, [q, w]);
 
   useEffect(load, [load]);
 
   return (
     <>
+      <RangeBar value={w} onChange={setWindow} />
       <Panel title="Buyers" sub={`${num(total)} account${total === 1 ? "" : "s"} · ordered by lifetime value`}
              right={<Search value={q} onChange={setQ} placeholder="Phone, name or email" />}>
         {err && <ErrorNote error={err} />}

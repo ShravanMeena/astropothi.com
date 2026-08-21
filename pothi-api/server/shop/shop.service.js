@@ -84,6 +84,12 @@ export async function createOrder(input) {
     birth: (isProperty || isCouple) ? null : {
       name: input.name, dob: input.dob, tob: input.tob, pob: input.pob,
       lat: hit.lat, lon: hit.lon, tzone: hit.tzone,
+      // Recorded, because a chart cast for midday because nobody knew the time
+      // is a different thing from one cast for a time somebody gave us, and six
+      // months later nothing else in the row would tell them apart. Support
+      // needs it to answer "why does my ascendant look wrong", and it is what a
+      // caveat printed inside the report would key off.
+      tob_unknown: Boolean(input.tob_unknown),
       gender: ["male", "female", "other"].includes(input.gender) ? input.gender : "male"
     },
     property: isProperty ? {

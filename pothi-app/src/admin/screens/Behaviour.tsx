@@ -1,9 +1,9 @@
+import type { Window as AdminWindow } from "../types";
 import { useEffect, useState } from "react";
-import { adminApi, num, when, ago, rupees } from "../api";
+import { adminApi, num, when, ago, rupees, ms } from "../api";
 import {
-  Panel, TableWrap, Th, Td, Tr, Tag, Chip, Loading, Empty, ErrorNote,
-  Segmented, Tile, Drawer, Note, SubHead, ActivityChart, FunnelSteps
-} from "../ui";
+  Panel, TableWrap, Th, Td, Tr, Tag, Loading, Empty, ErrorNote,
+   Tile, Drawer, Note, SubHead, ActivityChart, FunnelSteps, RangeBar } from "../ui";
 
 type Step = { step: string; people: number; of_first: number; dropped: number };
 type Day = { day: string; visitors: number; viewed: number; checkout: number; pay: number; events: number };
@@ -24,12 +24,6 @@ type Hop = {
  *  enough that the charts above stay on the same screen. */
 const EVENT_PREVIEW = 25;
 
-const WINDOWS = [
-  { value: "7", label: "7 days" },
-  { value: "30", label: "30 days" },
-  { value: "90", label: "90 days" }
-];
-
 /**
  * What people do on the site, and where they stop doing it.
  *
@@ -37,8 +31,20 @@ const WINDOWS = [
  * page eleven times is one interested person, and a table that says eleven
  * would send us optimising the wrong thing.
  */
-export default function Behaviour() {
-  const [days, setDays] = useState("30");
+export default function Behaviour({ window: w, setWindow }: { window: AdminWindow; setWindow: (w: AdminWindow) => void }) {
+  /**
+   * The shared window, in the units these endpoints speak.
+   *
+   * This screen had its own 7/30/90 selector, which meant two range controls on
+   * one page disagreeing about what "the period" was. "All time" maps to 180 —
+   * the ceiling activityByDay() clamps to anyway, so asking for more would
+   * silently return less than it claimed.
+   */
+  const days = ({ today: "1", "7d": "7", "30d": "30", all: "180" } as const)[w];
+  const [source, setSource] = useState("");
+  const [drop, setDrop] = useState<{ last_event: string; devices: number; avg_seconds: number; avg_events: string }[] | null>(null);
+  const [dwell, setDwell] = useState<{ bucket: string; devices: number }[] | null>(null);
+  const [sources, setSources] = useState<{ source: string; devices: number }[]>([]);
   const [funnel, setFunnel] = useState<Step[] | null>(null);
   const [interest, setInterest] = useState<Interest[] | null>(null);
   const [events, setEvents] = useState<Ev[] | null>(null);
@@ -55,12 +61,19 @@ export default function Behaviour() {
   useEffect(() => {
     setFunnel(null); setInterest(null); setEvents(null); setRev(null); setAcq(null); setByDay(null);
     adminApi.get(`/events/by-day?days=${days}`).then(setByDay).catch((e) => setErr(e.message));
-    adminApi.get(`/events/funnel?days=${days}`).then(setFunnel).catch((e) => setErr(e.message));
+    adminApi.get(`/events/funnel?days=${days}&source=${encodeURIComponent(source)}`)
+      .then(setFunnel).catch((e) => setErr(e.message));
+    adminApi.get(`/events/drop-off?days=${days}&source=${encodeURIComponent(source)}`)
+      .then(setDrop).catch(() => {});
+    adminApi.get(`/events/dwell?days=${days}&source=${encodeURIComponent(source)}`)
+      .then(setDwell).catch(() => {});
     adminApi.get(`/events/by-report?days=${days}`).then(setInterest).catch((e) => setErr(e.message));
-    adminApi.get(`/events?days=${days}&limit=200`).then(setEvents).catch((e) => setErr(e.message));
+    adminApi.get(`/events?days=${days}&source=${encodeURIComponent(source)}&limit=200`)
+      .then(setEvents).catch((e) => setErr(e.message));
+    adminApi.get(`/events/sources?days=${days}`).then(setSources).catch(() => {});
     adminApi.get(`/events/revenue-by-source?days=${days}`).then(setRev).catch((e) => setErr(e.message));
     adminApi.get(`/events/acquisition?days=${Math.max(90, Number(days))}`).then(setAcq).catch((e) => setErr(e.message));
-  }, [days]);
+  }, [days, source]);
 
   const openJourney = async (anonId: string) => {
     setJourney({ id: anonId, hops: [] });
@@ -95,10 +108,27 @@ export default function Behaviour() {
 
   return (
     <div className="space-y-4">
+      <RangeBar value={w} onChange={setWindow} right={
+        sources.length > 1 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/* Built from what is in the window, not a hardcoded list — a new
+                channel appears here the day it sends its first event. */}
+            <button onClick={() => setSource("")}
+                    className={`chip ${source === "" ? "bg-fg text-surface" : "bg-sunken text-muted"}`}>
+              All sources
+            </button>
+            {sources.map((s) => (
+              <button key={s.source} onClick={() => setSource(s.source)}
+                      className={`chip ${source === s.source ? "bg-fg text-surface" : "bg-sunken text-muted"}`}>
+                {s.source} <span className="opacity-60">{s.devices}</span>
+              </button>
+            ))}
+          </div>
+        )
+      } />
       {err && <ErrorNote error={err} />}
 
       <div className="flex items-center justify-between gap-4">
-        <Segmented value={days} onChange={setDays} options={WINDOWS} />
         {funnel && (
           <span className="text-[11.5px] text-faint">
             {num(first)} devices in this window
@@ -120,6 +150,92 @@ export default function Behaviour() {
                 hint={`Between "${funnel[funnel.indexOf(worst) - 1]?.step}" and "${worst.step}"`} />
         </div>
       )}
+
+      <Panel title="Latest activity"
+             sub="Grouped by device, newest first. A flat stream of four hundred rows is a log; what you actually want to read is one visitor's journey, and where it stopped."
+             right={events && events.length > EVENT_PREVIEW && (
+               <button onClick={() => setShowAll((v) => !v)}
+                       className="text-[11.5px] text-brass hover:underline">
+                 {showAll ? `Show ${EVENT_PREVIEW}` : `Show all ${num(events.length)}`}
+               </button>
+             )}>
+        {!events ? <Loading /> : events.length === 0 ? <Empty label="No events yet" /> : (
+          <div className="space-y-2">
+            {groupByDevice(showAll ? events : events.slice(0, EVENT_PREVIEW)).map((g) => (
+              <Session key={g.key} g={g} onOpen={() => openJourney(g.anonymous_id)} />
+            ))}
+          </div>
+        )}
+      </Panel>
+
+      {/* ── Where the journey ended, and how long it lasted ─────────────────
+          The funnel counts arrivals at each step. It cannot show where a
+          journey STOPPED — a device that quits after viewing a report simply
+          fails to appear in the next bar, and the gap looks the same whether
+          one person left or forty did. These two answer that directly, and they
+          are the pair that told us the ad traffic was different in kind rather
+          than just smaller: 41 of 49 fb devices did nothing at all after the
+          first moment, against 1 in 49 reaching checkout. ── */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Panel title="Where they stopped"
+               sub="The last thing each device did before it disappeared, and how long it had been there. This is the drop, counted directly rather than inferred from the gap between two funnel bars.">
+          {!drop ? <Loading /> : drop.length === 0 ? <Empty label="Nothing in this window" /> : (
+            <TableWrap>
+              <thead><tr><Th>Last thing they did</Th><Th align="right">Devices</Th>
+                <Th align="right">Stayed</Th><Th align="right">Events</Th></tr></thead>
+              <tbody>
+                {drop.map((r) => {
+                  const share = Math.round((r.devices / Math.max(1, drop.reduce((n, x) => n + x.devices, 0))) * 100);
+                  return (
+                    <Tr key={r.last_event}>
+                      <Td>
+                        <span className="font-medium text-fg">{r.last_event}</span>
+                        <div className="mt-1 h-1 rounded-full bg-line overflow-hidden max-w-[220px]">
+                          <div className="h-full rounded-full bg-brass" style={{ width: `${share}%` }} />
+                        </div>
+                      </Td>
+                      <Td align="right">{num(r.devices)} <span className="text-faint">{share}%</span></Td>
+                      {/* Zero is the finding, not a missing value: they fired
+                          nothing after the events that arrive on mount. */}
+                      <Td align="right" dim>{r.avg_seconds === 0 ? "0s" : ms(r.avg_seconds * 1000)}</Td>
+                      <Td align="right" dim>{r.avg_events}</Td>
+                    </Tr>
+                  );
+                })}
+              </tbody>
+            </TableWrap>
+          )}
+        </Panel>
+
+        <Panel title="How long they stayed"
+               sub="One average would describe nobody — forty devices at zero seconds and two at twenty minutes average to something neither of them did. The shape is the point.">
+          {!dwell ? <Loading /> : dwell.length === 0 ? <Empty label="Nothing in this window" /> : (
+            <div className="space-y-2.5 pt-1">
+              {dwell.map((b) => {
+                const total = Math.max(1, dwell.reduce((n, x) => n + x.devices, 0));
+                const pct = Math.round((b.devices / total) * 100);
+                const dead = b.bucket.startsWith("1.");
+                return (
+                  <div key={b.bucket}>
+                    <div className="flex items-baseline justify-between text-[12px]">
+                      <span className={dead ? "text-ember" : "text-fg"}>{b.bucket.replace(/^\d\.\s*/, "")}</span>
+                      <span className="tabular-nums">{num(b.devices)} <span className="text-faint">{pct}%</span></span>
+                    </div>
+                    <div className="mt-1 h-2 rounded-full bg-line overflow-hidden">
+                      <div className={`h-full rounded-full ${dead ? "bg-ember" : "bg-brass"}`}
+                           style={{ width: `${pct}%` }} />
+                    </div>
+                  </div>
+                );
+              })}
+              <Note>
+                The top bar is the one that matters. A device there fired only the events that
+                arrive automatically on page load — it never scrolled, tapped or waited.
+              </Note>
+            </div>
+          )}
+        </Panel>
+      </div>
 
       <Panel title="Activity, day by day"
              sub="Distinct devices per day, with the share of them that reached the pay button. Everything else on this screen is a total for the whole window — this is the only view that shows whether today is like last Tuesday.">
@@ -233,49 +349,6 @@ export default function Behaviour() {
         )}
       </Panel>
 
-      <Panel title="Latest activity"
-             sub="The raw stream, newest first. Click any row to replay that device's whole journey — before and after they signed in."
-             right={events && events.length > EVENT_PREVIEW && (
-               <button onClick={() => setShowAll((v) => !v)}
-                       className="text-[11.5px] text-brass hover:underline">
-                 {showAll ? `Show ${EVENT_PREVIEW}` : `Show all ${num(events.length)}`}
-               </button>
-             )}>
-        {!events ? <Loading /> : events.length === 0 ? <Empty label="No events yet" /> : (
-          <TableWrap>
-              <thead><tr>
-                <Th>When</Th><Th>Event</Th><Th>Page</Th><Th>Detail</Th>
-                <Th>Source</Th><Th align="right">Who</Th>
-              </tr></thead>
-              <tbody>
-                {(showAll ? events : events.slice(0, EVENT_PREVIEW)).map((e, i) => (
-                  <Tr key={`${e.at}-${i}`} onClick={() => openJourney(e.anonymous_id)}>
-                    <Td dim mono>{ago(e.at)}</Td>
-                    <Td><span className="font-medium text-fg">{e.name}</span>
-                      <div className="text-[11px] text-faint">{e.category}</div></Td>
-                    <Td dim mono>{e.path || "—"}</Td>
-                    <Td dim>{summarise(e.props)}</Td>
-                    <Td dim>{e.campaign || e.source || "—"}</Td>
-                    <Td align="right">
-                      {/* "known" not "signed in": user_id is backfilled onto
-                          rows from before they signed in, so it says this
-                          device belongs to a buyer, not that they were logged
-                          in at the time. */}
-                      {e.user_id
-                        ? <Chip tone="ready">known buyer</Chip>
-                        : <span className="text-faint text-[11px] font-mono">{e.anonymous_id.slice(0, 8)}</span>}
-                    </Td>
-                  </Tr>
-                ))}
-              </tbody>
-          </TableWrap>
-        )}
-        {events && events.length > EVENT_PREVIEW && !showAll && (
-          <Note>
-            Showing the newest {EVENT_PREVIEW} of {num(events.length)} events in this window.
-          </Note>
-        )}
-      </Panel>
 
       <Drawer open={!!journey} onClose={() => setJourney(null)}
               title="One device, start to finish"
@@ -320,9 +393,225 @@ export default function Behaviour() {
 }
 
 /** The one or two properties worth showing in a row this narrow. */
+
+/**
+ * Who this row belongs to, as a value you can actually scan for.
+ *
+ * It used to print a grey "known buyer" chip for anyone signed in, which told
+ * you a person existed but not *which* person — so a list of forty rows gave no
+ * way to see that six of them were one visitor. Now the id is printed, and its
+ * colour is derived from the id itself, so the same Who is the same colour all
+ * the way down the page and a journey stands out without opening it.
+ *
+ * A signed-in buyer shows their user id; everyone else shows the first eight
+ * characters of the device id. Both are ids we generated, not personal data.
+ *
+ * "known" rather than "signed in": identify() backfills user_id onto rows from
+ * before they signed in, so it means this device belongs to a buyer — not that
+ * they were logged in at that moment.
+ */
+const WHO_TONES = [
+  "text-brass", "text-ember", "text-emerald-600 dark:text-emerald-400",
+  "text-sky-600 dark:text-sky-400", "text-violet-600 dark:text-violet-400",
+  "text-rose-600 dark:text-rose-400", "text-amber-600 dark:text-amber-400",
+  "text-teal-600 dark:text-teal-400"
+];
+
+function Who({ userId, anonId }: { userId: string | null; anonId: string }) {
+  const key = userId ? `u${userId}` : anonId;
+  // Cheap, stable string hash — the same id must pick the same colour on every
+  // render and every page load, so Math.random or an index will not do.
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  const tone = WHO_TONES[h % WHO_TONES.length];
+  return (
+    <span className={`font-mono text-[11px] ${tone}`} title={userId ? `user ${userId}` : `device ${anonId}`}>
+      {userId ? `#${userId}` : anonId.slice(0, 8)}
+      {userId && <span className="ml-1 opacity-60">buyer</span>}
+    </span>
+  );
+}
+
+/**
+ * Consecutive events from one device, folded into a journey.
+ *
+ * The stream arrives newest-first and interleaved, so reading it meant holding
+ * four devices in your head at once. Grouping by device — in the order the
+ * devices last appeared — turns it into "this visitor did A then B then left",
+ * which is the only form in which a drop is visible.
+ *
+ * Each group's own events are re-sorted oldest-first, because a journey read
+ * backwards is not a journey.
+ */
+function groupByDevice(rows: Ev[]) {
+  const order: string[] = [];
+  const byDevice = new Map<string, Ev[]>();
+  for (const e of rows) {
+    if (!byDevice.has(e.anonymous_id)) { byDevice.set(e.anonymous_id, []); order.push(e.anonymous_id); }
+    byDevice.get(e.anonymous_id)!.push(e);
+  }
+  return order.map((id) => {
+    const list = [...byDevice.get(id)!].sort((a, b) => +new Date(a.at) - +new Date(b.at));
+    const first = list[0], last = list[list.length - 1];
+
+    /*
+     * Where they came from, read off the landing URL.
+     *
+     * app_events stores source, medium and campaign as columns but not
+     * utm_content or utm_term — and those are the ones that say WHICH creative
+     * and WHICH placement, which is the question when four ads share a
+     * campaign. The full query string is on the path, so it is parsed here
+     * rather than adding columns for something already recorded.
+     */
+    const [landing, query = ""] = (first.path || "").split("?");
+    const qs = new URLSearchParams(query);
+    const utm: [string, string][] = [];
+    for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "utm_id"]) {
+      const v = qs.get(k);
+      if (v) utm.push([k.replace("utm_", ""), v]);
+    }
+    // A click id means the click was real and paid, even when the utm tags are
+    // missing — which they are on about half of Meta's own placements.
+    const clickId = ["fbclid", "gclid", "ttclid", "twclid"].find((k) => qs.has(k)) || null;
+
+    return {
+      key: id + last.at,
+      anonymous_id: id,
+      user_id: last.user_id,
+      source: last.source,
+      campaign: last.campaign,
+      at: last.at,
+      landing: landing || "/",
+      utm,
+      clickId,
+      lastEvent: last.name,
+      spanSecs: Math.round((+new Date(last.at) - +new Date(first.at)) / 1000),
+      // The steps worth seeing without expanding anything. Everything else is
+      // page_view and scroll noise, and a wall of sixty chips hides exactly the
+      // six that matter.
+      milestones: [...new Set(list.map((e) => e.name))].filter((n) => MILESTONES.has(n)),
+      events: list
+    };
+  });
+}
+
+/**
+ * One visitor's visit, as a card you can read in two seconds.
+ *
+ * The first version printed every event as a chip in a row — sixty-six of them
+ * for an engaged visitor — which is a wall, not a journey: the two chips that
+ * matter (buy_clicked, checkout_started) sat in the middle of sixty that did
+ * not. And it showed the LAST path, so the one thing you actually want from
+ * this screen while paying for ads — which ad they came from — was nowhere.
+ *
+ * So: where they came from and where they landed in the header, the steps that
+ * mean something below it, and the raw chain only when asked for.
+ */
+function Session({ g, onOpen }: { g: ReturnType<typeof groupByDevice>[number]; onOpen: () => void }) {
+  const [open, setOpen] = useState(false);
+  const paid = g.milestones.includes("order_ready");
+  const reachedCheckout = g.milestones.includes("checkout_started");
+
+  return (
+    <div className={`rounded-lg border transition ${
+      paid ? "border-brass/50 bg-brassSoft/10"
+      : reachedCheckout ? "border-line bg-sunken/40"
+      : "border-line"}`}>
+      <div className="px-3 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Who userId={g.user_id} anonId={g.anonymous_id} />
+          <span className="text-[11px] text-faint">{ago(g.at)}</span>
+          <span className="ml-auto text-[11px] text-faint tabular-nums">
+            {g.events.length} event{g.events.length === 1 ? "" : "s"}
+            {g.spanSecs > 0 && <> · {ms(g.spanSecs * 1000)}</>}
+          </span>
+        </div>
+
+        {/* Landed on — the page, then how they got to it. */}
+        <div className="mt-1.5 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+          <span className="text-[11px] text-faint">landed on</span>
+          <span className="font-mono text-[11.5px] text-fg">{g.landing}</span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-1">
+          {g.utm.length === 0 && !g.clickId && (
+            <span className="chip bg-sunken text-muted text-[10.5px]">
+              {g.source || "direct"}{g.campaign ? ` · ${g.campaign}` : ""}
+            </span>
+          )}
+          {g.utm.map(([k, v]) => (
+            <span key={k} className="chip bg-sunken text-muted text-[10.5px]" title={`utm_${k}=${v}`}>
+              <span className="text-faint">{k}</span>&nbsp;{v.length > 22 ? `…${v.slice(-10)}` : v}
+            </span>
+          ))}
+          {g.clickId && (
+            <span className="chip bg-sunken text-faint text-[10.5px]" title="a real ad click carried a click id">
+              {g.clickId}
+            </span>
+          )}
+        </div>
+
+        {/* What actually happened. Nothing here means nothing happened. */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {g.milestones.length === 0 ? (
+            <span className="text-[11.5px] text-ember">
+              nothing but page loads — ended on {g.lastEvent}
+            </span>
+          ) : g.milestones.map((m) => (
+            <span key={m} className={`chip text-[11px] ${
+              /order_ready/.test(m) ? "bg-brass text-surface"
+              : /pay_clicked|payment_redirected|checkout_started/.test(m) ? "bg-brassSoft/70 text-brass"
+              : "bg-sunken text-fg"}`}>
+              {m}
+            </span>
+          ))}
+        </div>
+
+        <div className="mt-2 flex items-center gap-3">
+          <button onClick={() => setOpen((v) => !v)}
+                  className="text-[11px] text-brass hover:underline">
+            {open ? "Hide the full chain" : `All ${g.events.length} steps`}
+          </button>
+          <button onClick={onOpen} className="text-[11px] text-muted hover:text-fg hover:underline">
+            Whole history for this device
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="border-t border-line/60 px-3 py-2 flex flex-wrap items-center gap-1">
+          {g.events.map((e, i) => (
+            <span key={i} className="inline-flex items-center gap-1">
+              {i > 0 && <span className="text-line text-[10px]">→</span>}
+              <span className={`chip text-[10.5px] ${
+                MILESTONES.has(e.name) ? "bg-sunken text-fg" : "bg-transparent text-faint"}`}
+                title={[e.path, summarise(e.props)].filter((x) => x && x !== "—").join("  ·  ")}>
+                {e.name}
+              </span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Events that mean something happened, as opposed to something rendered. */
+const MILESTONES = new Set([
+  "report_engaged", "sample_opened", "chart_check_done", "welcome_submitted",
+  "buy_clicked", "checkout_started", "checkout_field_error", "pay_clicked",
+  "payment_redirected", "signed_in", "order_ready", "reader_opened", "chat_question"
+]);
+
+
 function summarise(props: Record<string, unknown> | null | undefined) {
   if (!props) return "—";
-  const keep = ["code", "coupon", "q", "channel", "order_id", "fields", "reason", "amount_paise"];
+  // Anything worth reading in a row. "how" was missing, so every
+  // welcome_dismissed showed a blank Detail — the one column that would have
+  // said whether people close the sheet, press Escape, or take the skip link.
+  const keep = [
+    "how", "code", "coupon", "q", "channel", "order_id", "fields", "reason", "amount_paise",
+    "depth", "section", "from", "where", "manglik", "severity", "offer", "language", "slug", "design"
+  ];
   const bits = keep
     .filter((k) => props[k] !== undefined)
     .map((k) => {

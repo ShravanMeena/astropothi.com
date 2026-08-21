@@ -34,6 +34,14 @@ export const UI = {
     chapters: "Chapters",
     oneTime: "One-time",
     sample: "Sample",
+    secureShort: "Secure payment",
+    perks: [
+      ["Every dosh gets a chapter", "Not a one-line verdict"],
+      ["Severity scored 0–100", "Not just yes or no"],
+      ["Ask the report anything", "Answered from your chart"],
+      ["English or Hindi", "Full Devanagari throughout"]
+    ] as [string, string][],
+    fastShort: "PDF in a minute",
     fastLine: "PDF in under a minute · No account needed",
     pagesLabel: "Pages",
     allChapters: (n: number) => `All ${n} chapters.`,
@@ -119,7 +127,15 @@ export const UI = {
     contents: "अनुक्रम",
     chapters: "अध्याय",
     oneTime: "एक बार का शुल्क",
-    sample: "नमूना",
+    sample: "झलक",
+    secureShort: "सुरक्षित भुगतान",
+    perks: [
+      ["हर दोष का अपना अध्याय", "एक लाइन का फ़ैसला नहीं"],
+      ["तीव्रता 0–100 पर आँकी हुई", "सिर्फ़ हाँ या ना नहीं"],
+      ["रिपोर्ट से कुछ भी पूछिए", "आपकी अपनी कुंडली से जवाब"],
+      ["हिन्दी या अंग्रेज़ी", "पूरी तरह देवनागरी में"]
+    ] as [string, string][],
+    fastShort: "एक मिनट में PDF",
     fastLine: "एक मिनट से कम में PDF · खाता बनाने की ज़रूरत नहीं",
     pagesLabel: "पृष्ठ",
     allChapters: (n: number) => `पूरे ${n} अध्याय।`,
@@ -133,7 +149,7 @@ export const UI = {
 
     tapToTurn: (edition: string) => `पन्ना पलटने के लिए छुएँ · ${edition} संस्करण`,
     realSpreads: "इसी संस्करण के असली पन्ने — शुरुआती अध्याय और भीतर से दो पन्ने, जहाँ असली पढ़ाई है।",
-    sampleCaption: (name: string) => `${name} · नमूना`,
+    sampleCaption: (name: string) => `${name} · कुछ पन्ने`,
     pageOf: (a: number, b: number) => `पृष्ठ ${a} · ${b}`,
 
     askEyebrow: "अपनी रिपोर्ट से कुछ भी पूछिए",
@@ -153,7 +169,7 @@ export const UI = {
     whyLede: "हर सेवा उसी गणित से वही कुंडली बनाती है। फ़र्क़ इसमें है कि आपके हाथ में आख़िर आता क्या है।",
     usual: "आम रिपोर्ट",
     usualShort: "आम",
-    whyFootnote: "“आम रिपोर्ट” से मतलब उन बड़ी भारतीय ज्योतिष सेवाओं से है जो इसी क़ीमत पर बिकती हैं। ख़रीदने से पहले ख़ुद तुलना कीजिए — ऊपर का नमूना मुफ़्त है।",
+    whyFootnote: "“आम रिपोर्ट” से मतलब उन बड़ी भारतीय ज्योतिष सेवाओं से है जो इसी क़ीमत पर बिकती हैं। ख़रीदने से पहले ख़ुद तुलना कीजिए — ऊपर की झलक मुफ़्त है।",
     navReports: "रिपोर्ट", navHow: "कैसे काम करता है", navDoshas: "दोष",
     navFaq: "सवाल", navAbout: "हमारे बारे में", navAstrologers: "ज्योतिषियों के लिए",
     navSignIn: "साइन इन",

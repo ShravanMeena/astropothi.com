@@ -3,6 +3,9 @@ import { adminApi, rupees, num, when, ago, ms } from "../api";
 import type { PanditRow, PanditDetail, Catalogue } from "../types";
 import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Btn, Drawer, Facts, SubHead, Hint, Stat, StatRow } from "../ui";
 
+/* No range control here: /pandits returns the whole roster and takes no date
+   filter. A control that changes nothing claims a number is scoped when it is
+   not. */
 export default function Pandits() {
   const [rows, setRows] = useState<PanditRow[]>([]);
   const [pilot, setPilot] = useState<Catalogue["pilot"] | null>(null);

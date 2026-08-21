@@ -25,13 +25,20 @@ const KEY = "pothi.lang";
 
 export const isLang = (v: unknown): v is Lang => v === "en" || v === "hi";
 
-/** The stored choice, or English. Safe to call before React mounts. */
+/**
+ * The stored choice, or Hindi by default.
+ *
+ * The paid traffic this site runs on is Hindi (the Meta dosh campaign), and a
+ * Hindi visitor landing on an English page is the message-mismatch that loses
+ * the click. So an untouched visitor starts in Hindi; the toggle still lets
+ * anyone switch to English, and that choice is remembered.
+ */
 export function storedLang(): Lang {
   try {
     const v = localStorage.getItem(KEY);
-    return isLang(v) ? v : "en";
+    return isLang(v) ? v : "hi";
   } catch {
-    return "en";                                  // private mode
+    return "hi";                                  // private mode
   }
 }
 

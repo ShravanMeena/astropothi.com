@@ -93,8 +93,23 @@ const TIER_OF = {
   couples:    "keepsake"
 };
 
+/**
+ * One shelf price for every report.
+ *
+ * The tier model above priced by how much of a life a report reads — flagship,
+ * full, focused, keepsake. It is kept because tierOf() still describes what a
+ * report *is*, and the admin panel shows it. It no longer sets the price.
+ *
+ * The shelf is now flat: every report is listed at ₹299, and what a buyer
+ * actually pays comes from the price_overrides table on top of it. So this is
+ * the struck-through number, not the charged one — the two are different
+ * values and the API returns both (list_paise and price_paise) rather than
+ * letting the front end guess.
+ */
+export const LIST_PRICE_PAISE = 29900;
+
 export const CONSUMER_PRICES = Object.fromEntries(
-  REPORT_TYPES.map((r) => [r.code, PRICE_TIERS[TIER_OF[r.code] || "focused"]])
+  REPORT_TYPES.map((r) => [r.code, LIST_PRICE_PAISE])
 );
 
 export const tierOf = (code) => TIER_OF[code] || "focused";
@@ -102,7 +117,12 @@ export const tierOf = (code) => TIER_OF[code] || "focused";
 export const consumerCatalogue = () =>
   SELLABLE.map((r) => ({
     code: r.code, name_en: r.name_en, name_hi: r.name_hi,
-    chapters: r.chapters, price_paise: CONSUMER_PRICES[r.code] ?? 29900,
+    chapters: r.chapters,
+    price_paise: CONSUMER_PRICES[r.code] ?? LIST_PRICE_PAISE,
+    // The shelf price, always. price_paise is overwritten with what is actually
+    // charged by whoever serves this; list_paise is not, so the UI can strike
+    // one through the other without a second request.
+    list_paise: LIST_PRICE_PAISE,
     // "person" (birth details), "property" (facing + room layout) or "couple"
     // (two names). The checkout form branches on this — a Vastu report has no
     // birth moment, and a Couples Challenge has no chart at all.

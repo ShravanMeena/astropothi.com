@@ -71,9 +71,12 @@ if (!origin) {
 // One source of truth for what is on the shelf — shared with prerender.js so
 // the sitemap can never list a URL that was not turned into real HTML.
 let paths;
+let SELLABLE_FOR_LLMS = [];
 try {
   const { publicPaths } = await import("./public_routes.js");
   paths = await publicPaths();
+  ({ SELLABLE: SELLABLE_FOR_LLMS } = await import(
+    new URL("../../pothi-api/server/catalog/catalog.js", import.meta.url).href));
 } catch (e) {
   console.error(`  \u2717 ${e.message}`);
   process.exit(1);
@@ -132,7 +135,50 @@ const robots = [
   ""
 ].join("\n");
 
+/*
+ * llms.txt — a plain-text index of what this site is and what is worth reading.
+ *
+ * Not an SEO mechanism. No answer engine has committed to reading it and none
+ * of the ranking systems use it; treating it as a lever would be wishful. It
+ * costs one generated file, it is honest about the entity, and if the
+ * convention does settle we already have it. Nothing here is a claim we do not
+ * make on the pages themselves.
+ */
+const llms = [
+  "# astropothi",
+  "",
+  "> astropothi creates personalised Vedic astrology reports from a person's date of birth,",
+  "> exact birth time and birthplace. It computes the birth chart from an astronomical",
+  "> ephemeris using the Lahiri (Chitrapaksha) ayanamsa and whole-sign houses, then writes",
+  "> the result out in full — 22 to 64 chapters — in English or Hindi.",
+  "",
+  "Operated by DreamyHook Digital Media. Reports are for reflection and guidance; they are",
+  "not medical, legal or financial advice.",
+  "",
+  "## Methodology",
+  `- [How a report is computed](${origin}/methodology): the ephemeris, ayanamsa, house system,`,
+  "  the invariants every chart is checked against, and where language is written rather than computed.",
+  "",
+  "## Reports",
+  ...SELLABLE_FOR_LLMS.map((r) => `- [${r.name_en}](${origin}/report/${r.code})`),
+  "",
+  "## Reference",
+  `- [Doshas explained](${origin}/learn) — fourteen doshas, how each forms, what cancels it.`,
+  `- [दोष, हिन्दी में](${origin}/hi/learn)`,
+  `- [Questions](${origin}/faq)`,
+  `- [About](${origin}/about)`,
+  "",
+  "## Policies",
+  `- [Terms](${origin}/terms)`,
+  `- [Privacy](${origin}/privacy)`,
+  `- [Refunds](${origin}/refunds) — full refund, no conditions.`,
+  `- [Contact](${origin}/contact)`,
+  ""
+].join("\n");
+
 await writeFile(path.join(PUBLIC, "sitemap.xml"), xml);
 await writeFile(path.join(PUBLIC, "robots.txt"), robots);
+await writeFile(path.join(PUBLIC, "llms.txt"), llms);
+console.log(`  \u2713 llms.txt`);
 console.log(`  ✓ sitemap.xml — ${paths.length} urls at ${origin}`);
 console.log(`  ✓ robots.txt`);

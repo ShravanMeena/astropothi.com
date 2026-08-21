@@ -13,7 +13,11 @@ export const rupees = (paise: number) =>
   "₹" + (paise / 100).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 
 export type ReportItem = {
-  code: string; name_en: string; name_hi: string; chapters: number; price_paise: number;
+  code: string; name_en: string; name_hi: string; chapters: number;
+  /** What is actually charged today. */
+  price_paise: number;
+  /** The shelf price. Struck through when it is higher than price_paise. */
+  list_paise?: number;
   /** "person" wants birth details; "property" wants a facing and a room layout. */
   subject?: "person" | "property" | "couple";
   /** The colourway the shop shows this report in. Server-owned so the boot

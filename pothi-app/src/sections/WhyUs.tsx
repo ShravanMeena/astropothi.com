@@ -25,10 +25,10 @@ export default function WhyUs({ compact = false }: { compact?: boolean }) {
   const ROWS = t.rows;
   return (
     <section className="border-y border-line bg-sunken">
-      <div className="shell py-12 sm:py-24">
+      <div className="shell py-5 sm:py-14">
         <Reveal>
           <p className="caps text-brass">{t.whyEyebrow}</p>
-          <h2 className="display text-[25px] sm:text-[40px] mt-3 max-w-[20ch] leading-[1.08]">
+          <h2 className="display text-[21px] sm:text-[30px] mt-2 max-w-[22ch] leading-[1.1]">
             {t.whyTitle}
           </h2>
           {!compact && (
@@ -71,7 +71,7 @@ export default function WhyUs({ compact = false }: { compact?: boolean }) {
           ))}
         </div>
 
-        <p className="mt-4 text-[12px] text-faint max-w-prose2">
+        <p className="mt-3 text-[12px] text-faint max-w-prose2">
           {t.whyFootnote}
         </p>
       </div>

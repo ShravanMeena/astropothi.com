@@ -4,127 +4,122 @@ import { api } from "../lib/api";
 import { setUserToken, getUserToken } from "../lib/account";
 import { track, identify } from "../lib/track";
 import { attribution } from "../lib/attribution";
-import { useLang, type Lang } from "../lib/lang";
-import { onQualified } from "../lib/qualify";
+import { useLang } from "../lib/lang";
+import { isWelcomeHeld } from "../lib/qualify";
 
-const SEEN = "pothi.welcome.seen";
-
-/** The code shown on the sheet. It is a real, active coupon — see the note below. */
-export const WELCOME_COUPON = "POTHI99";
-
-const T = {
-  en: {
-    eyebrow: "Welcome",
-    title: "₹200 off your first report",
-    body: "Enter this code at checkout. Leave your number and your report reaches you the moment it is ready.",
-    copy: "Copy",
-    copied: "Copied",
-    phone: "Mobile number",
-    phoneHint: "So your report can find you later",
-    langLabel: "Read reports in",
-    submit: "Save my code",
-    skip: "Just browsing",
-    done: "Saved. The code is yours whenever you are ready.",
-    bad: "A 10-digit mobile number, please."
-  },
-  hi: {
-    eyebrow: "स्वागत है",
-    title: "पहली रिपोर्ट पर ₹200 की छूट",
-    body: "चेकआउट पर यह कोड डालिए। नंबर दे दीजिए, ताकि तैयार होते ही रिपोर्ट सीधे आप तक पहुँच जाए।",
-    copy: "कॉपी",
-    copied: "कॉपी हो गया",
-    phone: "मोबाइल नंबर",
-    phoneHint: "ताकि रिपोर्ट बाद में आप तक पहुँच सके",
-    langLabel: "रिपोर्ट किस भाषा में पढ़ेंगे",
-    submit: "मेरा कोड सेव करें",
-    skip: "अभी सिर्फ़ देख रहा हूँ",
-    done: "सेव हो गया। कोड आपका है, जब चाहें इस्तेमाल कीजिए।",
-    bad: "कृपया 10 अंकों का मोबाइल नंबर डालिए।"
-  }
-};
+// Shown once per session; dismissing with X quiets it for 24h.
+const SEEN = "pothi.welcome.seen";              // sessionStorage — this visit
+const DISMISSED = "pothi.welcome.dismissed";    // localStorage — timestamp of an X close
+const DISMISS_HOURS = 24;
+const SCROLL_TRIGGER = 0.45;                    // show at ~45% of the page
 
 /**
- * The first thing a visitor sees, and the only thing we ask them for.
+ * Lead-capture bottom sheet — a mobile number, nothing else.
  *
- * Three rules it follows, and the reason for each:
+ * Deliberately independent of the buy CTA and the payment flow: it exists only
+ * to collect a number so a report update can reach the visitor on WhatsApp
+ * later. It never gates the page, never redirects, and its wording never
+ * implies a report has been bought or is being prepared.
  *
- *   1. **It is not a gate.** Clicking the backdrop, pressing Escape or taking
- *      the "just browsing" door all close it, and none of them ask twice this
- *      visit. A modal that has to be defeated before the product can be seen
- *      costs more visitors than a coupon wins.
- *   2. **It asks for a number and a language, and nothing else.** Not a name,
- *      not an email, not a birth date — every extra field on a first-touch form
- *      is a reason to close it, and the checkout asks for what it needs anyway.
- *   3. **The coupon is real.** POTHI99 is an active flat ₹200 code in the
- *      database. Printing a code the checkout would reject is worse than
- *      printing no code at all, so if it is ever retired this component must be
- *      retired with it.
- *
- * Every outcome is tracked — shown, dismissed, submitted, and how it was
- * dismissed — because the interesting number here is not how many people give a
- * number, it is how many close it instantly and whether they stay afterwards.
+ * Trigger is scroll depth (~45%), not an engagement heuristic, so it appears
+ * once the visitor has genuinely read into the page. Once per session; an X
+ * close silences it for 24 hours via localStorage.
  */
+const T = {
+  en: {
+    eyebrow: "Save your report for later",
+    title: "Get your report updates on WhatsApp",
+    body: "Save your mobile number to make it easier to receive report updates and important information on WhatsApp.",
+    phone: "Mobile number",
+    submit: "Get WhatsApp Updates →",
+    trust: "🔒 Your number is secure. No spam.",
+    bad: "Enter a valid 10-digit Indian mobile number.",
+    doneTitle: "✓ Number saved!",
+    doneBody: "You can continue checking your report.",
+    doneClose: "Continue",
+  },
+  hi: {
+    eyebrow: "रिपोर्ट बाद में भी पाएं",
+    title: "अपनी रिपोर्ट का अपडेट WhatsApp पर पाएं",
+    body: "अपना मोबाइल नंबर सेव करें। आपकी रिपोर्ट और जरूरी अपडेट WhatsApp पर पाने में आसानी होगी।",
+    phone: "मोबाइल नंबर",
+    submit: "WhatsApp पर अपडेट पाएं →",
+    trust: "🔒 आपका नंबर सुरक्षित है। कोई spam नहीं।",
+    bad: "कृपया 10 अंकों का सही भारतीय मोबाइल नंबर डालिए।",
+    doneTitle: "✓ नंबर सेव हो गया!",
+    doneBody: "अब आप अपनी रिपोर्ट चेक करना जारी रख सकते हैं।",
+    doneClose: "जारी रखें",
+  },
+};
+
+/** Indian mobile: 10 digits, starts 6–9. */
+const isValidIndianMobile = (digits: string) => /^[6-9]\d{9}$/.test(digits);
+
+const dismissedRecently = () => {
+  try {
+    const ts = Number(localStorage.getItem(DISMISSED) || 0);
+    return ts > 0 && Date.now() - ts < DISMISS_HOURS * 3600_000;
+  } catch { return false; }
+};
+
 export default function WelcomeSheet() {
-  const [lang, setLang] = useLang();
-  /**
-   * Open on the first paint, computed rather than switched on by an effect.
-   *
-   * It used to start closed and be opened from a mount effect, which meant two
-   * things went wrong at once: the sheet appeared a frame late, and if anything
-   * remounted this component the state was lost while the "seen" flag was
-   * already set — so it opened, vanished, and never came back. Deriving it here
-   * makes a remount recompute the same answer instead of forgetting it.
-   */
-  /**
-   * Eligible to be shown — not the same as shown.
-   *
-   * This used to be the `open` state itself, so the sheet covered the page on
-   * the first paint. An ad visitor's very first sight of astropothi was a
-   * full-screen box asking for their phone number, before they had read a
-   * single line about what we sell. It was shown 61 times and submitted once,
-   * and the paid cohort — 26 devices — gave a number zero times.
-   *
-   * So eligibility is decided here, and the actual opening waits for the
-   * visitor to show they are reading. See lib/qualify.ts.
-   */
+  const [lang] = useLang();
+  const t = T[lang === "hi" ? "hi" : "en"];
+
+  // Eligible = no account, not seen this session, not dismissed in the last 24h.
   const eligible = useRef<boolean>((() => {
     try {
-      return !getUserToken() && !sessionStorage.getItem(SEEN);
+      return !getUserToken() && !sessionStorage.getItem(SEEN) && !dismissedRecently();
     } catch {
       return !getUserToken();                       // private mode: this visit only
     }
   })());
-  const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    if (!eligible.current) return;
-    return onQualified(() => {
-      // They may have signed in during the wait — asking then is just rude.
-      if (!getUserToken()) setOpen(true);
-    });
-  }, []);
+  const [open, setOpen] = useState(false);
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const [done, setDone] = useState(false);
-  const [copied, setCopied] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const t = T[lang];
 
-  // Report it once, without touching the flag. The flag now records that the
-  // visitor ANSWERED — took the code or closed it — not that we rendered it,
-  // so a remount reopens the sheet rather than silently burying it.
+  // ── Trigger: ~45% scroll depth ─────────────────────────────────────────────
   useEffect(() => {
-    if (!open) return;
-    track("welcome_shown", { coupon: WELCOME_COUPON, language: lang });
-    // Fires on mount only: changing language inside the sheet is not a new show.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (!eligible.current) return;
+    let raf = 0;
+    const check = () => {
+      raf = 0;
+      if (!eligible.current) return;
+      if (getUserToken()) { eligible.current = false; return; }   // signed in meanwhile
+      const doc = document.documentElement;
+      const scrollable = doc.scrollHeight - window.innerHeight;
+      const pct = scrollable > 0 ? window.scrollY / scrollable : 0;
+      if (pct < SCROLL_TRIGGER) return;
+      // Do not land on top of another modal, or on a field being typed into.
+      const el = document.activeElement;
+      const typing = !!el && /^(INPUT|SELECT|TEXTAREA)$/.test(el.tagName);
+      if (isWelcomeHeld() || typing) return;
+      eligible.current = false;                       // once per session
+      setOpen(true);
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(check); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    check();                                          // in case the page loads pre-scrolled
+    return () => { window.removeEventListener("scroll", onScroll); if (raf) cancelAnimationFrame(raf); };
   }, []);
 
-  /** Answered. Whether they took the code or waved it away, do not ask again. */
+  // Report the show once.
+  useEffect(() => {
+    if (open) track("welcome_shown", { trigger: "scroll_45", language: lang });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  /** X close: quiet for 24h. Other closes: just this session. */
   const close = (how: string) => {
     if (open) track("welcome_dismissed", { how, gave_number: done });
     try { sessionStorage.setItem(SEEN, "1"); } catch { /* private mode */ }
+    if (how === "close_button") {
+      try { localStorage.setItem(DISMISSED, String(Date.now())); } catch { /* private mode */ }
+    }
     setOpen(false);
   };
 
@@ -136,38 +131,26 @@ export default function WelcomeSheet() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const copy = async () => {
-    try { await navigator.clipboard.writeText(WELCOME_COUPON); } catch { /* no clipboard */ }
-    setCopied(true);
-    track("welcome_coupon_copied", { coupon: WELCOME_COUPON });
-    setTimeout(() => setCopied(false), 1800);
-  };
-
-  const choose = (next: Lang) => {
-    setLang(next, "welcome_sheet");
-    // The sheet itself re-renders in the chosen language, so the choice shows
-    // its own consequence before the visitor has to trust it.
-  };
-
   const submit = async () => {
     const digits = phone.replace(/\D/g, "");
-    if (digits.length !== 10) { setErr(t.bad); return; }
+    if (!isValidIndianMobile(digits)) { setErr(t.bad); return; }
     setBusy(true); setErr("");
     try {
-      // The same no-OTP path the checkout uses. Typing a number signs you in
-      // and is not proof you own it; nothing is charged from here.
+      // Same no-OTP lead path the checkout uses; nothing is charged from here.
       const r = await api.post("/noauth-api/v1/user/soft-signin",
         { phone: digits, attribution: attribution() });
       setUserToken(r.token);
       identify();
-      track("welcome_submitted", { coupon: WELCOME_COUPON, language: lang });
+      track("welcome_submitted", { source: "lead_sheet", language: lang });
       try { sessionStorage.setItem(SEEN, "1"); } catch { /* private mode */ }
-      setDone(true);
-      setTimeout(() => setOpen(false), 1600);
+      setDone(true);                                  // success state, in-sheet; no redirect
     } catch (e: any) {
-      setErr(e.message || "Could not save that. Try again.");
+      setErr(e.message || t.bad);
     } finally { setBusy(false); }
   };
+
+  const digits = phone.replace(/\D/g, "");
+  const tenDigits = digits.length === 10;
 
   return (
     <AnimatePresence>
@@ -184,10 +167,6 @@ export default function WelcomeSheet() {
             className="relative w-full sm:max-w-[420px] sm:mb-10 bg-raised border-t sm:border border-line
                        sm:rounded-[8px] rounded-t-[14px] shadow-lift px-6 pb-7 pt-3 sm:pt-7">
 
-            {/* The grab handle is the affordance that says this can be pushed
-                away. Kept on desktop too, because the sheet rises from the
-                bottom there as well and the handle is what makes it read as a
-                sheet rather than a dialog that landed in the wrong place. */}
             <div aria-hidden className="mx-auto mb-4 h-1 w-10 rounded-full bg-line" />
 
             <button onClick={() => close("close_button")} aria-label="Close"
@@ -195,57 +174,39 @@ export default function WelcomeSheet() {
                          text-faint hover:text-fg hover:bg-sunken">✕</button>
 
             {done ? (
-              <p className="py-8 text-center text-[15px] text-fg">{t.done}</p>
+              <div className="py-7 text-center">
+                <p className="display text-[22px] text-brass leading-tight">{t.doneTitle}</p>
+                <p className="text-[14px] text-muted mt-2 leading-relaxed">{t.doneBody}</p>
+                <button onClick={() => close("done_continue")} className="btn-brass w-full mt-6 h-[46px]">
+                  {t.doneClose}
+                </button>
+              </div>
             ) : (
               <>
-                <p className="caps text-brass">{t.eyebrow}</p>
-                <h2 className="display text-[24px] mt-1.5 leading-tight">{t.title}</h2>
-                <p className="text-[13.5px] text-muted mt-2 leading-relaxed">{t.body}</p>
+                <p className={`caps text-brass ${lang === "hi" ? "deva" : ""}`}>{t.eyebrow}</p>
+                <h2 className={`display text-[22px] sm:text-[24px] mt-1.5 leading-tight ${lang === "hi" ? "deva" : ""}`}>{t.title}</h2>
+                <p className={`text-[13.5px] text-muted mt-2 leading-relaxed ${lang === "hi" ? "deva" : ""}`}>{t.body}</p>
 
-                <button onClick={copy}
-                  className="mt-4 w-full flex items-center justify-between gap-3 rounded-[5px]
-                             border border-dashed border-brass/60 bg-brass/[.06] px-4 h-[52px]
-                             hover:bg-brass/[.1] transition">
-                  <span className="font-mono text-[19px] tracking-[.12em] text-brass font-semibold">
-                    {WELCOME_COUPON}
-                  </span>
-                  <span className="text-[12px] text-muted">{copied ? t.copied : t.copy}</span>
-                </button>
-
-                <label className="label mt-5 block">{t.langLabel}</label>
-                <div className="mt-1.5 inline-flex rounded-[5px] border border-line p-0.5 w-full">
-                  {(["en", "hi"] as Lang[]).map((l) => (
-                    <button key={l} onClick={() => choose(l)}
-                      className={`flex-1 h-9 rounded-[3px] text-[13px] font-medium transition
-                                  ${lang === l ? "bg-fg text-surface" : "text-muted hover:text-fg"}`}>
-                      {l === "en" ? "English" : "हिन्दी"}
-                    </button>
-                  ))}
-                </div>
-
-                <label className="label mt-5 block" htmlFor="welcome-phone">{t.phone}</label>
-                <div className="field flex items-center gap-2 p-0 px-4 mt-1.5
-                                focus-within:border-brass focus-within:ring-4 focus-within:ring-brass/10">
+                <label className={`label mt-5 block ${lang === "hi" ? "deva" : ""}`} htmlFor="welcome-phone">{t.phone}</label>
+                <div className={`field flex items-center gap-2 p-0 px-4 mt-1.5
+                                focus-within:ring-4 focus-within:ring-brass/10
+                                ${err ? "border-ember focus-within:border-ember" : "focus-within:border-brass"}`}>
                   <span className="text-muted text-[15px] tabular-nums shrink-0">+91</span>
                   <span className="h-5 w-px bg-line shrink-0" />
                   <input id="welcome-phone" ref={inputRef} inputMode="numeric" maxLength={10}
-                         className="flex-1 min-w-0 h-full bg-transparent outline-none text-[15px] tabular-nums
-                                    placeholder:text-faint"
+                         autoComplete="tel-national"
+                         className="flex-1 min-w-0 h-full bg-transparent outline-none text-[15px] tabular-nums placeholder:text-faint"
                          value={phone} placeholder="98765 43210"
                          onChange={(e) => { setPhone(e.target.value.replace(/\D/g, "")); setErr(""); }}
-                         onKeyDown={(e) => { if (e.key === "Enter" && phone.length === 10) submit(); }} />
+                         onKeyDown={(e) => { if (e.key === "Enter" && tenDigits) submit(); }} />
                 </div>
-                <p className="mt-1.5 text-[11.5px] text-faint">{t.phoneHint}</p>
-                {err && <p className="mt-2 text-[13px] text-ember">{err}</p>}
+                {err && <p className={`mt-2 text-[13px] text-ember ${lang === "hi" ? "deva" : ""}`}>{err}</p>}
 
-                <button onClick={submit} disabled={busy || phone.length !== 10}
-                        className="btn-brass w-full mt-4 h-[48px]">
+                <button onClick={submit} disabled={busy || !tenDigits}
+                        className={`btn-brass w-full mt-4 h-[48px] ${lang === "hi" ? "deva" : ""}`}>
                   {busy ? "…" : t.submit}
                 </button>
-                <button onClick={() => close("skip_link")}
-                        className="w-full mt-2.5 h-9 text-[13px] text-muted hover:text-fg">
-                  {t.skip}
-                </button>
+                <p className={`mt-3 text-center text-[11.5px] text-faint ${lang === "hi" ? "deva" : ""}`}>{t.trust}</p>
               </>
             )}
           </motion.div>

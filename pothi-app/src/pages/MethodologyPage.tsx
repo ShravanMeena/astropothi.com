@@ -16,6 +16,15 @@ import ChartMark from "../components/ChartMark";
  * script.
  */
 
+/**
+ * Bump this when the methodology itself changes — a new ayanamsa, a different
+ * house system, a change to what the language model is allowed to do. Not on
+ * every deploy: a date that moves whenever anything ships tells a reader
+ * nothing, and answer engines weight a maintained reference page on whether its
+ * date is meaningful.
+ */
+const UPDATED = "21 August 2026";
+
 const STEPS: { n: string; title: string; body: string }[] = [
   {
     n: "01",
@@ -106,6 +115,9 @@ export default function MethodologyPage({ onGo }: { onGo: (to: string) => void }
           <p className="lede mt-5 max-w-prose2 mx-auto">
             The astronomy, the conventions, the checks, and an honest account of
             what is calculated versus what is interpreted.
+          </p>
+          <p className="mt-5 text-[12.5px] text-faint">
+            Last updated <time dateTime="2026-08-21">{UPDATED}</time>
           </p>
         </div>
       </section>

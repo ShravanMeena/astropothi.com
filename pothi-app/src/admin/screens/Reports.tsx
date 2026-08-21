@@ -1,12 +1,13 @@
+import type { Window as AdminWindow } from "../types";
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, num, when, ms } from "../api";
 import type { ReportRow, Catalogue } from "../types";
-import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Search, Segmented, Hint, Btn, Confirm } from "../ui";
+import { Panel, TableWrap, PinnedHead, Th, Td, Tr, Chip, Tag, Loading, Empty, ErrorNote, Search, Segmented, Hint, Btn, Confirm, RangeBar } from "../ui";
 
 const SOURCES = [{ value: "all", label: "All" }, { value: "consumer", label: "Consumer" }, { value: "pandit", label: "Astrologer" }];
 const STATUSES = [{ value: "all", label: "Any" }, { value: "ready", label: "Ready" }, { value: "failed", label: "Failed" }, { value: "generating", label: "Generating" }];
 
-export default function Reports() {
+export default function Reports({ window: w, setWindow }: { window: AdminWindow; setWindow: (w: AdminWindow) => void }) {
   const [source, setSource] = useState("all");
   const [status, setStatus] = useState("all");
   const [type, setType] = useState("all");
@@ -25,11 +26,11 @@ export default function Reports() {
 
   const load = useCallback(() => {
     setLoading(true); setErr("");
-    adminApi.get(`/reports?source=${source}&status=${status}&report_type=${type}&q=${encodeURIComponent(q)}&limit=200`)
+    adminApi.get(`/reports?source=${source}&status=${status}&report_type=${type}&q=${encodeURIComponent(q)}&window=${w}&limit=200`)
       .then((d) => { setRows(d.reports); setTotal(d.total); })
       .catch((e) => setErr(e.message))
       .finally(() => setLoading(false));
-  }, [source, status, type, q]);
+  }, [source, status, type, q, w]);
 
   useEffect(load, [load]);
 
@@ -59,6 +60,8 @@ export default function Reports() {
   }
 
   return (
+    <>
+      <RangeBar value={w} onChange={setWindow} />
     <Panel title="Reports" sub={`${num(total)} generated`}
            right={<div className="flex flex-wrap items-center gap-2 justify-end">
              <Segmented value={source} onChange={setSource} options={SOURCES} />
@@ -149,5 +152,6 @@ export default function Reports() {
              unpicking a file that has already been delivered is not something a click should do.</>}
       />
     </Panel>
+    </>
   );
 }

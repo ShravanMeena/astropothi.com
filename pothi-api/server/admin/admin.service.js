@@ -26,8 +26,8 @@ const like = (q) => `%${String(q || "").trim()}%`;
 
 // ── Orders ───────────────────────────────────────────────────────────────────
 
-export async function listOrders({ status, q, limit = 50, offset = 0 } = {}) {
-  const where = { };
+export async function listOrders({ status, q, window, limit = 50, offset = 0 } = {}) {
+  const where = withinWindow({}, window);
   if (status && status !== "all") where.status = status;
   if (String(q || "").trim()) {
     const term = like(q);
@@ -142,12 +142,15 @@ export async function retryOrder(publicId) {
  * A per-row query here is the classic N+1 that makes a 500-user page take a
  * minute. Note the paranoid filter on BOTH tables in the join.
  */
-export async function listUsers({ q, limit = 50, offset = 0 } = {}) {
+export async function listUsers({ q, window, limit = 50, offset = 0 } = {}) {
   const term = String(q || "").trim();
   const filter = term
     ? `AND (u.phone ILIKE :term OR COALESCE(u.name,'') ILIKE :term OR COALESCE(u.email,'') ILIKE :term)`
     : "";
   const paid = PAID_STATES.map((s) => `'${s}'`).join(",");
+  // Same boundary as the Sequelize lists, expressed for raw SQL.
+  const from = windowStart(window);
+  const win = from ? `AND u."createdAt" >= :from` : "";
   const rows = await sql(
     `SELECT u.id, u.phone, u.name, u.email, u.status, u.verified_at, u.last_seen_at, u."createdAt",
             COUNT(o.id) FILTER (WHERE o."deletedAt" IS NULL)::int AS orders,
@@ -155,15 +158,15 @@ export async function listUsers({ q, limit = 50, offset = 0 } = {}) {
             COALESCE(SUM(o.amount_paise) FILTER (WHERE o."deletedAt" IS NULL AND o.status IN (${paid})),0)::bigint AS ltv_paise
        FROM users u
        LEFT JOIN orders o ON o.user_id = u.id
-      WHERE u."deletedAt" IS NULL ${filter}
+      WHERE u."deletedAt" IS NULL ${filter} ${win}
       GROUP BY u.id
       ORDER BY ltv_paise DESC, u.id DESC
       LIMIT :limit OFFSET :offset`,
-    { term: like(term), limit: clamp(limit, 50), offset: Math.max(0, Number(offset) || 0) }
+    { term: like(term), from, limit: clamp(limit, 50), offset: Math.max(0, Number(offset) || 0) }
   );
   const [{ count }] = await sql(
-    `SELECT COUNT(*)::int AS count FROM users u WHERE u."deletedAt" IS NULL ${filter}`,
-    { term: like(term) }
+    `SELECT COUNT(*)::int AS count FROM users u WHERE u."deletedAt" IS NULL ${filter} ${win}`,
+    { term: like(term), from }
   );
   return {
     total: count,
@@ -214,8 +217,8 @@ export async function setUserStatus(id, status) {
 
 // ── Reports ──────────────────────────────────────────────────────────────────
 
-export async function listReports({ source, status, report_type, q, limit = 50, offset = 0 } = {}) {
-  const where = {};
+export async function listReports({ source, status, report_type, q, window, limit = 50, offset = 0 } = {}) {
+  const where = withinWindow({}, window);
   if (source && source !== "all") where.source = source;
   if (status && status !== "all") where.status = status;
   if (report_type && report_type !== "all") where.report_type = report_type;
@@ -522,11 +525,46 @@ export async function setCouponActive(code, active) {
 
 // ── behaviour ───────────────────────────────────────────────────────────────
 
+/**
+ * A window filter for the list screens, in real Indian days.
+ *
+ * metrics.service.js already does this for the dashboard, but in raw SQL —
+ * `"createdAt" AT TIME ZONE 'Asia/Kolkata' >= date_trunc('day', now() AT TIME
+ * ZONE 'Asia/Kolkata')`. The list endpoints build Sequelize `where` objects, so
+ * the same boundary has to be computed as an instant here.
+ *
+ * "Today" has to mean today in Delhi. Subtracting 24 hours from now would put
+ * the boundary in the middle of yesterday afternoon for anyone looking before
+ * half past five, and the container runs on UTC — so the day is truncated in
+ * IST and converted back.
+ */
+const IST_OFFSET_MS = 5.5 * 3600 * 1000;
+const WINDOW_DAYS_BACK = { today: 0, "7d": 6, "30d": 29, all: null };
+
+export function windowStart(window) {
+  const back = WINDOW_DAYS_BACK[window];
+  if (back === null || back === undefined) return null;      // "all", or unknown
+  const ist = new Date(Date.now() + IST_OFFSET_MS);
+  ist.setUTCHours(0, 0, 0, 0);
+  return new Date(ist.getTime() - back * 864e5 - IST_OFFSET_MS);
+}
+
+/** Merge into a Sequelize where. No-op for "all". */
+function withinWindow(where, window, col = "createdAt") {
+  const from = windowStart(window);
+  if (from) where[col] = { [Op.gte]: from };
+  return where;
+}
+
 const since = (days) => new Date(Date.now() - (Number(days) || 30) * 864e5);
 
-export async function listEvents({ days = 7, name, limit = 200 } = {}) {
+export async function listEvents({ days = 7, name, source, limit = 200 } = {}) {
   const where = { occurred_at: { [db.Sequelize.Op.gte]: since(days) } };
   if (name) where.name = name;
+  // "direct" covers both an explicit source and none recorded, which is what a
+  // visitor with no campaign on the URL looks like.
+  if (source === "direct") where[Op.or] = [{ source: null }, { source: "" }, { source: "direct" }];
+  else if (source) where.source = source;
   const rows = await db.AppEvent.findAll({
     where, order: [["occurred_at", "DESC"]], limit: Math.min(Number(limit) || 200, 1000)
   });
@@ -539,10 +577,55 @@ export async function listEvents({ days = 7, name, limit = 200 } = {}) {
 }
 
 /**
+ * The sources present in the window, so the filter offers what exists rather
+ * than a hardcoded list that goes stale the first time a new channel appears.
+ */
+export async function eventSources({ days = 7 } = {}) {
+  const rows = await sql(
+    `SELECT COALESCE(NULLIF(source,''),'direct') AS source,
+            COUNT(DISTINCT anonymous_id)::int AS devices
+       FROM app_events
+      WHERE occurred_at >= :since
+      GROUP BY 1 ORDER BY devices DESC`,
+    { since: since(days) }
+  );
+  return rows;
+}
+
+/**
  * The funnel, counted in PEOPLE not events — one visitor refreshing a page
  * twenty times is one visitor, and counting rows would say otherwise.
  */
-export async function funnel({ days = 30 } = {}) {
+/**
+ * The devices in a window that belong to one traffic source.
+ *
+ * First touch, not per-row: a visitor who arrives on an ad and later navigates
+ * to a page with no campaign on the URL is still an ad visitor, and filtering
+ * event rows by their own `source` column would split one person across two
+ * cohorts. So the source is taken from the device's earliest event and the
+ * whole journey inherits it.
+ *
+ * Bots are excluded everywhere this is used. A crawler that loads one page and
+ * leaves looks exactly like the bounce we are trying to measure, and there were
+ * fifteen of them in a week.
+ */
+function cohortSql(source) {
+  const clause = !source ? ""
+    : source === "direct"
+      ? "AND COALESCE(NULLIF(fs.source,''),'direct') = 'direct'"
+      : "AND fs.source = :source";
+  return `WITH cohort AS (
+            SELECT anonymous_id FROM (
+              SELECT DISTINCT ON (anonymous_id) anonymous_id, source, ua
+                FROM app_events WHERE occurred_at >= :since
+               ORDER BY anonymous_id, occurred_at
+            ) fs
+            WHERE COALESCE(fs.ua,'') !~* 'bot|crawler|spider|headless|facebookexternalhit'
+              ${clause}
+          )`;
+}
+
+export async function funnel({ days = 30, source } = {}) {
   // Only steps on the required path. Opening a sample is optional, and putting
   // it in the funnel invents a "drop" of everyone who bought without one — a
   // number that would send us optimising a step nobody has to take. It is
@@ -559,12 +642,13 @@ export async function funnel({ days = 30 } = {}) {
   // One query, not seven: the counts have to describe the same instant, and a
   // loop of round trips can straddle an event landing mid-read.
   const rows = await db.sequelize.query(
-    `SELECT name, COUNT(DISTINCT anonymous_id)::int AS people
-       FROM app_events
-      WHERE name IN (:names) AND occurred_at >= :since
-      GROUP BY name`,
+    `${cohortSql(source)}
+     SELECT e.name, COUNT(DISTINCT e.anonymous_id)::int AS people
+       FROM app_events e JOIN cohort c USING (anonymous_id)
+      WHERE e.name IN (:names) AND e.occurred_at >= :since
+      GROUP BY e.name`,
     {
-      replacements: { names: STEPS.flatMap(([, n]) => n), since: since(days) },
+      replacements: { names: STEPS.flatMap(([, n]) => n), since: since(days), source },
       type: db.Sequelize.QueryTypes.SELECT
     }
   );
@@ -594,6 +678,74 @@ export async function funnel({ days = 30 } = {}) {
  * Devices, not events, for the same reason the funnel counts devices — one
  * person refreshing eleven times is one visitor.
  */
+/**
+ * The last thing each device did before it disappeared.
+ *
+ * The funnel says how many reached each step. It cannot say where a journey
+ * ENDED, because a device that stops after "viewed a report" is invisible in
+ * the gap between two bars — it just fails to appear in the next one. This
+ * counts endings directly, which is the shape of the question "where are we
+ * losing them".
+ *
+ * `avg_seconds` is the span from a device's first event to its last, so a row
+ * reading "46 devices ended on report_viewed after 0 seconds" is the finding,
+ * not an inference from one.
+ */
+export async function dropOff({ days = 30, source } = {}) {
+  return db.sequelize.query(
+    `${cohortSql(source)},
+     last AS (
+       SELECT DISTINCT ON (e.anonymous_id) e.anonymous_id, e.name, e.path
+         FROM app_events e JOIN cohort c USING (anonymous_id)
+        WHERE e.occurred_at >= :since
+        ORDER BY e.anonymous_id, e.occurred_at DESC
+     ),
+     span AS (
+       SELECT e.anonymous_id,
+              EXTRACT(EPOCH FROM (MAX(e.occurred_at) - MIN(e.occurred_at)))::int secs,
+              COUNT(*)::int events
+         FROM app_events e JOIN cohort c USING (anonymous_id)
+        WHERE e.occurred_at >= :since GROUP BY 1
+     )
+     SELECT l.name AS last_event,
+            COUNT(*)::int AS devices,
+            ROUND(AVG(s.secs))::int AS avg_seconds,
+            ROUND(AVG(s.events), 1) AS avg_events
+       FROM last l JOIN span s USING (anonymous_id)
+      GROUP BY 1 ORDER BY devices DESC LIMIT 12`,
+    { replacements: { since: since(days), source }, type: db.Sequelize.QueryTypes.SELECT }
+  );
+}
+
+/**
+ * How long devices stayed, bucketed.
+ *
+ * One number for "average time on site" hides the shape completely: forty
+ * devices at zero seconds and two at twenty minutes average out to something
+ * that describes neither. The buckets show whether traffic is a few real
+ * readers among a crowd that never arrived, which is the difference between a
+ * landing-page problem and a traffic-quality problem.
+ */
+export async function dwell({ days = 30, source } = {}) {
+  return db.sequelize.query(
+    `${cohortSql(source)},
+     span AS (
+       SELECT e.anonymous_id,
+              EXTRACT(EPOCH FROM (MAX(e.occurred_at) - MIN(e.occurred_at)))::int secs
+         FROM app_events e JOIN cohort c USING (anonymous_id)
+        WHERE e.occurred_at >= :since GROUP BY 1
+     )
+     SELECT CASE WHEN secs = 0  THEN '1. nothing after the first moment'
+                 WHEN secs < 15 THEN '2. under 15 seconds'
+                 WHEN secs < 60 THEN '3. 15 to 60 seconds'
+                 WHEN secs < 300 THEN '4. 1 to 5 minutes'
+                 ELSE '5. over 5 minutes' END AS bucket,
+            COUNT(*)::int AS devices
+       FROM span GROUP BY 1 ORDER BY 1`,
+    { replacements: { since: since(days), source }, type: db.Sequelize.QueryTypes.SELECT }
+  );
+}
+
 export async function activityByDay({ days = 30 } = {}) {
   const n = Math.max(1, Math.min(180, Number(days) || 30));
   return db.sequelize.query(
