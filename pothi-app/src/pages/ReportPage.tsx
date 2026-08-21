@@ -10,7 +10,7 @@ import { COVER_PALETTE } from "../components/ReportCover";
 import { track } from "../lib/track";
 import WhyUs from "../sections/WhyUs";
 import PromoBanners from "../sections/PromoBanners";
-import PitchVideo from "../sections/PitchVideo";
+// import PitchVideo from "../sections/PitchVideo"; // hidden for now — testimonial wall in its place
 import DoshCRO from "../sections/DoshCRO";
 import { useLang } from "../lib/lang";
 import { ui, pitchFor } from "../lib/reportStrings";
@@ -349,7 +349,9 @@ export default function ReportPage({ code, designs, palettes, onBuy }: {
 
       {/* ── The three facts that decide the sale ─────────────────────────── */}
 
-      {code === "dosh" && <PitchVideo />}
+      {/* Pitch video hidden for now — testimonial wall lives inside DoshCRO,
+          under "How it works".
+          {code === "dosh" && <PitchVideo />} */}
       {code === "dosh" && <DoshCRO onBuy={() => onBuy(code, design, palette)} price={price} />}
 
       {/* ── The sample, as a book you turn ──────────────────────────────── */}

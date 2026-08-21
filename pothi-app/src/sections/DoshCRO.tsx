@@ -78,6 +78,12 @@ export default function DoshCRO({ onBuy, price }: { onBuy: () => void; price: st
         </div>
       </section>
 
+      {/* ── Testimonial wall (pitch video hidden for now) ───────────────────
+          Language-specific artwork, full-bleed: no side padding, no margin. */}
+      <img src={`/banners/dosh-testimonials-${L}.jpeg`}
+           alt="What people say after reading their dosh report"
+           className="block w-full h-auto" loading="lazy" />
+
       {/* ── What you actually get ────────────────────────────────────────── */}
       <section className="shell py-9 sm:py-16">
         <div className="max-w-prose2">
