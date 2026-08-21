@@ -1,5 +1,5 @@
 import type { Window as AdminWindow } from "../types";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { adminApi, num, when, ago, rupees, ms , dur} from "../api";
 import {
   Panel, TableWrap, Th, Td, Tr, Tag, Loading, Empty, ErrorNote,
@@ -78,24 +78,51 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
   const [acq, setAcq] = useState<Money[] | null>(null);
   const [traffic, setTraffic] = useState<Traffic | null>(null);
   const [err, setErr] = useState("");
+  // Refresh without a page reload. `silent` keeps the current numbers on screen
+  // while the next set is fetched — a manual or auto refresh should not blink
+  // every panel back to a spinner, which is what nulling the state would do.
+  const [refreshing, setRefreshing] = useState(false);
+  const [auto, setAuto] = useState(() => localStorage.getItem("pothi.behaviour.auto") === "1");
 
-  useEffect(() => {
-    setFunnel(null); setInterest(null); setEvents(null); setRev(null); setAcq(null); setByDay(null); setTraffic(null);
-    adminApi.get(`/events/traffic?days=${days}`).then(setTraffic).catch(() => {});
-    adminApi.get(`/events/by-day?days=${days}`).then(setByDay).catch((e) => setErr(e.message));
-    adminApi.get(`/events/funnel?days=${days}&source=${encodeURIComponent(source)}`)
-      .then(setFunnel).catch((e) => setErr(e.message));
-    adminApi.get(`/events/drop-off?days=${days}&source=${encodeURIComponent(source)}`)
-      .then(setDrop).catch(() => {});
-    adminApi.get(`/events/dwell?days=${days}&source=${encodeURIComponent(source)}`)
-      .then(setDwell).catch(() => {});
-    adminApi.get(`/events/by-report?days=${days}`).then(setInterest).catch((e) => setErr(e.message));
-    adminApi.get(`/events?days=${days}&source=${encodeURIComponent(source)}&limit=200`)
-      .then(setEvents).catch((e) => setErr(e.message));
-    adminApi.get(`/events/sources?days=${days}`).then(setSources).catch(() => {});
-    adminApi.get(`/events/revenue-by-source?days=${days}`).then(setRev).catch((e) => setErr(e.message));
-    adminApi.get(`/events/acquisition?days=${Math.max(90, Number(days))}`).then(setAcq).catch((e) => setErr(e.message));
+  const load = useCallback((silent = false) => {
+    if (!silent) {
+      setFunnel(null); setInterest(null); setEvents(null);
+      setRev(null); setAcq(null); setByDay(null); setTraffic(null);
+    }
+    setErr("");
+    setRefreshing(true);
+    const jobs = [
+      adminApi.get(`/events/traffic?days=${days}`).then(setTraffic).catch(() => {}),
+      adminApi.get(`/events/by-day?days=${days}`).then(setByDay).catch((e) => setErr(e.message)),
+      adminApi.get(`/events/funnel?days=${days}&source=${encodeURIComponent(source)}`).then(setFunnel).catch((e) => setErr(e.message)),
+      adminApi.get(`/events/drop-off?days=${days}&source=${encodeURIComponent(source)}`).then(setDrop).catch(() => {}),
+      adminApi.get(`/events/dwell?days=${days}&source=${encodeURIComponent(source)}`).then(setDwell).catch(() => {}),
+      adminApi.get(`/events/by-report?days=${days}`).then(setInterest).catch((e) => setErr(e.message)),
+      adminApi.get(`/events?days=${days}&source=${encodeURIComponent(source)}&limit=200`).then(setEvents).catch((e) => setErr(e.message)),
+      adminApi.get(`/events/sources?days=${days}`).then(setSources).catch(() => {}),
+      adminApi.get(`/events/revenue-by-source?days=${days}`).then(setRev).catch((e) => setErr(e.message)),
+      adminApi.get(`/events/acquisition?days=${Math.max(90, Number(days))}`).then(setAcq).catch((e) => setErr(e.message)),
+    ];
+    Promise.allSettled(jobs).finally(() => setRefreshing(false));
   }, [days, source]);
+
+  // Initial load, and whenever the window or source changes — not silent, so a
+  // deliberate filter change does show it is refetching.
+  useEffect(() => { load(false); }, [load]);
+
+  // Auto-refresh, off by default and remembered. Silent so it never interrupts
+  // reading. Cleared on unmount and whenever it is turned off.
+  useEffect(() => {
+    if (!auto) return;
+    const id = setInterval(() => load(true), 30000);
+    return () => clearInterval(id);
+  }, [auto, load]);
+
+  const toggleAuto = () => setAuto((v) => {
+    const next = !v;
+    try { localStorage.setItem("pothi.behaviour.auto", next ? "1" : "0"); } catch { /* private mode */ }
+    return next;
+  });
 
   const openJourney = async (anonId: string) => {
     setJourney({ id: anonId, hops: [] });
@@ -151,11 +178,24 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
       {err && <ErrorNote error={err} />}
 
       <div className="flex items-center justify-between gap-4">
-        {funnel && (
-          <span className="text-[11.5px] text-faint">
-            {num(first)} devices in this window
-          </span>
-        )}
+        <span className="text-[11.5px] text-faint">
+          {funnel ? `${num(first)} devices in this window` : ""}
+        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Auto-refresh, remembered across visits. When on, every panel
+              silently refetches on a timer without touching the page. */}
+          <button onClick={toggleAuto}
+                  className={`chip inline-flex items-center gap-1.5 ${
+                    auto ? "bg-brassSoft/70 text-brass" : "bg-sunken text-muted"}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${auto ? "bg-brass animate-pulse" : "bg-faint"}`} />
+            Auto-refresh {auto ? "on" : "off"}
+          </button>
+          <button onClick={() => load(true)} disabled={refreshing}
+                  className="chip inline-flex items-center gap-1.5 bg-sunken text-fg hover:bg-line disabled:opacity-50">
+            <span className={refreshing ? "inline-block animate-spin" : ""}>↻</span>
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {funnel && worst && (
@@ -450,9 +490,7 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
                       <span className="text-[13px] text-fg font-medium">{h.name}</span>
                       <span className="text-[11px] text-faint tabular-nums shrink-0">{when(h.at)}</span>
                     </div>
-                    <div className="text-[11.5px] text-muted">
-                      {h.path || "—"}{h.props ? ` · ${summarise(h.props)}` : ""}
-                    </div>
+                    <HopDetail path={h.path} props={h.props} />
                     {justSignedIn && (
                       <div className="mt-1"><Tag>signed in here</Tag></div>
                     )}
@@ -677,6 +715,81 @@ const MILESTONES = new Set([
   "payment_redirected", "signed_in", "order_ready", "reader_opened", "chat_question"
 ]);
 
+
+/**
+ * One hop in a device's journey, with everything we know about it — not just
+ * the URL.
+ *
+ * The path used to print raw, which meant a 180-character fbclid drowned the one
+ * useful thing on the line. Here the query string is split off the pathname and
+ * shown as named chips (source · campaign · content, and the click id as its own
+ * short tag), and the event's own properties are turned into readable chips —
+ * WHICH banner (its index and name), which report code, an amount in rupees —
+ * so "banner_viewed" says banner #0 · man-holding-smartphone, not nothing.
+ */
+function HopDetail({ path, props }: { path: string | null; props?: Record<string, unknown> }) {
+  const [pathname, query = ""] = (path || "").split("?");
+  const qs = new URLSearchParams(query);
+  const utm: [string, string][] = [];
+  for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]) {
+    const v = qs.get(k);
+    if (v) utm.push([k.replace("utm_", ""), v]);
+  }
+  const clickId = ["fbclid", "gclid", "ttclid", "twclid"].find((k) => qs.has(k));
+  const detail = hopChips(props);
+
+  return (
+    <>
+      <div className="text-[11.5px] text-muted font-mono truncate" title={pathname}>{pathname || "—"}</div>
+      {(detail.length > 0 || utm.length > 0 || clickId) && (
+        <div className="mt-1 flex flex-wrap gap-1">
+          {detail.map((d, i) => (
+            <span key={`d${i}`} className="chip bg-sunken text-fg text-[10.5px]">{d}</span>
+          ))}
+          {utm.map(([k, v]) => (
+            <span key={k} className="chip bg-sunken text-muted text-[10.5px]" title={`utm_${k}=${v}`}>
+              <span className="text-faint">{k}</span>&nbsp;{v.length > 22 ? `…${v.slice(-10)}` : v}
+            </span>
+          ))}
+          {clickId && (
+            <span className="chip bg-sunken text-faint text-[10.5px]" title="a real ad click carried a click id">
+              {clickId}
+            </span>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * An event's properties as readable chips. Banner gets pulled out specially —
+ * its index and name are the whole point of the event — and money is shown in
+ * rupees rather than the paise it is stored in. Everything else falls through to
+ * the same small keep-list summarise() uses.
+ */
+function hopChips(props?: Record<string, unknown> | null): string[] {
+  if (!props) return [];
+  const out: string[] = [];
+  // Which banner: "#0 · man-holding-smartphone". The index answers "which one in
+  // the carousel", the name answers "which creative".
+  const isBanner = props.banner !== undefined || props.index !== undefined;
+  if (isBanner && props.index !== undefined) out.push(`banner #${props.index}`);
+  if (props.banner !== undefined) out.push(String(props.banner));
+  // Money is stored in paise; nobody reads paise.
+  const paise = Number(props.amount_paise ?? props.discount_paise);
+  if (Number.isFinite(paise) && paise > 0) out.push(`₹${Math.round(paise / 100)}`);
+
+  const keep = ["code", "coupon", "q", "channel", "order_id", "fields", "reason",
+    "depth", "section", "from", "where", "severity", "manglik", "language", "slug", "design", "how", "offer"];
+  for (const k of keep) {
+    if (props[k] === undefined) continue;
+    const v = props[k];
+    const s = Array.isArray(v) ? v.join(", ") : String(v);
+    out.push(k === "code" ? s : `${k}: ${s.length > 40 ? `${s.slice(0, 40)}…` : s}`);
+  }
+  return out;
+}
 
 function summarise(props: Record<string, unknown> | null | undefined) {
   if (!props) return "—";
