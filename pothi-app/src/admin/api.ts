@@ -58,6 +58,20 @@ export const pct = (n: number | null | undefined) =>
 export const ms = (n: number | null | undefined) =>
   n === null || n === undefined ? "—" : n >= 1000 ? `${(n / 1000).toFixed(2)}s` : `${n}ms`;
 
+/**
+ * A human duration from a number of SECONDS. "83738.00s" was unreadable; this
+ * reads it back as 23h. Rounds to the largest sensible unit and drops the
+ * decimals — a dwell table is a shape, not a stopwatch.
+ */
+export const dur = (seconds: number | null | undefined) => {
+  if (seconds === null || seconds === undefined) return "—";
+  const s = Math.round(seconds);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.round(s / 60)}m`;
+  if (s < 86400) { const h = Math.floor(s / 3600); const m = Math.round((s % 3600) / 60); return m ? `${h}h ${m}m` : `${h}h`; }
+  return `${Math.round(s / 86400)}d`;
+};
+
 /** IST, because every date in this panel is an Indian business date. */
 export const when = (iso: string | null | undefined, withTime = true) => {
   if (!iso) return "—";

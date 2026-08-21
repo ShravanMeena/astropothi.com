@@ -558,6 +558,34 @@ function withinWindow(where, window, col = "createdAt") {
 
 const since = (days) => new Date(Date.now() - (Number(days) || 30) * 864e5);
 
+/**
+ * Engaged time, not calendar span.
+ *
+ * MAX(occurred_at) - MIN(occurred_at) over a window is not "how long they
+ * stayed": a device seen on Monday and again on Friday reads as a four-day
+ * session, which is how "stayed 23h" appeared on a report page nobody sat at
+ * for 23 hours. Real on-page time is the sum of the gaps BETWEEN consecutive
+ * events — with any gap longer than this treated as them having left and come
+ * back, so an overnight tab does not count as engagement. 30 minutes is the
+ * usual session-timeout, and the first event of a device has no preceding gap,
+ * so a one-event visitor correctly scores zero.
+ */
+const DWELL_GAP_CAP = 1800;
+const engagedSpanSql = `
+     span AS (
+       SELECT g.anonymous_id,
+              COALESCE(SUM(LEAST(g.gap_secs, ${DWELL_GAP_CAP})), 0)::int AS secs,
+              COUNT(*)::int AS events
+         FROM (
+           SELECT e.anonymous_id,
+                  EXTRACT(EPOCH FROM (e.occurred_at - LAG(e.occurred_at)
+                    OVER (PARTITION BY e.anonymous_id ORDER BY e.occurred_at)))::int AS gap_secs
+             FROM app_events e JOIN cohort c USING (anonymous_id)
+            WHERE e.occurred_at >= :since
+         ) g
+        GROUP BY 1
+     )`;
+
 export async function listEvents({ days = 7, name, source, limit = 200 } = {}) {
   const where = { occurred_at: { [db.Sequelize.Op.gte]: since(days) } };
   if (name) where.name = name;
@@ -590,6 +618,44 @@ export async function eventSources({ days = 7 } = {}) {
     { since: since(days) }
   );
   return rows;
+}
+
+/**
+ * Where visitors came from, per source, with the Meta placements pulled back
+ * together.
+ *
+ * A single Meta campaign lands under five different `source` values — fb (the
+ * Facebook feed), ig (Instagram), meta, an (Audience Network) and the bare
+ * instagram.com referrer — so "how much traffic did Meta send" was a number you
+ * had to add up in your head, wrong. This returns each source with its unique
+ * users AND its raw events, tags the Meta ones, and computes a Meta rollup as a
+ * DISTINCT count across all of them — not a sum, so a device that fired events
+ * under both fb and meta is one Meta user, not two.
+ */
+const META_SOURCES =
+  "lower(coalesce(source,'')) IN " +
+  "('fb','ig','meta','an','facebook','instagram','instagram.com','audience_network','messenger','msg')";
+
+export async function trafficSources({ days = 7 } = {}) {
+  const sinceV = since(days);
+  const rows = await sql(
+    `SELECT COALESCE(NULLIF(source,''),'direct') AS source,
+            COUNT(DISTINCT anonymous_id)::int AS devices,
+            COUNT(*)::int AS events,
+            (${META_SOURCES}) AS is_meta
+       FROM app_events
+      WHERE occurred_at >= :since
+      GROUP BY 1, is_meta
+      ORDER BY devices DESC`,
+    { since: sinceV }
+  );
+  const [meta] = await sql(
+    `SELECT COUNT(DISTINCT anonymous_id)::int AS devices, COUNT(*)::int AS events
+       FROM app_events
+      WHERE occurred_at >= :since AND ${META_SOURCES}`,
+    { since: sinceV }
+  );
+  return { sources: rows, meta };
 }
 
 /**
@@ -700,13 +766,7 @@ export async function dropOff({ days = 30, source } = {}) {
         WHERE e.occurred_at >= :since
         ORDER BY e.anonymous_id, e.occurred_at DESC
      ),
-     span AS (
-       SELECT e.anonymous_id,
-              EXTRACT(EPOCH FROM (MAX(e.occurred_at) - MIN(e.occurred_at)))::int secs,
-              COUNT(*)::int events
-         FROM app_events e JOIN cohort c USING (anonymous_id)
-        WHERE e.occurred_at >= :since GROUP BY 1
-     )
+     ${engagedSpanSql}
      SELECT l.name AS last_event,
             COUNT(*)::int AS devices,
             ROUND(AVG(s.secs))::int AS avg_seconds,
@@ -729,12 +789,7 @@ export async function dropOff({ days = 30, source } = {}) {
 export async function dwell({ days = 30, source } = {}) {
   return db.sequelize.query(
     `${cohortSql(source)},
-     span AS (
-       SELECT e.anonymous_id,
-              EXTRACT(EPOCH FROM (MAX(e.occurred_at) - MIN(e.occurred_at)))::int secs
-         FROM app_events e JOIN cohort c USING (anonymous_id)
-        WHERE e.occurred_at >= :since GROUP BY 1
-     )
+     ${engagedSpanSql}
      SELECT CASE WHEN secs = 0  THEN '1. nothing after the first moment'
                  WHEN secs < 15 THEN '2. under 15 seconds'
                  WHEN secs < 60 THEN '3. 15 to 60 seconds'

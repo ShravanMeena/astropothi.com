@@ -1,9 +1,9 @@
 import type { Window as AdminWindow } from "../types";
 import { useEffect, useState } from "react";
-import { adminApi, num, when, ago, rupees, ms } from "../api";
+import { adminApi, num, when, ago, rupees, ms , dur} from "../api";
 import {
   Panel, TableWrap, Th, Td, Tr, Tag, Loading, Empty, ErrorNote,
-   Tile, Drawer, Note, SubHead, ActivityChart, FunnelSteps, RangeBar } from "../ui";
+   Tile, Drawer, SubHead, ActivityChart, FunnelSteps, RangeBar } from "../ui";
 
 type Step = { step: string; people: number; of_first: number; dropped: number };
 type Day = { day: string; visitors: number; viewed: number; checkout: number; pay: number; events: number };
@@ -15,6 +15,8 @@ type Ev = {
 };
 type Money = { source: string; medium?: string; campaign: string;
                orders?: number; paid?: number; buyers?: number; revenue_paise: string | number };
+type Src = { source: string; devices: number; events: number; is_meta: boolean };
+type Traffic = { sources: Src[]; meta: { devices: number; events: number } };
 type Hop = {
   at: string; name: string; category: string; path: string | null;
   session: string | null; userId: string | null; props?: Record<string, unknown>;
@@ -23,6 +25,24 @@ type Hop = {
 /** How many raw events to show before asking. Enough to see a pattern, few
  *  enough that the charts above stay on the same screen. */
 const EVENT_PREVIEW = 25;
+
+/** Every dwell bucket, in order — rendered even at zero so the panel is a full
+ *  distribution rather than the two bars that happened to have data. Must match
+ *  the labels the API emits in admin.service.js/dwell(). */
+const DWELL_BUCKETS = [
+  "1. nothing after the first moment",
+  "2. under 15 seconds",
+  "3. 15 to 60 seconds",
+  "4. 1 to 5 minutes",
+  "5. over 5 minutes",
+];
+
+/** The friendly name for each Meta placement, so "an" reads as what it is. */
+const PLACEMENT: Record<string, string> = {
+  fb: "Facebook feed", ig: "Instagram", meta: "Meta", an: "Audience Network",
+  "instagram.com": "Instagram referral", facebook: "Facebook", instagram: "Instagram",
+  audience_network: "Audience Network", messenger: "Messenger", msg: "Messenger",
+};
 
 /**
  * What people do on the site, and where they stop doing it.
@@ -56,10 +76,12 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
   const [showAll, setShowAll] = useState(false);
   const [rev, setRev] = useState<Money[] | null>(null);
   const [acq, setAcq] = useState<Money[] | null>(null);
+  const [traffic, setTraffic] = useState<Traffic | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    setFunnel(null); setInterest(null); setEvents(null); setRev(null); setAcq(null); setByDay(null);
+    setFunnel(null); setInterest(null); setEvents(null); setRev(null); setAcq(null); setByDay(null); setTraffic(null);
+    adminApi.get(`/events/traffic?days=${days}`).then(setTraffic).catch(() => {});
     adminApi.get(`/events/by-day?days=${days}`).then(setByDay).catch((e) => setErr(e.message));
     adminApi.get(`/events/funnel?days=${days}&source=${encodeURIComponent(source)}`)
       .then(setFunnel).catch((e) => setErr(e.message));
@@ -107,7 +129,7 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
   const maxViewed = Math.max(1, ...(interest || []).map((i) => i.viewed || 0));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       <RangeBar value={w} onChange={setWindow} right={
         sources.length > 1 && (
           <div className="flex flex-wrap items-center gap-1.5">
@@ -152,7 +174,7 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
       )}
 
       <Panel title="Latest activity"
-             sub="Grouped by device, newest first. A flat stream of four hundred rows is a log; what you actually want to read is one visitor's journey, and where it stopped."
+             sub="Grouped by device, newest first — one visitor's journey, and where it stopped."
              right={events && events.length > EVENT_PREVIEW && (
                <button onClick={() => setShowAll((v) => !v)}
                        className="text-[11.5px] text-brass hover:underline">
@@ -160,7 +182,7 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
                </button>
              )}>
         {!events ? <Loading /> : events.length === 0 ? <Empty label="No events yet" /> : (
-          <div className="space-y-2">
+          <div className="space-y-2 px-4 sm:px-5 py-4">
             {groupByDevice(showAll ? events : events.slice(0, EVENT_PREVIEW)).map((g) => (
               <Session key={g.key} g={g} onOpen={() => openJourney(g.anonymous_id)} />
             ))}
@@ -176,9 +198,9 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
           are the pair that told us the ad traffic was different in kind rather
           than just smaller: 41 of 49 fb devices did nothing at all after the
           first moment, against 1 in 49 reaching checkout. ── */}
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-5 lg:grid-cols-2">
         <Panel title="Where they stopped"
-               sub="The last thing each device did before it disappeared, and how long it had been there. This is the drop, counted directly rather than inferred from the gap between two funnel bars.">
+               sub="The last thing each device did before leaving, and how long it stayed.">
           {!drop ? <Loading /> : drop.length === 0 ? <Empty label="Nothing in this window" /> : (
             <TableWrap>
               <thead><tr><Th>Last thing they did</Th><Th align="right">Devices</Th>
@@ -197,7 +219,7 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
                       <Td align="right">{num(r.devices)} <span className="text-faint">{share}%</span></Td>
                       {/* Zero is the finding, not a missing value: they fired
                           nothing after the events that arrive on mount. */}
-                      <Td align="right" dim>{r.avg_seconds === 0 ? "0s" : ms(r.avg_seconds * 1000)}</Td>
+                      <Td align="right" dim>{dur(r.avg_seconds)}</Td>
                       <Td align="right" dim>{r.avg_events}</Td>
                     </Tr>
                   );
@@ -208,10 +230,11 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
         </Panel>
 
         <Panel title="How long they stayed"
-               sub="One average would describe nobody — forty devices at zero seconds and two at twenty minutes average to something neither of them did. The shape is the point.">
+               sub="The shape of dwell time — most bounce on load, a few actually read.">
           {!dwell ? <Loading /> : dwell.length === 0 ? <Empty label="Nothing in this window" /> : (
-            <div className="space-y-2.5 pt-1">
-              {dwell.map((b) => {
+            <div className="space-y-2.5 px-4 sm:px-5 py-4">
+              {DWELL_BUCKETS.map((name) => {
+                const b = { bucket: name, devices: dwell.find((d) => d.bucket === name)?.devices ?? 0 };
                 const total = Math.max(1, dwell.reduce((n, x) => n + x.devices, 0));
                 const pct = Math.round((b.devices / total) * 100);
                 const dead = b.bucket.startsWith("1.");
@@ -228,37 +251,29 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
                   </div>
                 );
               })}
-              <Note>
-                The top bar is the one that matters. A device there fired only the events that
-                arrive automatically on page load — it never scrolled, tapped or waited.
-              </Note>
             </div>
           )}
         </Panel>
       </div>
 
       <Panel title="Activity, day by day"
-             sub="Distinct devices per day, with the share of them that reached the pay button. Everything else on this screen is a total for the whole window — this is the only view that shows whether today is like last Tuesday.">
+             sub="Distinct devices per day, and the share that reached the pay button.">
         {!byDay ? <Loading /> : byDay.every((d) => d.visitors === 0)
           ? <Empty label="No activity recorded in this window yet" />
-          : <ActivityChart rows={byDay} />}
+          : <ActivityChart rows={byDay} height={96} />}
       </Panel>
 
       <Panel title="The funnel"
-             sub="Distinct devices reaching each step, each bar as wide as the people who got there. A device that skipped a step — an ad landing straight on a report page — is counted where it actually arrived.">
+             sub="Distinct devices reaching each step — counted where they arrived, even if they skipped one.">
         {!funnel ? <Loading /> : funnel[0]?.people === 0 ? (
           <Empty label="No events recorded in this window yet" />
         ) : (
           <FunnelSteps steps={funnel} worst={worst?.step} />
         )}
-        <Note>
-          Steps are counted independently, so a later step can exceed an earlier one — that is a
-          signal, not a bug: it means people are arriving mid-funnel from an ad or a shared link.
-        </Note>
       </Panel>
 
       <Panel title="Interest by report"
-             sub="Which reports get looked at, and how far that look travels. The gap between viewed and paid is where the money is being left.">
+             sub="Which reports get looked at, and how far the look travels — viewed vs paid is the gap.">
         {!interest ? <Loading /> : interest.length === 0 ? <Empty label="Nothing viewed yet" /> : (
           <TableWrap>
               <thead><tr>
@@ -295,11 +310,71 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
         )}
       </Panel>
 
+      {/* One Meta campaign scatters across five source values (fb · ig · meta ·
+          an · instagram.com). This pulls them back together so "how much did
+          Meta send" is one number, not a mental sum. */}
+      <Panel title="Where visitors came from"
+             sub="Every traffic source in the window — Meta's placements pulled back into one.">
+        {!traffic ? <Loading /> : traffic.sources.length === 0 ? <Empty label="No traffic in this window" /> : (() => {
+          const metaRows = traffic.sources.filter((s) => s.is_meta).sort((a, b) => b.devices - a.devices);
+          const others = traffic.sources.filter((s) => !s.is_meta).sort((a, b) => b.devices - a.devices);
+          const maxDev = Math.max(1, traffic.meta.devices, ...others.map((s) => s.devices));
+          const bar = (d: number) => (
+            <div className="mt-1 h-1 rounded-full bg-line overflow-hidden max-w-[220px]">
+              <div className="h-full rounded-full bg-brass" style={{ width: `${(d / maxDev) * 100}%` }} />
+            </div>
+          );
+          return (
+            <TableWrap>
+              <thead><tr>
+                <Th>Source</Th><Th align="right">Unique users</Th><Th align="right">Events</Th>
+              </tr></thead>
+              <tbody>
+                {metaRows.length > 0 && (
+                  <>
+                    {/* The rollup counts DISTINCT devices, so it can be smaller
+                        than the placements below it add up to — one person who
+                        touched fb and meta is one Meta user, counted once. */}
+                    <Tr>
+                      <Td>
+                        <span className="font-semibold text-brass">Meta — all placements</span>
+                        {bar(traffic.meta.devices)}
+                      </Td>
+                      <Td align="right"><span className="font-semibold text-brass tabular-nums">{num(traffic.meta.devices)}</span></Td>
+                      <Td align="right" mono>{num(traffic.meta.events)}</Td>
+                    </Tr>
+                    {metaRows.map((s) => (
+                      <Tr key={s.source}>
+                        <Td>
+                          <span className="pl-4 text-muted">↳ {s.source}</span>
+                          {PLACEMENT[s.source.toLowerCase()] && (
+                            <span className="ml-1.5 text-[11px] text-faint">{PLACEMENT[s.source.toLowerCase()]}</span>
+                          )}
+                        </Td>
+                        <Td align="right" mono dim>{num(s.devices)}</Td>
+                        <Td align="right" mono dim>{num(s.events)}</Td>
+                      </Tr>
+                    ))}
+                  </>
+                )}
+                {others.map((s) => (
+                  <Tr key={s.source}>
+                    <Td><span className="font-medium text-fg">{s.source}</span>{bar(s.devices)}</Td>
+                    <Td align="right" mono>{num(s.devices)}</Td>
+                    <Td align="right" mono dim>{num(s.events)}</Td>
+                  </Tr>
+                ))}
+              </tbody>
+            </TableWrap>
+          );
+        })()}
+      </Panel>
+
       {/* Read from the orders table, not from the event stream. Events are
           stitched by a browser-local id that a cleared cache breaks, and the
           row with money on it must not depend on that. */}
       <Panel title="Where the money came from"
-             sub="Grouped on last touch — the click that closed the sale. Taken from the order itself, stamped at checkout.">
+             sub="Last touch — the click that closed the sale, taken from the order itself.">
         {!rev ? <Loading /> : rev.length === 0 ? <Empty label="No orders in this window" /> : (
           <TableWrap>
             <thead><tr>
@@ -327,7 +402,7 @@ export default function Behaviour({ window: w, setWindow }: { window: AdminWindo
       </Panel>
 
       <Panel title="Which campaign won the customer"
-             sub="First touch, held on the buyer for the life of the account. The click above closed a sale; this one earned the relationship.">
+             sub="First touch — the click that earned the buyer, held for the life of the account.">
         {!acq ? <Loading /> : acq.length === 0 ? <Empty label="No buyers yet" /> : (
           <TableWrap>
             <thead><tr>
