@@ -11,7 +11,7 @@ import { track } from "../lib/track";
 import WhyUs from "../sections/WhyUs";
 import { useLang } from "../lib/lang";
 import { ui, pitchFor } from "../lib/reportStrings";
-import { useScrollDepth, useSectionView } from "../lib/engagement";
+import { useScrollDepth, useSectionView, useQualifiedView } from "../lib/engagement";
 import Support from "../components/Support";
 import TrustStrip from "../components/TrustStrip";
 
@@ -142,6 +142,8 @@ export default function ReportPage({ code, designs, palettes, onBuy, onHome }: {
   // every event so the funnel can be cut by report and by which language the
   // page was read in — the whole point of translating this page is to find out
   // whether it sells better in Hindi, and that is unanswerable without it.
+  // ViewContent — the ad set's conversion event — waits for real engagement.
+  useQualifiedView(code);
   useScrollDepth({ code, language: lang });
   const seenPages   = useSectionView<HTMLElement>("sample_pages", { code, language: lang });
   const seenEditions = useSectionView<HTMLElement>("editions",    { code, language: lang });

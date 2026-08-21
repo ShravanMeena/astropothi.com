@@ -193,6 +193,26 @@ async function main() {
       await page.waitForFunction(() => document.documentElement.dataset.seoReady === "1", { timeout: 15_000 });
 
       const html = await page.evaluate(() => {
+        /*
+         * Never freeze a cache-busted URL into static HTML.
+         *
+         * The preview and cover images live at /files/previews/<key>__<rev>/…,
+         * where <rev> is a content hash the API owns. Snapshotting those <img
+         * src> values pinned every prerendered page to whatever revision the
+         * API happened to be on at build time — and the moment the API moved on
+         * and swept the old revision, every cover on the site 404'd until
+         * somebody rebuilt the client. Which is exactly what happened: nine
+         * dead covers on the page an ad campaign was pointing at.
+         *
+         * The client re-renders this subtree on mount and sets the live URL
+         * from the API, so dropping the attribute costs nothing a visitor sees.
+         * The alt text stays, so the markup still describes itself.
+         */
+        document.querySelectorAll('img[src*="/files/previews/"]').forEach((el) => {
+          el.removeAttribute("src");
+          el.removeAttribute("srcset");
+          el.setAttribute("data-preview-src", "runtime");
+        });
         // Framer Motion leaves elements mid-animation at opacity:0 and with a
         // transform. Frozen into static HTML that is an invisible page — for a
         // text-only crawler it is merely odd, but for a human who lands before

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { track } from "./track";
+import { qualify, onQualified } from "./qualify";
 
 /**
  * How far down a page somebody actually got, and which parts they stopped at.
@@ -92,3 +93,54 @@ export function useSectionView<T extends HTMLElement = HTMLDivElement>(
 
   return ref;
 }
+
+/**
+ * Fires the event the ad set optimises on — once per report, and only once the
+ * visitor has actually engaged with it.
+ *
+ * `report_viewed` still fires on mount, because "which report pages get opened"
+ * is a real question and the funnel needs it. What it no longer does is carry
+ * the Pixel's ViewContent: that now rides on `report_engaged`, which needs
+ * twelve seconds, a quarter of the page, or an act of intent. Meta is told a
+ * visitor looked at this report when a visitor has looked at this report.
+ *
+ * Re-arms per report code, so someone comparing three reports counts as three
+ * — the content_ids differ and they really did read three.
+ */
+export function useQualifiedView(code: string | undefined) {
+  useEffect(() => {
+    if (!code) return;
+    let done = false;
+    const fire = () => {
+      if (done) return;
+      done = true;
+      track("report_engaged", { code });
+    };
+    // A visitor already past the bar on an earlier page still has to earn this
+    // one, so the timer and the scroll test restart for this report.
+    const timer = setTimeout(fire, 12_000);
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      try {
+        const doc = document.documentElement;
+        if (doc.scrollHeight - window.innerHeight < 240) return;
+        if (((window.scrollY + window.innerHeight) / doc.scrollHeight) * 100 >= 25) fire();
+      } catch { /* ignore */ }
+    };
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(measure); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    // …unless they do something only an interested person does, which counts
+    // straight away on any page.
+    const unsub = onQualified(fire);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("scroll", onScroll);
+      if (raf) cancelAnimationFrame(raf);
+      unsub();
+    };
+  }, [code]);
+}
+
+/** Re-exported so pages need only one import for engagement concerns. */
+export { qualify };

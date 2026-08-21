@@ -172,6 +172,10 @@ for (const p of paths) {
   const h = readFileSync(f, "utf8");
   ok(!/\b[6-9]\d{9}\b/.test(textOf(h).replace(/9660801827/g, "")), `${p}: no stray phone numbers`);
   ok(!/"token"|Bearer /.test(h), `${p}: no credentials`);
+  // A revision-stamped asset URL baked into static HTML goes stale the moment
+  // the API re-warms, and every prerendered page 404s its images until the next
+  // client build. The prerenderer strips these; this makes sure it kept doing so.
+  ok(!/src="[^"]*\/files\/previews\//.test(h), `${p}: no cache-busted preview URLs frozen in`);
 }
 
 console.log(`\n  ${pass} passed, ${fails.length} failed\n`);

@@ -1,5 +1,6 @@
 import { getUserToken } from "./account";
 import { captureAttribution, currentCampaign } from "./attribution";
+import { qualify, INTENT_EVENTS } from "./qualify";
 
 /**
  * What people actually do on the site.
@@ -93,7 +94,13 @@ function fbq(...args: unknown[]) {
 
 // site event name → { fb standard event, or custom }
 const STANDARD: Record<string, string> = {
-  report_viewed:      "ViewContent",     // looked at a report's page
+  // NOT report_viewed. That fires the moment a report page mounts, and the ad
+  // set optimises on ViewContent — so every one-second bounce was reported to
+  // Meta as a success, and Meta went and found more of them. report_engaged
+  // fires instead, once the visitor has stayed, scrolled, or acted. See
+  // lib/qualify.ts. report_viewed still goes up as a custom event, so the
+  // funnel keeps its "opened a report page" step.
+  report_engaged:     "ViewContent",     // actually read a report's page
   sample_opened:      "ViewContent",     // opened the sample pages — real intent
   pay_clicked:        "InitiateCheckout",
   payment_redirected: "InitiateCheckout",
@@ -123,6 +130,9 @@ function toPixel(name: string, props?: Record<string, unknown>) {
 
 export function track(name: string, properties?: Record<string, unknown>) {
   try {
+    // Some things nobody does by accident. They clear the engagement bar on the
+    // spot, which is what releases the welcome sheet and ViewContent.
+    if (INTENT_EVENTS.has(name)) qualify(name);
     const utm = currentCampaign();
     queue.push({
       name,

@@ -39,6 +39,7 @@ import { useSignedIn } from "./lib/account";
 import { useTheme } from "./lib/theme";
 import Support from "./components/Support";
 import { startTracking, pageView, track } from "./lib/track";
+import { useQualifyWatcher } from "./lib/qualify";
 
 /**
  * One route in, one head out.
@@ -84,6 +85,10 @@ export default function App() {
   // Behaviour tracking starts before anything else so the very first page view
   // of a session is recorded, including for a visitor who bounces in 3 seconds.
   useEffect(() => { startTracking(); }, []);
+
+  // Decides when a visitor has stopped being a bounce. The welcome sheet and
+  // the Pixel's ViewContent both wait on it.
+  useQualifyWatcher();
 
   // Every route change is a page view. Recorded here rather than in each page
   // so a new screen cannot be added and quietly go unmeasured.

@@ -142,6 +142,12 @@ const REPORT_SEO: Record<string, { title: string; description: string; question:
       "The 10th house and its lord, the four grahas that signify livelihood, the Dashamsha read for work alone, your Amatyakaraka, and the dasha windows in which a career turns.",
     question: "What does my kundali say about my career?"
   },
+  couples: {
+    title: "Couples Challenge: A Book of Questions for Two",
+    description:
+      "Thirty-seven chapters of questions for the two of you — how you met, what usually goes unsaid, and weekly check-ins. Printed as a keepsake with both your names.",
+    question: "What is the Couples Challenge book?"
+  },
   vastu: {
     title: "Vastu Report — Your Home, Direction by Direction",
     description:

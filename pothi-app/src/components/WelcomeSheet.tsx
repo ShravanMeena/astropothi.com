@@ -5,6 +5,7 @@ import { setUserToken, getUserToken } from "../lib/account";
 import { track, identify } from "../lib/track";
 import { attribution } from "../lib/attribution";
 import { useLang, type Lang } from "../lib/lang";
+import { onQualified } from "../lib/qualify";
 
 const SEEN = "pothi.welcome.seen";
 
@@ -74,13 +75,34 @@ export default function WelcomeSheet() {
    * already set — so it opened, vanished, and never came back. Deriving it here
    * makes a remount recompute the same answer instead of forgetting it.
    */
-  const [open, setOpen] = useState(() => {
+  /**
+   * Eligible to be shown — not the same as shown.
+   *
+   * This used to be the `open` state itself, so the sheet covered the page on
+   * the first paint. An ad visitor's very first sight of astropothi was a
+   * full-screen box asking for their phone number, before they had read a
+   * single line about what we sell. It was shown 61 times and submitted once,
+   * and the paid cohort — 26 devices — gave a number zero times.
+   *
+   * So eligibility is decided here, and the actual opening waits for the
+   * visitor to show they are reading. See lib/qualify.ts.
+   */
+  const eligible = useRef<boolean>((() => {
     try {
       return !getUserToken() && !sessionStorage.getItem(SEEN);
     } catch {
       return !getUserToken();                       // private mode: this visit only
     }
-  });
+  })());
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!eligible.current) return;
+    return onQualified(() => {
+      // They may have signed in during the wait — asking then is just rude.
+      if (!getUserToken()) setOpen(true);
+    });
+  }, []);
   const [phone, setPhone] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
